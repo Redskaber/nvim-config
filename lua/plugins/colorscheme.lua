@@ -72,6 +72,7 @@ return {
           NormalFloat = { bg = "none" },
           FloatBorder = { bg = "none", fg = colors.overlay0 },
           FloatTitle = { bg = "none" },
+          CursorLine = { bg = "none" }, -- LazyButton
 
           -- ▼ 命令行 & 消息区 ▼
           CmdlineNormal = { bg = "none" },
