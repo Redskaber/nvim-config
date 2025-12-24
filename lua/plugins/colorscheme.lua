@@ -61,7 +61,7 @@ return {
         which_key = true, -- 快捷键提示
       },
 
-      -- 自定义高亮：实现全局透明（保留部分关键元素背景以保证可读性）
+      -- custon highlights global transparent
       custom_highlights = function(colors)
         return {
           -- ▼ 核心区域透明化 ▼
@@ -129,6 +129,7 @@ return {
           WhichKeyDesc = { bg = "none" },
           WhichKeySeperator = { bg = "none" },
           WhichKeyBorder = { bg = "none", fg = colors.gray0 },
+          WhichKeyNormal = { bg = "none" },
 
           -- ▼ Dashboard / Alpha 启动页 ▼
           AlphaHeader = { bg = "none" },
@@ -153,26 +154,26 @@ return {
           NonText = { bg = "none" },
           EndOfBuffer = { bg = "none" },
 
-          -- ▼ Diff 区域（颜色仅用前景，背景透明） ▼
+          -- ▼ Diff 区域 ▼
           DiffAdd = { bg = "none", fg = colors.green },
           DiffChange = { bg = "none", fg = colors.yellow },
           DiffDelete = { bg = "none", fg = colors.red },
           DiffText = { bg = "none", fg = colors.blue },
 
-          -- ▼ Indent Blankline（Mini 版） ▼
+          -- ▼ Indent Blankline (Mini version) ▼
           IndentBlanklineContextStart = { bg = "none" },
           IndentBlanklineChar = { bg = "none" },
         }
       end,
     },
 
-    -- ▼ 可选依赖：Bufferline 高亮适配 ▼
+    -- ▼ optional：Bufferline ▼
     specs = {
       {
         "akinsho/bufferline.nvim",
         optional = true,
         opts = function(_, opts)
-          -- 仅在使用 catppuccin 时注入其专用 bufferline 主题
+          -- only catppuccin inject bufferline
           if (vim.g.colors_name or ""):find("catppuccin") then
             opts.highlights = require("catppuccin.special.bufferline").get_theme()
           end
