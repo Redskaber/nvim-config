@@ -6,3 +6,6 @@ debug
 foo.*
 *.log
 data
+# lock file
+lazy-lock.json
+
