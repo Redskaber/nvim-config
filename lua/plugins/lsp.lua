@@ -254,21 +254,4 @@ return {
       },
     },
   },
-  {
-    "nvimdev/lspsaga.nvim",
-    dependencies = {
-      "nvim-treesitter/nvim-treesitter", -- optional
-      "nvim-tree/nvim-web-devicons", -- optional
-    },
-    config = function()
-      require("lspsaga").setup({})
-    end,
-    keys = {
-      { "<leader>ca", "<cmd>Lspsaga code_action<CR>", desc = "Code Action" },
-      { "gd", "<cmd>Lspsaga lsp_finder<CR>", desc = "Go to Definition (Lspsaga)" },
-      { "K", "<cmd>Lspsaga hover_doc<CR>", desc = "Hover Doc" },
-      { "[d", "<cmd>Lspsaga diagnostic_jump_prev<CR>", desc = "Prev Diagnostic" },
-      { "]d", "<cmd>Lspsaga diagnostic_jump_next<CR>", desc = "Next Diagnostic" },
-    },
-  },
 }

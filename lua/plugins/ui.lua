@@ -7,9 +7,21 @@ return {
     "akinsho/bufferline.nvim",
     keys = {
       { "<leader>bp", "<Cmd>BufferLineTogglePin<CR>", desc = "Toggle Pin" },
-      { "<leader>bP", "<Cmd>BufferLineGroupClose ungrouped<CR>", desc = "Delete Non-Pinned Buffers" },
-      { "<leader>br", "<Cmd>BufferLineCloseRight<CR>", desc = "Delete Buffers to the Right" },
-      { "<leader>bl", "<Cmd>BufferLineCloseLeft<CR>", desc = "Delete Buffers to the Left" },
+      {
+        "<leader>bP",
+        "<Cmd>BufferLineGroupClose ungrouped<CR>",
+        desc = "Delete Non-Pinned Buffers",
+      },
+      {
+        "<leader>br",
+        "<Cmd>BufferLineCloseRight<CR>",
+        desc = "Delete Buffers to the Right",
+      },
+      {
+        "<leader>bl",
+        "<Cmd>BufferLineCloseLeft<CR>",
+        desc = "Delete Buffers to the Left",
+      },
       { "<S-h>", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev Buffer" },
       { "<S-l>", "<cmd>BufferLineCycleNext<cr>", desc = "Next Buffer" },
       { "[b", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev Buffer" },
@@ -66,7 +78,9 @@ return {
         options = {
           theme = "auto",
           globalstatus = vim.o.laststatus == 3,
-          disabled_filetypes = { statusline = { "dashboard", "alpha", "ministarter", "snacks_dashboard" } },
+          disabled_filetypes = {
+            statusline = { "dashboard", "alpha", "ministarter", "snacks_dashboard" },
+          },
         },
         sections = {
           lualine_a = { "mode" },
@@ -83,7 +97,12 @@ return {
                 hint = icons.diagnostics.Hint,
               },
             },
-            { "filetype", icon_only = true, separator = "", padding = { left = 1, right = 0 } },
+            {
+              "filetype",
+              icon_only = true,
+              separator = "",
+              padding = { left = 1, right = 0 },
+            },
             { LazyVim.lualine.pretty_path() },
           },
           lualine_x = {
@@ -278,6 +297,7 @@ return {
           ███████╗██║  ██║███████╗   ██║    ╚████╔╝ ██║██║ ╚═╝ ██║           
           ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝     ╚═══╝  ╚═╝╚═╝     ╚═╝           
           ]],
+          -- custom menu
           -- stylua: ignore
           ---@type snacks.dashboard.Item[]
           -- keys = {
@@ -330,7 +350,11 @@ return {
     "akinsho/toggleterm.nvim",
     keys = {
       { "<C-t>", "<cmd>ToggleTerm<CR>", desc = "Toggle Terminal" },
-      { "<leader>t", "<cmd>ToggleTerm direction=float<CR>", desc = "Float Terminal" },
+      {
+        "<leader>t",
+        "<cmd>ToggleTerm direction=float<CR>",
+        desc = "Float Terminal",
+      },
     },
     opts = {
       -- 最小配置即可激活命令
