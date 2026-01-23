@@ -240,7 +240,7 @@ return {
         "shfmt", -- Shell
 
         -- 🧠 LSP Servers
-        "clangd",
+        -- "clangd",  -- used local
         "lua-language-server",
         "pyright",
         "rust-analyzer",
