@@ -172,7 +172,6 @@ return {
               "clangd",
               "--background-index",
               "--compile-commands-dir=build", -- 自动查找 build/compile_commands.json
-              "--query-driver=*/gcc,*/g++,*/clang,*/clang++",
               "--fallback-style=llvm",
               "--all-scopes-completion",
             },
