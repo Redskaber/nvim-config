@@ -102,7 +102,7 @@ return {
             desc = "Next Reference", enabled = function() return Snacks.words.is_enabled() end },
           { "<a-p>", function() Snacks.words.jump(-vim.v.count1, true) end, has = "documentHighlight",
             desc = "Prev Reference", enabled = function() return Snacks.words.is_enabled() end },
-        },
+          },
           },
           lua_ls = {
             -- mason = false, -- set to false if you don't want this server to be installed with mason
@@ -168,6 +168,7 @@ return {
             },
           },
           clangd = {
+            mason = false,
             cmd = {
               "clangd",
               "--background-index",
@@ -239,10 +240,10 @@ return {
         "shfmt", -- Shell
 
         -- 🧠 LSP Servers
+        "clangd",
         "lua-language-server",
         "pyright",
         "rust-analyzer",
-        "clangd",
         "typescript-language-server", -- or "deno" if using Deno
         "json-lsp",
         "yaml-language-server",
