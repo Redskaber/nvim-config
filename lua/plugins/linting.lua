@@ -10,8 +10,8 @@ return {
       events = { "BufWritePost", "BufReadPost", "InsertLeave" },
       linters_by_ft = {
         -- C / C++
-        c = { "clangtidy", "cppcheck" },
-        cpp = { "clangtidy", "cppcheck" },
+        c = { "clangtidy" },
+        cpp = { "clangtidy" },
         -- Rust
         rust = { "clippy" },
         -- JavaScript / TypeScript
