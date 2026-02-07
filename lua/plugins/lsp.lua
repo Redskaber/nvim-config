@@ -104,7 +104,11 @@ return {
                 desc = "Prev Reference", enabled = function() return Snacks.words.is_enabled() end },
             },
           },
-          nix = {},
+          -- zig
+          zls = {},
+          -- nix
+          nil_ls = {},
+          -- lua
           lua_ls = {
             -- mason = false, -- set to false if you don't want this server to be installed with mason
             -- Use this to add any additional keymaps
@@ -136,6 +140,7 @@ return {
               },
             },
           },
+          -- python
           pyright = {
             settings = {
               python = {
@@ -147,6 +152,7 @@ return {
               },
             },
           },
+          -- rust
           rust_analyzer = {
             settings = {
               ["rust-analyzer"] = {
@@ -168,6 +174,7 @@ return {
               },
             },
           },
+          -- c/c++
           clangd = {
             mason = false,
             cmd = {
@@ -178,6 +185,7 @@ return {
               "--all-scopes-completion",
             },
           },
+          -- js/ts
           tsserver = {
             settings = {
               typescript = {
@@ -209,6 +217,7 @@ return {
           -- Optional: JSON, YAML, etc. (handled by built-in or schemastore)
           jsonls = {},
           yamlls = {},
+          taplo = {},
         },
         -- you can do any additional lsp server setup here
         -- return true if you don't want this server to be setup with lspconfig
@@ -248,6 +257,7 @@ return {
         "typescript-language-server", -- or "deno" if using Deno
         "json-lsp",
         "yaml-language-server",
+        "taplo", -- toml
 
         -- 🧪 Optional: linters (if you use them via null-ls or trouble.nvim)
         -- "eslint-lsp",

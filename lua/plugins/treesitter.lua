@@ -84,6 +84,8 @@ return {
         "vimdoc",
         "xml",
         "yaml",
+        -- "zig",
+        -- "clang",
       },
     },
   },
