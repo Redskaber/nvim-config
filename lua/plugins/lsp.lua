@@ -245,7 +245,7 @@ return {
         "ruff", -- Python (includes ruff-format)
         "black", -- Python (alternative)
         "prettierd", -- JS/TS/JSON/YAML/Markdown/etc.
-        "rustfmt", -- Rust
+        "rustup", -- Rust
         "clang-format", -- C/C++
         "shfmt", -- Shell
 
