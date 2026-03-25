@@ -14,6 +14,30 @@ return {
   },
   {
     "mg979/vim-visual-multi",
+    keys = {
+      { "<A-d>", mode = { "n", "x" }, desc = "VM: Add next match (word/subword)" },
+      { "<A-j>", mode = "n", desc = "VM: Add cursor ↓" },
+      { "<A-k>", mode = "n", desc = "VM: Add cursor ↑" },
+
+      { "<leader>vmu", "<Plug>(VM-Undo)", desc = "VM: Undo regions" },
+      { "<leader>vmr", "<Plug>(VM-Redo)", desc = "VM: Redo regions" },
+      { "<leader>vms", "<Plug>(VM-Skip)", desc = "VM: Skip match" },
+      { "<leader>vmq", "<Plug>(VM-Remove)", desc = "VM: Remove region" },
+    },
+    init = function()
+      vim.g.VM_maps = {
+        ["Find Under"] = "<A-d>", -- Normal 模式：整词匹配
+        ["Find Subword Under"] = "<A-d>", -- Visual 模式：子词匹配（自动识别上下文）
+        ["Add Cursor Down"] = "<A-j>",
+        ["Add Cursor Up"] = "<A-k>",
+        ["Skip Region"] = "<leader>vms",
+        ["Remove Region"] = "<leader>vmq",
+      }
+      vim.g.VM_leader = " " -- 与 LazyVim 空格 leader 对齐
+      vim.g.VM_mouse_mappings = 1
+      -- 可选：禁用默认 Tab 切换（避免与缩进冲突）
+      -- vim.g.VM_default_mappings = { ["Switch Mode"] = "" }
+    end,
   },
   {
     "folke/which-key.nvim",
