@@ -88,6 +88,10 @@ return {
         toml = "# %s",
         jsonc = "// %s", -- for .json with comments (VS Code style)
         make = "# %s",
+        nix = {
+          "# %s",
+          "/* %s */",
+        },
       },
     },
   },
@@ -102,12 +106,20 @@ return {
             a = { "@block.outer", "@conditional.outer", "@loop.outer" },
             i = { "@block.inner", "@conditional.inner", "@loop.inner" },
           }),
-          f = ai.gen_spec.treesitter({ a = "@function.outer", i = "@function.inner" }), -- function
+          f = ai.gen_spec.treesitter({
+            a = "@function.outer",
+            i = "@function.inner",
+          }), -- function
           c = ai.gen_spec.treesitter({ a = "@class.outer", i = "@class.inner" }), -- class
           t = { "<([%p%w]-)%f[^<%w][^<>]->.-</%1>", "^<.->().*()</[^/]->$" }, -- tags
           d = { "%f[%d]%d+" }, -- digits
           e = { -- Word with case
-            { "%u[%l%d]+%f[^%l%d]", "%f[%S][%l%d]+%f[^%l%d]", "%f[%P][%l%d]+%f[^%l%d]", "^[%l%d]+%f[^%l%d]" },
+            {
+              "%u[%l%d]+%f[^%l%d]",
+              "%f[%S][%l%d]+%f[^%l%d]",
+              "%f[%P][%l%d]+%f[^%l%d]",
+              "^[%l%d]+%f[^%l%d]",
+            },
             "^().*()$",
           },
           g = LazyVim.mini.ai_buffer, -- buffer
@@ -150,6 +162,17 @@ return {
       "rcarriga/nvim-dap-ui",
       "theHamsta/nvim-dap-virtual-text",
     },
-    ft = { "go", "rust", "python", "javascript", "typescript", "lua", "c", "cpp" },
+    ft = {
+      "go",
+      "rust",
+      "python",
+      "javascript",
+      "typescript",
+      "lua",
+      "c",
+      "cpp",
+      "java",
+      "zig",
+    },
   },
 }

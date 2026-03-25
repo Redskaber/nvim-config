@@ -13,6 +13,43 @@ return {
     opts = {},
   },
   {
+    "mg979/vim-visual-multi",
+    init = function()
+      vim.g.VM_mouse_mappings = 1 -- 启用基础鼠标映射
+      -- 可选：显式定义
+      vim.keymap.set(
+        "n",
+        "<C-LeftMouse>",
+        "<Plug>(VM-Mouse-Cursor)",
+        { silent = true }
+      )
+      vim.keymap.set(
+        "n",
+        "<C-RightMouse>",
+        "<Plug>(VM-Mouse-Word)",
+        { silent = true }
+      )
+      vim.keymap.set(
+        "n",
+        "<M-C-RightMouse>",
+        "<Plug>(VM-Mouse-Column)",
+        { silent = true }
+      )
+
+      -- 撤销/重做
+      vim.keymap.set("n", "<leader>vu", "<Plug>(VM-Undo)", { desc = "VM Undo" })
+      vim.keymap.set("n", "<leader>vr", "<Plug>(VM-Redo)", { desc = "VM Redo" })
+
+      -- 重映射高频操作
+      vim.g.VM_maps = {
+        ["Find Under"] = "<C-d>", -- 替代 Ctrl+n
+        ["Find Subword Under"] = "<C-d>",
+        ["Add Cursor Down"] = "<A-j>", -- Alt+j/k 垂直添加（终端友好）
+        ["Add Cursor Up"] = "<A-k>",
+      }
+    end,
+  },
+  {
     "folke/which-key.nvim",
     opts = {
       preset = "helix",
@@ -156,7 +193,11 @@ return {
         WARN = { icon = " ", color = "warning", alt = { "WARNING", "XXX" } },
         PERF = { icon = " ", alt = { "OPTIM", "PERFORMANCE", "OPTIMIZE" } },
         NOTE = { icon = " ", color = "hint", alt = { "INFO" } },
-        TEST = { icon = "⏲ ", color = "test", alt = { "TESTING", "PASSED", "FAILED" } },
+        TEST = {
+          icon = "⏲ ",
+          color = "test",
+          alt = { "TESTING", "PASSED", "FAILED" },
+        },
       },
       gui_style = {
         fg = "NONE", -- The gui style to use for the fg highlight group.
