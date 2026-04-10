@@ -8,4 +8,5 @@ foo.*
 data
 # lock file
 lazy-lock.json
+terminal.txt
 
