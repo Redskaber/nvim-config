@@ -1,53 +1,9 @@
--- ~/.config/nvim/lua/plugins/coding.lua
--- author: redskaber
--- datetime: 2025-12-12
+-- ~/.config/nvim/lua/plugins/linting.lua
+-- Engine declaration only. linters_by_ft built by runtime/adapters/lint.lua.
 
 return {
   {
     "mfussenegger/nvim-lint",
-    opts = {
-      -- Event to trigger linters
-      events = { "BufWritePost", "BufReadPost", "InsertLeave" },
-      linters_by_ft = {
-        -- C / C++
-        c = { "clangtidy" },
-        cpp = { "clangtidy" },
-        -- Rust
-        rust = { "clippy" },
-        -- JavaScript / TypeScript
-        javascript = { "eslint" },
-        javascriptreact = { "eslint" },
-        typescript = { "eslint" },
-        typescriptreact = { "eslint" },
-        -- Python
-        python = { "ruff" },
-        -- lua
-        -- lua = { "luacheck" },
-        -- Shell / Fish
-        sh = { "shellcheck" },
-        fish = { "fish" },
-        -- Markdown / Text
-        -- markdown = { "markdownlint" },
-        text = { "typos" },
-        -- Use the "*" filetype to run linters on all filetypes.
-        -- ['*'] = { 'global linter' },
-        -- Use the "_" filetype to run linters on filetypes that don't have other linters configured.
-        -- ['_'] = { 'fallback linter' },
-        -- ["*"] = { "typos" },
-      },
-      -- LazyVim extension to easily override linter options
-      -- or add custom linters.
-      ---@type table<string,table>
-      linters = {
-        -- -- Example of using selene only when a selene.toml file is present
-        -- selene = {
-        --   -- `condition` is another LazyVim extension that allows you to
-        --   -- dynamically enable/disable linters based on the context.
-        --   condition = function(ctx)
-        --     return vim.fs.find({ "selene.toml" }, { path = ctx.filename, upward = true })[1]
-        --   end,
-        -- },
-      },
-    },
+    -- No opts here: all opts injected by runtime adapter spec
   },
 }

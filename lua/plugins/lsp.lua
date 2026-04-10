@@ -1,32 +1,29 @@
 -- ~/.config/nvim/lua/plugins/lsp.lua
--- author: redskaber
--- datetime: 2025-12-12
+-- LSP engine wiring only. Server configs come from runtime/adapters/lsp.lua.
 
 return {
   { "mason-org/mason-lspconfig.nvim" },
+
   {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "mason.nvim",
+      "mason-org/mason.nvim",
       { "mason-org/mason-lspconfig.nvim", config = function() end },
     },
     opts_extend = { "servers.*.keys" },
     opts = function()
       ---@class PluginLspOpts
       local ret = {
-        -- options for vim.diagnostic.config()
         ---@type vim.diagnostic.Opts
         diagnostics = {
           underline = true,
           update_in_insert = false,
+          severity_sort = true,
           virtual_text = {
             spacing = 4,
             source = "if_many",
             prefix = "●",
-            -- this will set set the prefix to a function that returns the diagnostics icon based on the severity
-            -- prefix = "icons",
           },
-          severity_sort = true,
           signs = {
             text = {
               [vim.diagnostic.severity.ERROR] = LazyVim.config.icons.diagnostics.Error,
@@ -36,38 +33,26 @@ return {
             },
           },
         },
-        -- Enable this to enable the builtin LSP inlay hints on Neovim.
-        -- Be aware that you also will need to properly configure your LSP server to
-        -- provide the inlay hints.
+
         inlay_hints = {
           enabled = true,
-          exclude = { "vue" }, -- filetypes for which you don't want to enable inlay hints
+          exclude = { "vue" },
         },
-        -- Enable this to enable the builtin LSP code lenses on Neovim.
-        -- Be aware that you also will need to properly configure your LSP server to
-        -- provide the code lenses.
-        codelens = {
-          enabled = false,
-        },
-        -- Enable this to enable the builtin LSP folding on Neovim.
-        -- Be aware that you also will need to properly configure your LSP server to
-        -- provide the folds.
-        folds = {
-          enabled = true,
-        },
-        -- options for vim.lsp.buf.format
-        -- `bufnr` and `filter` is handled by the LazyVim formatter,
-        -- but can be also overridden when specified
+
+        codelens = { enabled = false },
+
+        -- P0-6: primary strategy is treesitter expr (set in options.lua);
+        -- LSP folding is a secondary enhancement when server supports it.
+        folds = { enabled = true },
+
         format = {
           formatting_options = nil,
           timeout_ms = nil,
         },
-        -- LSP Server Settings
-        -- Sets the default configuration for an LSP client (or all clients if the special name "*" is used).
-        ---@alias lazyvim.lsp.Config vim.lsp.Config|{mason?:boolean, enabled?:boolean, keys?:LazyKeysLspSpec[]}
+
+        -- Shared server defaults + key bindings
         ---@type table<string, lazyvim.lsp.Config|boolean>
         servers = {
-          -- configuration for all lsp servers
           ["*"] = {
             capabilities = {
               workspace = {
@@ -79,191 +64,37 @@ return {
             },
             -- stylua: ignore
             keys = {
-              { "<leader>cl", function() Snacks.picker.lsp_config() end, desc = "Lsp Info" },
-              { "gd", vim.lsp.buf.definition, desc = "Goto Definition", has = "definition" },
-              { "gr", vim.lsp.buf.references, desc = "References", nowait = true },
-              { "gI", vim.lsp.buf.implementation, desc = "Goto Implementation" },
-              { "gy", vim.lsp.buf.type_definition, desc = "Goto T[y]pe Definition" },
-              { "gD", vim.lsp.buf.declaration, desc = "Goto Declaration" },
-              { "K", function() return vim.lsp.buf.hover() end, desc = "Hover" },
-              { "gK", function() return vim.lsp.buf.signature_help() end, desc = "Signature Help", has = "signatureHelp" },
-              { "<c-k>", function() return vim.lsp.buf.signature_help() end, mode = "i", desc = "Signature Help", has = "signatureHelp" },
-              { "<leader>ca", vim.lsp.buf.code_action, desc = "Code Action", mode = { "n", "x" }, has = "codeAction" },
-              { "<leader>cc", vim.lsp.codelens.run, desc = "Run Codelens", mode = { "n", "x" }, has = "codeLens" },
-              { "<leader>cC", vim.lsp.codelens.refresh, desc = "Refresh & Display Codelens", mode = { "n" }, has = "codeLens" },
-              { "<leader>cR", function() Snacks.rename.rename_file() end, desc = "Rename File", mode ={"n"}, has = { "workspace/didRenameFiles", "workspace/willRenameFiles" } },
-              { "<leader>cr", vim.lsp.buf.rename, desc = "Rename", has = "rename" },
-              { "<leader>cA", LazyVim.lsp.action.source, desc = "Source Action", has = "codeAction" },
-              { "]]", function() Snacks.words.jump(vim.v.count1) end, has = "documentHighlight",
-                desc = "Next Reference", enabled = function() return Snacks.words.is_enabled() end },
-              { "[[", function() Snacks.words.jump(-vim.v.count1) end, has = "documentHighlight",
-                desc = "Prev Reference", enabled = function() return Snacks.words.is_enabled() end },
-              { "<a-n>", function() Snacks.words.jump(vim.v.count1, true) end, has = "documentHighlight",
-                desc = "Next Reference", enabled = function() return Snacks.words.is_enabled() end },
-              { "<a-p>", function() Snacks.words.jump(-vim.v.count1, true) end, has = "documentHighlight",
-                desc = "Prev Reference", enabled = function() return Snacks.words.is_enabled() end },
+              { "<leader>cl", function() Snacks.picker.lsp_config() end,          desc = "LSP info" },
+              { "gd",         vim.lsp.buf.definition,                             desc = "Goto definition",          has = "definition" },
+              { "gr",         vim.lsp.buf.references,                             desc = "References",               nowait = true },
+              { "gI",         vim.lsp.buf.implementation,                         desc = "Goto implementation" },
+              { "gy",         vim.lsp.buf.type_definition,                        desc = "Goto type definition" },
+              { "gD",         vim.lsp.buf.declaration,                            desc = "Goto declaration" },
+              { "K",          function() vim.lsp.buf.hover() end,                 desc = "Hover" },
+              { "gK",         function() vim.lsp.buf.signature_help() end,        desc = "Signature help",           has = "signatureHelp" },
+              { "<c-k>",      function() vim.lsp.buf.signature_help() end,        desc = "Signature help",           mode = "i", has = "signatureHelp" },
+              { "<leader>ca", vim.lsp.buf.code_action,                            desc = "Code action",              mode = { "n", "x" }, has = "codeAction" },
+              { "<leader>cc", vim.lsp.codelens.run,                               desc = "Run codelens",             mode = { "n", "x" }, has = "codeLens" },
+              { "<leader>cC", vim.lsp.codelens.refresh,                           desc = "Refresh codelens",         has = "codeLens" },
+              { "<leader>cR", function() Snacks.rename.rename_file() end,         desc = "Rename file",              mode = { "n" }, has = { "workspace/didRenameFiles", "workspace/willRenameFiles" } },
+              { "<leader>cr", vim.lsp.buf.rename,                                 desc = "Rename symbol",            has = "rename" },
+              { "<leader>cA", LazyVim.lsp.action.source,                         desc = "Source action",            has = "codeAction" },
+              { "]]",         function() Snacks.words.jump(vim.v.count1) end,     desc = "Next reference",           has = "documentHighlight", enabled = function() return Snacks.words.is_enabled() end },
+              { "[[",         function() Snacks.words.jump(-vim.v.count1) end,    desc = "Prev reference",           has = "documentHighlight", enabled = function() return Snacks.words.is_enabled() end },
+              { "<a-n>",      function() Snacks.words.jump(vim.v.count1, true) end,  desc = "Next reference",       has = "documentHighlight", enabled = function() return Snacks.words.is_enabled() end },
+              { "<a-p>",      function() Snacks.words.jump(-vim.v.count1, true) end, desc = "Prev reference",       has = "documentHighlight", enabled = function() return Snacks.words.is_enabled() end },
             },
           },
-          -- zig
-          zls = {},
-          -- nix
-          nil_ls = {},
-          -- lua
-          lua_ls = {
-            -- mason = false, -- set to false if you don't want this server to be installed with mason
-            -- Use this to add any additional keymaps
-            -- for specific lsp servers
-            -- ---@type LazyKeysSpec[]
-            -- keys = {},
-            settings = {
-              Lua = {
-                workspace = {
-                  checkThirdParty = false,
-                },
-                codeLens = {
-                  enable = true,
-                },
-                completion = {
-                  callSnippet = "Replace",
-                },
-                doc = {
-                  privateName = { "^_" },
-                },
-                hint = {
-                  enable = true,
-                  setType = false,
-                  paramType = true,
-                  paramName = "Disable",
-                  semicolon = "Disable",
-                  arrayIndex = "Disable",
-                },
-              },
-            },
-          },
-          -- python
-          pyright = {
-            settings = {
-              python = {
-                analysis = {
-                  typeCheckingMode = "strict", -- or "off", "strict"
-                  autoSearchPaths = true,
-                  useLibraryCodeForTypes = true,
-                },
-              },
-            },
-          },
-          -- rust
-          rust_analyzer = {
-            settings = {
-              ["rust-analyzer"] = {
-                cargo = {
-                  allFeatures = true,
-                  loadOutDirsFromCheck = true,
-                },
-                procMacro = {
-                  enable = true,
-                },
-                checkOnSave = {
-                  command = "check",
-                },
-                inlayHints = {
-                  enable = true,
-                  chainingHints = true,
-                  maxLength = 25,
-                },
-              },
-            },
-          },
-          -- c/c++
-          clangd = {
-            mason = false,
-            cmd = {
-              "clangd",
-              "--background-index",
-              "--compile-commands-dir=build", -- 自动查找 build/compile_commands.json
-              "--fallback-style=llvm",
-              "--all-scopes-completion",
-            },
-          },
-          -- js/ts
-          tsserver = {
-            settings = {
-              typescript = {
-                inlayHints = {
-                  includeInlayParameterNameHints = "literal",
-                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
-                  includeInlayFunctionParameterTypeHints = true,
-                  includeInlayVariableTypeHints = true,
-                  includeInlayPropertyDeclarationTypeHints = true,
-                  includeInlayFunctionLikeReturnTypeHints = true,
-                  includeInlayEnumMemberValueHints = true,
-                },
-              },
-              javascript = {
-                inlayHints = {
-                  includeInlayParameterNameHints = "literal",
-                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
-                  includeInlayFunctionParameterTypeHints = true,
-                  includeInlayVariableTypeTypeHints = true,
-                  includeInlayPropertyDeclarationTypeHints = true,
-                  includeInlayFunctionLikeReturnTypeHints = true,
-                },
-              },
-            },
-          },
-          -- Optional: Deno (if you use Deno instead of Node.js)
-          -- denols = {},
+        },
 
-          -- Optional: JSON, YAML, etc. (handled by built-in or schemastore)
-          jsonls = {},
-          yamlls = {},
-          taplo = {},
-        },
-        -- you can do any additional lsp server setup here
-        -- return true if you don't want this server to be setup with lspconfig
-        ---@type table<string, fun(server:string, opts: vim.lsp.Config):boolean?>
-        setup = {
-          -- example to setup with typescript.nvim
-          -- tsserver = function(_, opts)
-          --   require("typescript").setup({ server = opts })
-          --   return true
-          -- end,
-          -- Specify * to use this function as a fallback for any server
-          -- ["*"] = function(server, opts) end,
-        },
+        setup = {},
       }
       return ret
     end,
   },
+
   {
     "mason-org/mason.nvim",
-    opts_extend = { "ensure_installed" },
-    opts = {
-      ensure_installed = {
-        -- 🔧 Formatters (for conform.nvim)
-        "stylua", -- Lua
-        "ruff", -- Python (includes ruff-format)
-        "black", -- Python (alternative)
-        "prettierd", -- JS/TS/JSON/YAML/Markdown/etc.
-        "rustup", -- Rust
-        "clang-format", -- C/C++
-        "shfmt", -- Shell
-
-        -- 🧠 LSP Servers
-        -- "clangd",  -- used local
-        "lua-language-server",
-        "pyright",
-        "rust-analyzer",
-        "typescript-language-server", -- or "deno" if using Deno
-        "json-lsp",
-        "yaml-language-server",
-        "taplo", -- toml
-
-        -- 🧪 Optional: linters (if you use them via null-ls or trouble.nvim)
-        -- "eslint-lsp",
-        -- "shellcheck",
-        -- "cpplint",
-      },
-    },
+    opts = {}, -- ensure_installed populated by runtime/adapters/mason.lua
   },
 }

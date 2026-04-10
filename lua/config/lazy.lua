@@ -1,16 +1,15 @@
 -- ~/.config/nvim/lua/config/lazy.lua
--- author: redskaber
--- datetime: 2025-12-12
+-- Bootstrap lazy.nvim, then assemble the full spec via runtime.build().
 
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
-  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local repo = "https://github.com/folke/lazy.nvim.git"
   local out = vim.fn.system({
     "git",
     "clone",
     "--filter=blob:none",
     "--branch=stable",
-    lazyrepo,
+    repo,
     lazypath,
   })
   if vim.v.shell_error ~= 0 then
@@ -25,31 +24,27 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
+-- Build language capability specs through the runtime orchestrator.
+local lang_specs = require("runtime").build()
+
 require("lazy").setup({
-  spec = {
-    -- @import: lazyvim and lazyvim.plugins
-    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
-    -- @import: custom plugins
-    { import = "plugins" },
-  },
-  defaults = {
-    -- @enabled: lazy load
-    lazy = true,
-    -- @update: always
-    version = false,
-  },
-  install = {
-    colorscheme = { "tokyonight", "habamax" },
-  },
-  checker = {
-    -- @update: periodically
-    enabled = true,
-    -- @update: notify
-    notify = true,
-  }, -- automatically check for plugin updates
+  spec = vim.list_extend(
+    {
+      -- LazyVim core
+      { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+      -- Plugin layer (UI/editor/ai/git — no lang logic here)
+      { import = "plugins" },
+    },
+    -- Capability-derived specs (lsp, mason, treesitter, conform, lint)
+    lang_specs
+  ),
+
+  defaults = { lazy = true, version = false },
+  install = { colorscheme = { "catppuccin", "tokyonight", "habamax" } },
+  checker = { enabled = true, notify = true },
+
   performance = {
     rtp = {
-      -- disable some rtp plugins
       disabled_plugins = {
         "gzip",
         "matchit",
@@ -62,6 +57,12 @@ require("lazy").setup({
       },
     },
   },
-  -- nix + flake + home-manager
+
+  rocks = {
+    enabled = false,
+    -- 或者仅禁用 hererocks:
+    -- hererocks = false,
+  },
+
   lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
 })
