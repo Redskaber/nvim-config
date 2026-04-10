@@ -1,7 +1,5 @@
 -- ~/.config/nvim/lua/modules/lang/markup.lua
-local cap = require("core.capability")
-
-cap.register("markup", {
+return {
   treesitter = { "json", "jsonc", "yaml", "toml", "markdown", "markdown_inline", "html", "xml" },
   lsp = {
     jsonls = {},
@@ -16,4 +14,4 @@ cap.register("markup", {
     scss = { "prettierd" },
   },
   mason = { "taplo", "json-lsp", "yaml-language-server", "prettierd" },
-})
+}

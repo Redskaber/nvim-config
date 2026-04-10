@@ -1,12 +1,10 @@
 -- ~/.config/nvim/lua/runtime/api.lua
--- Unified runtime API façade. All plugin-aware calls go through here.
--- config/keymaps.lua imports THIS, never individual plugins.
+-- Unified runtime API façade. config/keymaps.lua imports THIS only.
+-- Never import individual plugins from outside this module.
 
 local M = {}
 
--- ── Picker façade ─────────────────────────────────────────────────────────
--- Safely delegates to whatever picker is active (snacks / telescope / fzf).
-
+-- ── Picker façade ────────────────────────────────────────────────────────────
 local function picker(name, opts)
   return function()
     if _G.Snacks and Snacks.picker and Snacks.picker[name] then
@@ -23,7 +21,7 @@ M.buffers = picker("buffers")
 M.recent_files = picker("recent")
 M.help_tags = picker("help")
 
--- ── LSP façade ────────────────────────────────────────────────────────────
+-- ── LSP façade ───────────────────────────────────────────────────────────────
 M.lsp = {
   definition = function()
     vim.lsp.buf.definition()
@@ -51,7 +49,7 @@ M.lsp = {
   end,
 }
 
--- ── Diagnostics façade ────────────────────────────────────────────────────
+-- ── Diagnostics façade ───────────────────────────────────────────────────────
 M.diagnostics = {
   next = function()
     vim.diagnostic.goto_next()
@@ -71,14 +69,14 @@ M.diagnostics = {
   end,
 }
 
--- ── Git façade ────────────────────────────────────────────────────────────
+-- ── Git façade ───────────────────────────────────────────────────────────────
 M.git = {
   status = picker("git_status"),
   log = picker("git_log"),
   diff = picker("git_diff"),
 }
 
--- ── Format façade ─────────────────────────────────────────────────────────
+-- ── Format façade ────────────────────────────────────────────────────────────
 M.format = function(opts)
   local ok, conform = pcall(require, "conform")
   if ok then

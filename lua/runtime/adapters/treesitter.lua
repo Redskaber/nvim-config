@@ -1,5 +1,5 @@
 -- ~/.config/nvim/lua/runtime/adapters/treesitter.lua
--- Collects all treesitter parsers → single ensure_installed list.
+-- Pure function: ctx → nvim-treesitter spec.
 
 local M = {}
 
@@ -18,9 +18,9 @@ local BASE_PARSERS = {
   "vimdoc",
 }
 
----@param caps table<string, Capability>
+---@param ctx table
 ---@return table[]
-function M.build(caps)
+function M.build(ctx)
   local seen = {}
   local parsers = {}
 
@@ -35,7 +35,7 @@ function M.build(caps)
     add(p)
   end
 
-  for _, cap in pairs(caps) do
+  for _, cap in pairs(ctx.caps) do
     if cap.treesitter then
       for _, p in ipairs(cap.treesitter) do
         add(p)

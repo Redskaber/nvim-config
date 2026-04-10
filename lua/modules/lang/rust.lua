@@ -1,8 +1,8 @@
 -- ~/.config/nvim/lua/modules/lang/rust.lua
-local cap = require("core.capability")
-local tc = require("core.toolchain")
+-- rust-analyzer and rustfmt are managed by rustup; toolchain.rules knows this.
+local tc = require("toolchain.rules")
 
-cap.register("rust", {
+return {
   treesitter = { "rust", "toml" },
   lsp = {
     rust_analyzer = {
@@ -20,4 +20,4 @@ cap.register("rust", {
   formatters = { rust = { "rustfmt" } },
   linters = { rust = { "clippy" } },
   mason = tc.use_mason("rust-analyzer") and { "rust-analyzer" } or {},
-})
+}

@@ -1,34 +1,29 @@
 -- ~/.config/nvim/lua/runtime/adapters/lsp.lua
--- Converts capability.lsp declarations → nvim-lspconfig plugin spec.
+-- Pure function: ctx → lazy spec for nvim-lspconfig.
+-- No env checks, no toolchain calls; those live in pipeline.resolve().
 
 local M = {}
 
----@param caps table<string, Capability>
+---@param ctx table  pipeline context (post-optimize)
 ---@return table[]
-function M.build(caps)
-  local servers = {}
-
-  for _, cap in pairs(caps) do
-    if cap.lsp then
-      for server, config in pairs(cap.lsp) do
-        -- Deep-merge if the same server appears in multiple lang modules
-        if servers[server] then
-          servers[server] = vim.tbl_deep_extend("force", servers[server], config)
-        else
-          servers[server] = vim.deepcopy(config)
-        end
-      end
-    end
+function M.build(ctx)
+  local servers = ctx.merged_lsp
+  if not servers or vim.tbl_isempty(servers) then
+    return {}
   end
 
-  if vim.tbl_isempty(servers) then
-    return {}
+  -- Strip the internal `mason` flag; lspconfig doesn't know it.
+  local clean = {}
+  for server, cfg in pairs(servers) do
+    local c = vim.deepcopy(cfg)
+    c.mason = nil
+    clean[server] = c
   end
 
   return {
     {
       "neovim/nvim-lspconfig",
-      opts = { servers = servers },
+      opts = { servers = clean },
     },
   }
 end

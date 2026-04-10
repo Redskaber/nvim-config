@@ -34,4 +34,18 @@ function M.map(t, f)
   return out
 end
 
+--- Deduplicate a list (preserves first-seen order).
+---@param list any[]
+---@return any[]
+function M.dedup(list)
+  local seen, out = {}, {}
+  for _, v in ipairs(list) do
+    if not seen[v] then
+      out[#out + 1] = v
+      seen[v] = true
+    end
+  end
+  return out
+end
+
 return M

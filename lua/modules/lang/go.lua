@@ -1,7 +1,5 @@
 -- ~/.config/nvim/lua/modules/lang/go.lua
-local cap = require("core.capability")
-
-cap.register("go", {
+return {
   treesitter = { "go", "gomod", "gowork", "gosum" },
   lsp = {
     gopls = {
@@ -22,4 +20,4 @@ cap.register("go", {
   },
   formatters = { go = { "gofmt" } },
   mason = { "gopls" },
-})
+}

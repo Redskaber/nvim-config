@@ -24,7 +24,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- Build language capability specs through the runtime orchestrator.
+-- Run the five-stage pipeline; returns flat list of lazy plugin specs.
 local lang_specs = require("runtime").build()
 
 require("lazy").setup({

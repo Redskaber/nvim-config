@@ -1,7 +1,5 @@
 -- ~/.config/nvim/lua/modules/lang/lua_lang.lua
-local cap = require("core.capability")
-
-cap.register("lua_lang", {
+return {
   treesitter = { "lua", "luadoc" },
   lsp = {
     lua_ls = {
@@ -25,4 +23,4 @@ cap.register("lua_lang", {
   },
   formatters = { lua = { "stylua" } },
   mason = { "stylua", "lua-language-server" },
-})
+}

@@ -1,17 +1,15 @@
 -- ~/.config/nvim/lua/modules/lang/shell.lua
-local cap = require("core.capability")
-
-cap.register("shell", {
+return {
   treesitter = { "bash" },
   formatters = {
     sh = { "shfmt" },
     bash = { "shfmt" },
-    fish = { "fish_indent" },
+    fish = { "fish_indent" }, -- system binary; mason adapter will skip it
   },
   linters = {
     sh = { "shellcheck" },
     bash = { "shellcheck" },
-    fish = { "fish" },
+    fish = { "fish" }, -- system binary
   },
   mason = { "shfmt", "shellcheck" },
-})
+}

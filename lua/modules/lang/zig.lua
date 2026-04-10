@@ -1,8 +1,7 @@
 -- ~/.config/nvim/lua/modules/lang/zig.lua
-local cap = require("core.capability")
-
-cap.register("zig", {
+return {
   treesitter = { "zig" },
   lsp = { zls = {} },
-  formatters = { zig = { "zigfmt" } },
-})
+  formatters = { zig = { "zigfmt" } }, -- system binary; skipped by mason adapter
+  mason = { "zls" },
+}

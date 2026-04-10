@@ -1,66 +1,81 @@
 -- ~/.config/nvim/lua/core/capability.lua
--- Central capability registry: the single source of truth for all language tooling.
--- All lang declarations MUST go through M.register(); nothing else creates plugin specs.
+-- Central capability registry.
+--   • lang modules RETURN a plain table – zero side-effects.
+--   • runtime.pipeline.collect() calls registry.add() on each returned table.
+--   • This module owns the single mutable store; nobody else writes to it.
+
+local schema = require("core.schema")
 
 local M = {}
 
 ---@alias CapKind "lsp"|"formatter"|"linter"|"treesitter"|"mason_extra"
 
 ---@class LspConfig
----@field settings?  table     raw LSP settings
----@field cmd?       string[]  override server command
+---@field settings?  table
+---@field cmd?       string[]
 ---@field mason?     boolean   nil = auto-resolved by toolchain
 
 ---@class Capability
----@field lsp?        table<string, LspConfig>  server_name → config
----@field formatters? table<string, string[]>   filetype  → formatter list
----@field linters?    table<string, string[]>   filetype  → linter list
----@field treesitter? string[]                  parsers to ensure_installed
----@field mason?      string[]                  extra mason packages (beyond auto-derived)
+---@field lsp?        table<string, LspConfig>
+---@field formatters? table<string, string[]|fun(bufnr:integer):string[]>
+---@field linters?    table<string, string[]>
+---@field treesitter? string[]
+---@field mason?      string[]
 
--- Internal: { [name]: Capability }
-local _registry = {}
+-- { [lang_name]: Capability }
+local _store = {}
 
---- Register a language capability bundle. Idempotent: later registrations
---- deep-merge into the same key so split modules work.
----@param name string  unique lang name, e.g. "rust"
+--- Add (deep-merge) a validated capability bundle.
+---@param name string
 ---@param cap  Capability
-function M.register(name, cap)
-  if not _registry[name] then
-    _registry[name] = { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
+function M.add(name, cap)
+  cap = schema.validate(name, cap)
+
+  if not _store[name] then
+    _store[name] = { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
   end
-  local r = _registry[name]
+  local r = _store[name]
+
   if cap.lsp then
-    vim.tbl_deep_extend("force", r.lsp, cap.lsp)
+    for k, v in pairs(cap.lsp) do
+      r.lsp[k] = r.lsp[k] and vim.tbl_deep_extend("force", r.lsp[k], v) or vim.deepcopy(v)
+    end
   end
   if cap.formatters then
-    vim.tbl_deep_extend("force", r.formatters, cap.formatters)
+    for ft, v in pairs(cap.formatters) do
+      if r.formatters[ft] and type(r.formatters[ft]) == "table" and type(v) == "table" then
+        vim.list_extend(r.formatters[ft], v)
+      else
+        r.formatters[ft] = type(v) == "function" and v or vim.deepcopy(v)
+      end
+    end
   end
   if cap.linters then
-    vim.tbl_deep_extend("force", r.linters, cap.linters)
+    for ft, v in pairs(cap.linters) do
+      if r.linters[ft] then
+        vim.list_extend(r.linters[ft], v)
+      else
+        r.linters[ft] = vim.deepcopy(v)
+      end
+    end
   end
   if cap.treesitter then
-    for _, p in ipairs(cap.treesitter) do
-      r.treesitter[#r.treesitter + 1] = p
-    end
+    vim.list_extend(r.treesitter, cap.treesitter)
   end
   if cap.mason then
-    for _, t in ipairs(cap.mason) do
-      r.mason[#r.mason + 1] = t
-    end
+    vim.list_extend(r.mason, cap.mason)
   end
 end
 
---- Return iterator over all registered capabilities.
----@return fun(): string, Capability
-function M.iter()
-  return next, _registry
-end
-
---- Return all capabilities as a flat table for adapters.
 ---@return table<string, Capability>
 function M.all()
-  return _registry
+  return _store
+end
+
+--- Snapshot the registry for debug/dump purposes.
+---@return string
+function M.dump()
+  return vim.inspect(_store)
 end
 
 return M

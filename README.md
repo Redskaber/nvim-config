@@ -11,7 +11,6 @@
 │   │   ├── capability.lua
 │   │   ├── env.lua
 │   │   ├── icons.lua
-│   │   ├── toolchain.lua
 │   │   └── util.lua
 │   ├── config/
 │   │   ├── autocmds.lua
@@ -40,6 +39,9 @@
 │   │       ├── treesitter.lua
 │   │       ├── conform.lua
 │   │       └── lint.lua
+│   ├── toolchain/
+│   │   ├── mappings.lua
+│   │   └── rules.lua
 │   └── plugins/
 │       ├── ai.lua
 │       ├── coding.lua

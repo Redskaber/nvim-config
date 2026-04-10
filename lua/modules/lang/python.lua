@@ -1,7 +1,7 @@
 -- ~/.config/nvim/lua/modules/lang/python.lua
-local cap = require("core.capability")
-
-cap.register("python", {
+-- "__ruff_or_black__" sentinel is resolved to a dynamic function in the
+-- conform adapter; it must never appear in any other adapter's output.
+return {
   treesitter = { "python" },
   lsp = {
     pyright = {
@@ -16,8 +16,7 @@ cap.register("python", {
       },
     },
   },
-  -- formatter is dynamic; stored as a sentinel, adapter handles fn wrapping
   formatters = { python = { "__ruff_or_black__" } },
   linters = { python = { "ruff" } },
   mason = { "pyright", "ruff", "black" },
-})
+}

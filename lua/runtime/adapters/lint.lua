@@ -1,20 +1,18 @@
 -- ~/.config/nvim/lua/runtime/adapters/lint.lua
--- Builds nvim-lint linters_by_ft from capability declarations.
+-- Pure function: ctx → nvim-lint spec.
 
 local M = {}
 
----@param caps table<string, Capability>
+---@param ctx table
 ---@return table[]
-function M.build(caps)
+function M.build(ctx)
   local by_ft = { text = { "typos" } }
 
-  for _, cap in pairs(caps) do
+  for _, cap in pairs(ctx.caps) do
     if cap.linters then
       for ft, lnts in pairs(cap.linters) do
         if by_ft[ft] then
-          for _, l in ipairs(lnts) do
-            by_ft[ft][#by_ft[ft] + 1] = l
-          end
+          vim.list_extend(by_ft[ft], lnts)
         else
           by_ft[ft] = vim.deepcopy(lnts)
         end

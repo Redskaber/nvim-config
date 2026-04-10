@@ -1,7 +1,5 @@
 -- ~/.config/nvim/lua/modules/lang/typescript.lua
-local cap = require("core.capability")
-
-cap.register("typescript", {
+return {
   treesitter = { "javascript", "jsdoc", "typescript", "tsx" },
   lsp = {
     vtsls = {
@@ -48,4 +46,4 @@ cap.register("typescript", {
     typescriptreact = { "eslint" },
   },
   mason = { "vtsls", "prettierd", "json-lsp", "yaml-language-server" },
-})
+}

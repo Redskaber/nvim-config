@@ -1,8 +1,9 @@
 -- ~/.config/nvim/lua/modules/lang/c_cpp.lua
-local cap = require("core.capability")
-local tc = require("core.toolchain")
+-- V2: pure return, zero side-effects.
 
-cap.register("c_cpp", {
+local tc = require("toolchain.rules")
+
+return {
   treesitter = { "c", "cpp" },
   lsp = {
     clangd = {
@@ -25,4 +26,4 @@ cap.register("c_cpp", {
     cpp = { "clangtidy" },
   },
   mason = tc.use_mason("clangd") and { "clangd", "clang-format" } or { "clang-format" },
-})
+}
