@@ -25,7 +25,7 @@ On **NixOS / nix-darwin**: tools detected via `core/env.lua` (`M.is_nix`). Syste
 ## Installation
 
 ```bash
-git clone https://github.com/<you>/nvim-config ~/.config/nvim
+git clone https://github.com/Redskaber/nvim-config ~/.config/nvim
 nvim  # lazy.nvim bootstraps itself on first launch
 ```
 
