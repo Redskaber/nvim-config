@@ -2,8 +2,12 @@
 -- Five-stage compilation pipeline:
 --   collect → normalize → resolve → optimize → codegen
 --
--- Each stage is a pure function: (ctx) → ctx.
+-- Each stage is a pure function: (ctx, sm) → ctx.
 -- Intermediate context can be dumped for debugging.
+--
+-- normalize() no longer mutates the shared registry tables in-place.
+-- FormatterNode.fn is injected into deep-copied cap entries so debug_run()
+-- inspections and subsequent capability.reset() produce clean output.
 
 local M = {}
 
@@ -40,23 +44,23 @@ local function new_state_machine()
       sm.timestamps[next] = os.clock()
       return true
     end
-    -- illegal transition → error state
     vim.notify(string.format("[pipeline] illegal transition: %s → %s", sm.state, next), vim.log.levels.ERROR)
     sm.state = STATES.ERROR
     sm.timestamps[STATES.ERROR] = os.clock()
     return false
   end
-
   return sm
 end
--- Holds the state machine from the most recent run() call (for M.state()).
+
+-- State machine from the most recent run() call (for M.state()).
 local last_run_sm = new_state_machine()
+
 -- ── Stage helpers ────────────────────────────────────────────────────────────
 
 --- Stage 1 – collect
 ---@param lang_modules string[]
----@param sm table  state machine instance
----@return table  pipeline context
+---@param sm table
+---@return table
 local function collect(lang_modules, sm)
   if not sm.transition(STATES.COLLECTING) then
     return {}
@@ -81,43 +85,84 @@ local function collect(lang_modules, sm)
 end
 
 --- Stage 2 – normalize
---- Resolves FormatterNode.strategy → FormatterNode.fn so downstream stages
---- and adapters never need to touch the strategies registry.
+--- Resolves FormatterNode.strategy → FormatterNode.fn.
+---
+--- operates on deep copies of each formatter list so the shared
+--- registry tables in core/capability are never mutated.  This keeps debug_run()
+--- inspections and subsequent registry.reset() free of injected function refs.
+---
 ---@param ctx table
----@param sm table  state machine instance
+---@param sm table
 ---@return table
 local function normalize(ctx, sm)
   if not sm.transition(STATES.NORMALIZING) then
     return ctx
   end
   local strategies = require("toolchain.strategies")
-  for _, cap in pairs(ctx.caps) do
+
+  -- Work on a shallow-copy of caps; each formatter list is deep-copied on demand.
+  local patched_caps = {}
+  for lang, cap in pairs(ctx.caps) do
     if cap.formatters then
-      for _, fmts in pairs(cap.formatters) do
+      local patched_formatters = {}
+      local needs_patch = false
+      for ft, fmts in pairs(cap.formatters) do
         if type(fmts) == "table" then
-          for _, v in ipairs(fmts) do
+          local patched_list = nil
+          for i, v in ipairs(fmts) do
             if type(v) == "table" and v.kind == "formatter" and v.strategy and not v.fn then
+              -- Lazy-init the copied list only when a node actually needs patching
+              if not patched_list then
+                patched_list = vim.deepcopy(fmts)
+              end
               local strat = strategies.get(v.strategy)
               if strat then
-                v.fn = strat.resolve
+                patched_list[i].fn = strat.resolve
               else
                 vim.notify("[pipeline.normalize] unknown formatter strategy: " .. v.strategy, vim.log.levels.WARN)
-                v.fn = function()
+                patched_list[i].fn = function()
                   return {}
                 end
               end
             end
           end
+          if patched_list then
+            needs_patch = true
+            patched_formatters[ft] = patched_list
+          else
+            patched_formatters[ft] = fmts -- unchanged — share original ref
+          end
+        else
+          patched_formatters[ft] = fmts
         end
+      end
+      if needs_patch then
+        -- Shallow-copy the cap, replacing only formatters
+        local patched_cap = {}
+        for k, v in pairs(cap) do
+          patched_cap[k] = v
+        end
+        patched_cap.formatters = patched_formatters
+        patched_caps[lang] = patched_cap
       end
     end
   end
+
+  -- Merge patched caps into ctx (original registry untouched)
+  if next(patched_caps) then
+    local merged = {}
+    for lang, cap in pairs(ctx.caps) do
+      merged[lang] = patched_caps[lang] or cap
+    end
+    ctx.caps = merged
+  end
+
   return ctx
 end
 
 --- Stage 3 – resolve
 ---@param ctx table
----@param sm table  state machine instance
+---@param sm table
 ---@return table
 local function resolve(ctx, sm)
   if not sm.transition(STATES.RESOLVING) then
@@ -161,7 +206,7 @@ end
 
 --- Stage 4 – optimize
 ---@param ctx table
----@param sm table  state machine instance
+---@param sm table
 ---@return table
 local function optimize(ctx, sm)
   if not sm.transition(STATES.OPTIMIZING) then
@@ -169,21 +214,16 @@ local function optimize(ctx, sm)
   end
   local util = require("core.util")
 
-  local parsers_seen = {}
+  -- Collect and dedup treesitter parsers
+  local all_parsers = {}
   for _, cap in pairs(ctx.caps) do
     if cap.treesitter then
-      cap.treesitter = util.dedup(cap.treesitter)
-      for _, p in ipairs(cap.treesitter) do
-        parsers_seen[p] = true
-      end
+      vim.list_extend(all_parsers, cap.treesitter)
     end
   end
-  local parsers_list = {}
-  for p in pairs(parsers_seen) do
-    parsers_list[#parsers_list + 1] = p
-  end
-  ctx.all_parsers = parsers_list
+  ctx.all_parsers = util.dedup(all_parsers)
 
+  -- Merge LSP configs (later caps override earlier on conflict)
   local merged_lsp = {}
   for _, cap in pairs(ctx.caps) do
     if cap.lsp then
@@ -203,8 +243,8 @@ end
 
 --- Stage 5 – codegen
 ---@param ctx table
----@param sm table  state machine instance
----@return table[]  flat list of lazy.nvim plugin specs
+---@param sm table
+---@return table[]
 local function codegen(ctx, sm)
   if not sm.transition(STATES.CODEGEN) then
     return {}
@@ -241,7 +281,6 @@ function M.run(lang_modules)
   last_run_sm = sm
 
   local timings = {}
-
   local function timed(name, fn, ...)
     local t0 = os.clock()
     local ok, result = pcall(fn, ...)
@@ -287,13 +326,12 @@ function M.run(lang_modules)
 
   sm.transition(STATES.DONE)
 
-  -- Persist per-stage timings for :LtosInfo (Requirement 18.1)
+  -- Persist per-stage timings for :LtosInfo
   vim.g.ltos_last_build_timings = timings
 
-  -- Summarise accumulated errors in a single WARN (Requirement 18.2)
+  -- Summarise accumulated errors in a single WARN
   if ctx.errors and #ctx.errors > 0 then
-    local seen = {}
-    local unique = {}
+    local seen, unique = {}, {}
     for _, msg in ipairs(ctx.errors) do
       if not seen[msg] then
         seen[msg] = true
@@ -310,13 +348,13 @@ function M.run(lang_modules)
 end
 
 --- Dump intermediate context after each stage (debug capability).
---- Records per-stage elapsed time via os.clock().
 ---@param lang_modules string[]
 ---@param stop_after? "collect"|"normalize"|"resolve"|"optimize"
----@return table  the context at the requested stage, with _timings field
+---@return table
 function M.debug_run(lang_modules, stop_after)
   local sm = new_state_machine()
 
+  -- FIX P0-2 (carried): reset registry before debug run to avoid accumulation
   require("core.capability").reset()
 
   local stage_fns = {
@@ -353,8 +391,7 @@ function M.debug_run(lang_modules, stop_after)
     local name, fn = entry[1], entry[2]
     local t0 = os.clock()
     local ok, result = pcall(fn, ctx)
-    local elapsed = os.clock() - t0
-    timings[name] = elapsed
+    timings[name] = os.clock() - t0
 
     if not ok then
       vim.notify("[pipeline.debug_run] " .. name .. " failed: " .. tostring(result), vim.log.levels.ERROR)
@@ -367,13 +404,15 @@ function M.debug_run(lang_modules, stop_after)
       break
     end
   end
+
   ctx._timings = timings
   return ctx
 end
 
---- Return the current state machine state (for :LtosInfo).
+--- Return the state of the most recent run() call (for :LtosInfo).
 ---@return string
 function M.state()
   return last_run_sm.state
 end
+
 return M

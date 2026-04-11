@@ -60,11 +60,6 @@ require("lazy").setup({
     },
   },
 
-  rocks = {
-    enabled = false,
-    -- 或者仅禁用 hererocks:
-    -- hererocks = false,
-  },
-
+  rocks = { enabled = false },
   lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
 })

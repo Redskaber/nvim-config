@@ -1,7 +1,10 @@
 -- ~/.config/nvim/lua/runtime/adapters/treesitter.lua
 -- Pure function: ctx → nvim-treesitter spec.
+-- dedup delegated to core/util.dedup instead of inline seen/add.
 
 local M = {}
+
+local util = require("core.util")
 
 local BASE_PARSERS = {
   "bash",
@@ -25,27 +28,14 @@ function M.build(ctx)
     vim.notify("[ltos:treesitter] IR missing required field: all_parsers", vim.log.levels.WARN)
     return {}
   end
-  local seen = {}
-  local parsers = {}
 
-  local function add(p)
-    if not seen[p] then
-      parsers[#parsers + 1] = p
-      seen[p] = true
-    end
-  end
-
-  for _, p in ipairs(BASE_PARSERS) do
-    add(p)
-  end
-
-  for _, p in ipairs(ctx.all_parsers) do
-    add(p)
-  end
+  -- use util.dedup instead of local seen/add pattern
+  local parsers = util.dedup(vim.list_extend(vim.deepcopy(BASE_PARSERS), ctx.all_parsers))
 
   return {
     {
       "nvim-treesitter/nvim-treesitter",
+      _source = "ltos:treesitter",
       opts = {
         ensure_installed = parsers,
         indent = { enable = true },
@@ -78,7 +68,6 @@ function M.build(ctx)
           },
         },
       },
-      _source = "ltos:treesitter",
     },
   }
 end

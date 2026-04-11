@@ -1,4 +1,7 @@
 -- ~/.config/nvim/lua/modules/lang/typescript.lua
+-- markup.lua is the single source of truth for: css, scss, html, yaml,
+-- markdown, json, jsonc.  typescript.lua only owns js/ts filetypes.
+
 return {
   treesitter = { "javascript", "jsdoc", "typescript", "tsx" },
   lsp = {
@@ -26,18 +29,12 @@ return {
       },
     },
   },
+  -- Owns only JS/TS/JSX/TSX filetypes; markup filetypes live in markup.lua.
   formatters = {
     javascript = { "prettierd" },
     javascriptreact = { "prettierd" },
     typescript = { "prettierd" },
     typescriptreact = { "prettierd" },
-    json = { "prettierd" },
-    jsonc = { "prettierd" },
-    css = { "prettierd" },
-    scss = { "prettierd" },
-    html = { "prettierd" },
-    yaml = { "prettierd" },
-    markdown = { "prettierd" },
   },
   linters = {
     javascript = { "eslint" },

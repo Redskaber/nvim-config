@@ -1,6 +1,10 @@
 -- ~/.config/nvim/lua/runtime/api.lua
 -- Unified runtime API façade. config/keymaps.lua imports THIS only.
 -- Never import individual plugins from outside this module.
+--
+-- terminal backend is resolved via vim.g.ltos_terminal_backend
+-- (defaults to "toggleterm").  Swapping the terminal plugin only requires
+-- registering a new backend handler — no changes to this file.
 
 local M = {}
 
@@ -92,24 +96,77 @@ M.format = function(opts)
 end
 
 -- ── Terminal façade ──────────────────────────────────────────────────────────
-M.terminal = {
-  float = function()
-    local ok, err = pcall(function()
-      require("toggleterm").toggle(nil, "float")
-    end)
+-- backend is pluggable.  Register a custom backend by setting
+--   vim.g.ltos_terminal_backend = "my_backend"
+-- and calling:
+--   require("runtime.api").terminal.register("my_backend", { float = fn, horizontal = fn })
+--
+-- Built-in backends: "toggleterm" (default), "native".
+
+local _terminal_backends = {
+  toggleterm = {
+    float = function()
+      local ok, tt = pcall(require, "toggleterm")
+      if ok then
+        tt.toggle(nil, "float")
+      else
+        vim.cmd("terminal")
+      end
+    end,
+    horizontal = function()
+      local ok, tt = pcall(require, "toggleterm")
+      if ok then
+        tt.toggle(nil, "horizontal")
+      else
+        vim.cmd("split | terminal")
+      end
+    end,
+  },
+  native = {
+    float = function()
+      vim.cmd("terminal")
+    end,
+    horizontal = function()
+      vim.cmd("split | terminal")
+    end,
+  },
+}
+
+--- Register a custom terminal backend.
+---@param name string
+---@param backend { float: function, horizontal: function }
+local function register_terminal_backend(name, backend)
+  _terminal_backends[name] = backend
+end
+
+local function _terminal_dispatch(direction)
+  local backend_name = vim.g.ltos_terminal_backend or "toggleterm"
+  local backend = _terminal_backends[backend_name]
+  if not backend then
+    vim.notify(
+      "[runtime.api] unknown terminal backend: " .. backend_name .. " — falling back to native",
+      vim.log.levels.WARN
+    )
+    backend = _terminal_backends.native
+  end
+  local fn = backend[direction]
+  if fn then
+    local ok, err = pcall(fn)
     if not ok then
-      vim.notify("[runtime.api] toggleterm unavailable: " .. tostring(err), vim.log.levels.WARN)
+      vim.notify("[runtime.api] terminal." .. direction .. " failed: " .. tostring(err), vim.log.levels.WARN)
       vim.cmd("terminal")
     end
+  end
+end
+
+M.terminal = {
+  float = function()
+    _terminal_dispatch("float")
   end,
   horizontal = function()
-    local ok, err = pcall(function()
-      require("toggleterm").toggle(nil, "horizontal")
-    end)
-    if not ok then
-      vim.notify("[runtime.api] toggleterm unavailable: " .. tostring(err), vim.log.levels.WARN)
-      vim.cmd("split | terminal")
-    end
+    _terminal_dispatch("horizontal")
   end,
+  register = register_terminal_backend,
 }
+
 return M
