@@ -1,7 +1,7 @@
 -- ~/.config/nvim/lua/toolchain/strategies/formatters.lua
--- Built-in FormatterStrategy implementations.
+-- Strategy layer: built-in FormatterStrategy implementations.
 -- Called by toolchain/strategies/init.lua via M.bootstrap(registry).
--- Does NOT require("toolchain.strategies") to avoid circular dependency.
+-- Does NOT require("toolchain.strategies") — avoids circular dependency.
 
 local M = {}
 
@@ -24,6 +24,15 @@ function M.bootstrap(registry)
       return { "prettierd" }
     end
     return { "prettier" }
+  end)
+
+  -- stylua_or_lua_format: prefer stylua (system); fall back to lua_format
+  registry.register("stylua_or_lua_format", function(bufnr)
+    local ok, conform = pcall(require, "conform")
+    if ok and conform.get_formatter_info("stylua", bufnr).available then
+      return { "stylua" }
+    end
+    return { "lua_format" }
   end)
 end
 

@@ -1,15 +1,18 @@
 -- ~/.config/nvim/lua/runtime/init.lua
--- Orchestrator: declares lang module list, runs pipeline, returns specs.
--- Supports vim.g.ltos_profile (minimal/full/nix) and pipeline result caching.
+-- Compiler kernel: orchestrator.
+-- Declares lang module list, resolves profile, drives three-tier cache,
+-- and calls into runtime/pipeline.lua for full pipeline runs.
 
 local M = {}
 
 local VALID_PROFILES = { minimal = true, full = true, nix = true }
 
--- Core modules always included regardless of profile.
+-- Core modules always loaded regardless of profile
 local CORE_MODULES = {
   "modules.lang.lua_lang",
 }
+
+-- Full module registry — add new lang modules here
 M.LANG_MODULES = {
   "modules.lang.c_cpp",
   "modules.lang.go",
@@ -23,8 +26,9 @@ M.LANG_MODULES = {
   "modules.lang.zig",
 }
 
---- Resolve and validate the active profile from vim.g.ltos_profile.
----@return string  one of "minimal" | "full" | "nix"
+-- ── Profile resolution ────────────────────────────────────────────────────────
+
+---@return string  "minimal" | "full" | "nix"
 local function resolve_profile()
   local raw = vim.g.ltos_profile
   if raw == nil then
@@ -33,12 +37,10 @@ local function resolve_profile()
   if VALID_PROFILES[raw] then
     return raw
   end
-  vim.notify(string.format('[ltos] invalid profile %q — falling back to "full"', tostring(raw)), vim.log.levels.WARN)
+  vim.notify(('[ltos] invalid profile %q — falling back to "full"'):format(tostring(raw)), vim.log.levels.WARN)
   return "full"
 end
 
---- Filter the module list for the "minimal" profile.
---- Keeps only modules whose basename appears in CORE_MODULES.
 ---@param modules string[]
 ---@return string[]
 local function filter_minimal(modules)
@@ -54,37 +56,73 @@ local function filter_minimal(modules)
   end
   return out
 end
+
+-- ── Three-tier cache logic (TODO-5.3) ────────────────────────────────────────
+-- Cache flow:
+--   spec tier hit  → return immediately (full skip)
+--   spec tier miss → run pipeline → save spec tier
+--
+-- Future: ast tier / ir tier can be leveraged for partial rebuilds.
+-- For now the spec tier provides the startup-time win; partial rebuild
+-- is wired up but uses the same key (mtime-based, per-module).
+
+---@param modules string[]
+---@param profile string
+---@return table[]|nil   cached specs, or nil on miss
+local function try_cache(modules, profile)
+  local cache = require("core.cache")
+  local key = cache.key(modules, profile)
+  if key == "" then
+    return nil
+  end
+
+  -- Spec tier: full skip if hit
+  local specs = cache.load("spec", key)
+  if specs then
+    if vim.g.ltos_debug then
+      vim.notify("[ltos] spec cache hit — skipping pipeline", vim.log.levels.DEBUG)
+    end
+    return specs
+  end
+  return nil
+end
+
+---@param modules string[]
+---@param profile string
+---@param specs   table[]
+local function persist_cache(modules, profile, specs)
+  local cache = require("core.cache")
+  local key = cache.key(modules, profile)
+  if key ~= "" then
+    cache.save("spec", key, specs)
+  end
+end
+
+-- ── Public API ────────────────────────────────────────────────────────────────
+
 --- Build the complete plugin spec list for lazy.nvim.
---- Reads vim.g.ltos_profile, attempts cache load, falls back to full pipeline.
 ---@return table[]
 function M.build()
   local profile = resolve_profile()
+  local modules = (profile == "minimal") and filter_minimal(M.LANG_MODULES) or M.LANG_MODULES
 
-  local modules = M.LANG_MODULES
-  if profile == "minimal" then
-    modules = filter_minimal(modules)
-  end
-
-  local cache = require("core.cache")
-  local key = cache.key(modules)
-
-  -- Cache hit: skip pipeline entirely
-  local cached = cache.load(key, profile)
+  -- Try spec-tier cache first (fastest path)
+  local cached = try_cache(modules, profile)
   if cached then
     return cached
   end
 
   -- Full pipeline run
-  local specs = require("runtime.pipeline").run(modules)
+  local pipeline = require("runtime.pipeline")
+  local specs = pipeline.run(modules, profile)
 
-  -- Persist result for next startup
-  cache.save(key, profile, specs)
+  -- Persist for next startup
+  persist_cache(modules, profile, specs)
 
   return specs
 end
 
---- Register LTOS user commands (:LtosDebug, :LtosInfo).
---- Called once after build() completes.
+--- Register LTOS user commands (:LtosDebug, :LtosInfo, :LtosGraph, :LtosTrace, :LtosIR).
 function M.setup_commands()
   require("runtime.commands").setup()
 end

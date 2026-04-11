@@ -1,37 +1,42 @@
 -- ~/.config/nvim/lua/core/ir.lua
--- IR (Intermediate Representation): immutable value type.
+-- Domain IR layer: immutable value type + compiler context.
 --
--- Design principles (P0-3):
---   • IR is a plain Lua table; every Pass returns a NEW IR (copy-on-write).
---   • IR.clone() performs a safe structural deep-copy.
---   • Stages append fields only; no field is ever overwritten.
---   • CompileError is a structured type (P2-2): { stage, node, message }.
+-- IR sub-layers (TODO-2.1):
+--   AST   — raw validated capability snapshot from collect pass
+--   HIR   — normalised (FormatterNode.fn injected)
+--   MIR   — strategy resolved (use_mason decisions)
+--   LIR   — optimised (deduped parsers, merged LSP configs)
+--   SPEC  — codegen input (all fields present, ready for adapters)
 --
--- Stage field contracts:
---   normalize  requires: caps, meta
---   resolve    requires: caps, meta
---   optimize   requires: caps, resolved
---   codegen    requires: caps, resolved, merged_lsp, all_parsers
+-- CompilerContext (TODO-1.1): unified carry type through the pipeline.
+--   { ir, stage, diagnostics, cache_key, timings }
+--
+-- Copy-on-write: every Pass returns a NEW IR via ir.with() or ir.clone().
+-- Passes NEVER mutate their input IR.
 
 local M = {}
 
--- ── Structured error type (P2-2) ─────────────────────────────────────────────
+-- ── Diagnostic type (pipeline-level, separate from schema.SchemaDiagnostic) ──
 
----@class CompileError
----@field stage   string   pipeline stage name ("collect"|"normalize"|…)
----@field node    string   lang module or AST node identifier
----@field message string   human-readable description
+---@class Diagnostic
+---@field stage    string   pipeline stage
+---@field node     string   lang module or AST node identifier
+---@field message  string
+---@field severity "error"|"warn"|"info"
 
---- Construct a CompileError.
----@param stage   string
----@param node    string
----@param message string
----@return CompileError
-function M.error(stage, node, message)
-  return { stage = stage, node = node, message = message }
+---@param stage    string
+---@param node     string
+---@param message  string
+---@param severity? "error"|"warn"|"info"
+---@return Diagnostic
+function M.diag(stage, node, message, severity)
+  return { stage = stage, node = node, message = message, severity = severity or "error" }
 end
 
--- ── Type annotations ─────────────────────────────────────────────────────────
+-- Backward-compat alias (old code uses ir.error)
+M.error = M.diag
+
+-- ── IR sub-layer type annotations ─────────────────────────────────────────────
 
 ---@class IRMeta
 ---@field lang_modules string[]
@@ -43,34 +48,58 @@ end
 ---@field tools table<string, boolean>
 
 ---@class IR
----@field caps        table<string, table>   -- [collect]  validated capability snapshot
----@field errors      CompileError[]         -- [all]      accumulated structured errors
----@field meta        IRMeta                 -- [collect]  build metadata
----@field profile     string                 -- [collect]  build profile
----@field resolved    IRResolved             -- [resolve]  toolchain decisions
----@field merged_lsp  table<string, table>   -- [optimize] deduped LSP configs
----@field all_parsers string[]               -- [optimize] deduped TS parsers
----@field snapshots?  table<string, table>   -- [debug]    per-stage IR snapshots
+---@field stage       string                 current sub-layer (AST/HIR/MIR/LIR/SPEC)
+---@field caps        table<string, table>   [AST]  validated capability snapshot
+---@field diagnostics Diagnostic[]           [all]  accumulated diagnostics
+---@field meta        IRMeta                 [AST]  build metadata
+---@field profile     string                 [AST]  build profile
+---@field resolved    IRResolved             [MIR]  toolchain decisions
+---@field merged_lsp  table<string, table>   [LIR]  deduped LSP configs
+---@field all_parsers string[]               [LIR]  deduped TS parsers
+---@field snapshots?  table<string, table>   [debug] per-stage IR snapshots
 
--- ── Stage field contracts ────────────────────────────────────────────────────
+-- ── CompilerContext ───────────────────────────────────────────────────────────
 
-local STAGE_REQUIRED_FIELDS = {
+---@class CompilerContext
+---@field ir          IR
+---@field stage       string
+---@field diagnostics Diagnostic[]
+---@field cache_key   string
+---@field timings     table<string, number>
+
+---@param ir        IR
+---@param stage     string
+---@param cache_key? string
+---@return CompilerContext
+function M.ctx(ir, stage, cache_key)
+  return {
+    ir = ir,
+    stage = stage,
+    diagnostics = vim.deepcopy(ir.diagnostics or {}),
+    cache_key = cache_key or "",
+    timings = {},
+  }
+end
+
+-- ── Stage field contracts (for pre-condition validation) ──────────────────────
+
+local STAGE_REQUIRED = {
   normalize = { "caps", "meta" },
   resolve = { "caps", "meta" },
   optimize = { "caps", "resolved" },
   codegen = { "caps", "resolved", "merged_lsp", "all_parsers" },
 }
 
--- ── Constructor ──────────────────────────────────────────────────────────────
+-- ── Constructor ───────────────────────────────────────────────────────────────
 
---- Construct a fresh IR at the start of a pipeline run.
 ---@param lang_modules string[]
----@param profile?     string   defaults to "full"
+---@param profile?     string
 ---@return IR
 function M.new(lang_modules, profile)
   return {
+    stage = "AST",
     caps = {},
-    errors = {},
+    diagnostics = {},
     meta = {
       lang_modules = lang_modules or {},
       cache_key = "",
@@ -80,21 +109,19 @@ function M.new(lang_modules, profile)
   }
 end
 
--- ── Clone (copy-on-write) ────────────────────────────────────────────────────
+-- ── Copy-on-write helpers ─────────────────────────────────────────────────────
 
---- Return a structural deep-copy of an IR.
---- Passes use this to produce a new IR rather than mutating the input.
+--- Deep-copy an IR. Use for large structural changes.
 ---@param ir IR
 ---@return IR
 function M.clone(ir)
-  -- vim.deepcopy handles nested tables and preserves metatables.
   return vim.deepcopy(ir)
 end
 
---- Return a shallow-copy of an IR with selected top-level fields replaced.
---- Cheaper than M.clone() when only one or two fields change.
+--- Shallow-copy an IR, replacing selected top-level fields.
+--- Much cheaper than clone() when only 1-2 fields change.
 ---@param ir      IR
----@param patches table  { field = new_value }
+---@param patches table
 ---@return IR
 function M.with(ir, patches)
   local next_ir = {}
@@ -107,51 +134,77 @@ function M.with(ir, patches)
   return next_ir
 end
 
--- ── Validation ───────────────────────────────────────────────────────────────
+-- ── Diagnostics ───────────────────────────────────────────────────────────────
 
---- Validate that the IR contains all fields required before entering `stage`.
---- Returns a (possibly empty) list of CompileError.
----@param ir    IR
----@param stage string
----@return CompileError[]
-function M.validate(ir, stage)
-  local required = STAGE_REQUIRED_FIELDS[stage]
-  if not required then
-    return { M.error(stage, "ir", ("unknown stage %q"):format(stage)) }
-  end
-
-  local errs = {}
-  for _, field in ipairs(required) do
-    if ir[field] == nil then
-      errs[#errs + 1] =
-        M.error(stage, "ir." .. field, ("stage %q requires field %q but it is nil"):format(stage, field))
-    end
-  end
-  return errs
-end
-
---- Append a CompileError to an IR, returning the new IR (copy-on-write).
+--- Append a Diagnostic, returning a new IR (copy-on-write).
 ---@param ir  IR
----@param err CompileError
+---@param d   Diagnostic
 ---@return IR
-function M.append_error(ir, err)
-  local new_errors = vim.deepcopy(ir.errors or {})
-  new_errors[#new_errors + 1] = err
-  return M.with(ir, { errors = new_errors })
+function M.append_diag(ir, d)
+  local new_diags = vim.deepcopy(ir.diagnostics or {})
+  new_diags[#new_diags + 1] = d
+  return M.with(ir, { diagnostics = new_diags })
 end
 
---- Format all CompileErrors in an IR as a single human-readable string.
+-- Backward-compat alias
+M.append_error = M.append_diag
+
+--- Format all diagnostics as a single human-readable string.
 ---@param ir IR
 ---@return string
-function M.format_errors(ir)
-  if not ir.errors or #ir.errors == 0 then
+function M.format_diagnostics(ir)
+  if not ir.diagnostics or #ir.diagnostics == 0 then
     return ""
   end
   local lines = {}
-  for _, e in ipairs(ir.errors) do
-    lines[#lines + 1] = string.format("[%s] %s: %s", e.stage or "?", e.node or "?", e.message or "?")
+  for _, d in ipairs(ir.diagnostics) do
+    lines[#lines + 1] = ("[%s][%s] %s: %s"):format(
+      d.severity or "error",
+      d.stage or "?",
+      d.node or "?",
+      d.message or "?"
+    )
   end
   return table.concat(lines, "\n")
+end
+
+-- Backward-compat alias
+M.format_errors = M.format_diagnostics
+
+--- Count diagnostics by severity.
+---@param ir IR
+---@return { errors: number, warns: number }
+function M.diag_counts(ir)
+  local counts = { errors = 0, warns = 0 }
+  for _, d in ipairs(ir.diagnostics or {}) do
+    if d.severity == "error" then
+      counts.errors = counts.errors + 1
+    elseif d.severity == "warn" then
+      counts.warns = counts.warns + 1
+    end
+  end
+  return counts
+end
+
+-- ── Pre-condition validation ──────────────────────────────────────────────────
+
+--- Validate IR has all fields required before entering `stage`.
+--- Returns a (possibly empty) list of Diagnostic.
+---@param ir    IR
+---@param stage string
+---@return Diagnostic[]
+function M.validate(ir, stage)
+  local required = STAGE_REQUIRED[stage]
+  if not required then
+    return { M.diag(stage, "ir", ("unknown stage %q"):format(stage)) }
+  end
+  local out = {}
+  for _, field in ipairs(required) do
+    if ir[field] == nil then
+      out[#out + 1] = M.diag(stage, "ir." .. field, ("stage %q requires field %q but it is nil"):format(stage, field))
+    end
+  end
+  return out
 end
 
 return M

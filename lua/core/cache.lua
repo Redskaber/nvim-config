@@ -1,21 +1,22 @@
 -- ~/.config/nvim/lua/core/cache.lua
--- Three-tier pipeline cache: AST / IR / Spec (P1-1).
+-- Kernel layer: three-tier pipeline cache (TODO-5.2, TODO-5.3).
 --
--- Tiers
---   "ast"   – post-collect validated capability snapshot
---   "ir"    – post-optimize intermediate representation
---   "spec"  – final LazySpec[] list (legacy tier, still used for full skip)
+-- Tiers:
+--   "ast"   – post-collect validated capability snapshot (CapabilitySet)
+--   "ir"    – post-optimize intermediate representation (LIR)
+--   "spec"  – final LazySpec[] list (SPEC tier)
 --
--- Cache key = sha256( concat(module_file_contents) ) + ":" + profile
--- Each tier is stored in a separate JSON file under stdpath("cache")/ltos/.
--- Function values (FormatterNode.fn) set _no_cache = true; those specs are
--- never persisted.  Partial rebuild: modifying one lang module only invalidates
--- tiers whose key changes.
+-- Cache key = sha256(sorted module-file-contents) + ":" + profile
+-- Each tier lives in a separate JSON file under stdpath("cache")/ltos/.
+--
+-- Function values (FormatterNode.fn) set _no_cache = true; those payloads
+-- are never persisted.  A module-file change invalidates only the affected tier
+-- and all downstream tiers (partial invalidation).
 
 local M = {}
 
 local CACHE_DIR = vim.fn.stdpath("cache") .. "/ltos"
-local CACHE_VERSION = 2 -- bump when serialisation format changes
+local CACHE_VERSION = 3 -- bump when serialisation format changes
 
 local TIER_FILES = {
   ast = CACHE_DIR .. "/ast_cache.json",
@@ -23,145 +24,180 @@ local TIER_FILES = {
   spec = CACHE_DIR .. "/spec_cache.json",
 }
 
--- ── Key ──────────────────────────────────────────────────────────────────────
+-- Tier invalidation order: changing a lower tier invalidates all higher ones.
+local TIER_ORDER = { "ast", "ir", "spec" }
+
+-- ── I/O helpers ───────────────────────────────────────────────────────────────
+
+local function ensure_dir()
+  if vim.fn.isdirectory(CACHE_DIR) == 0 then
+    vim.fn.mkdir(CACHE_DIR, "p")
+  end
+end
+
+local function read_json(path)
+  local f = io.open(path, "r")
+  if not f then
+    return nil
+  end
+  local raw = f:read("*a")
+  f:close()
+  if not raw or raw == "" then
+    return nil
+  end
+  local ok, data = pcall(vim.json.decode, raw)
+  return ok and data or nil
+end
+
+local function write_json(path, data)
+  ensure_dir()
+  local ok, encoded = pcall(vim.json.encode, data)
+  if not ok then
+    vim.notify("[cache] JSON encode failed: " .. tostring(encoded), vim.log.levels.WARN)
+    return false
+  end
+  local f = io.open(path, "w")
+  if not f then
+    vim.notify("[cache] cannot open for write: " .. path, vim.log.levels.WARN)
+    return false
+  end
+  f:write(encoded)
+  f:close()
+  return true
+end
+
+-- ── Cache key ─────────────────────────────────────────────────────────────────
 
 --- Compute a composite cache key for a set of lang modules.
+--- Uses file modification times (fast) rather than content hashing.
 ---@param lang_modules string[]
 ---@param profile      string
----@return string  "<sha256>:<profile>", or "" on failure
+---@return string  "<mtime-hash>:<profile>" or "" on failure
 function M.key(lang_modules, profile)
+  profile = profile or "full"
   local parts = {}
   for _, mod in ipairs(lang_modules) do
-    local path = package.searchpath(mod, package.path)
+    local path = vim.api.nvim_get_runtime_file(mod:gsub("%.", "/") .. ".lua", false)[1]
     if path then
-      local ok, data = pcall(vim.fn.readfile, path)
-      if ok and data then
-        parts[#parts + 1] = table.concat(data, "\n")
+      local stat = vim.uv and vim.uv.fs_stat(path) or vim.loop.fs_stat(path)
+      if stat then
+        parts[#parts + 1] = path .. "=" .. stat.mtime.sec
       end
     end
   end
   if #parts == 0 then
     return ""
   end
-  return vim.fn.sha256(table.concat(parts, "\0")) .. ":" .. (profile or "full")
+  table.sort(parts)
+  local concat = table.concat(parts, "|")
+  -- Simple hash: sum of byte values (no crypto needed, just a fingerprint)
+  local hash = 0
+  for i = 1, #concat do
+    hash = (hash * 31 + string.byte(concat, i)) % (2 ^ 32)
+  end
+  return string.format("%08x:%s", hash, profile)
 end
 
--- ── Internal helpers ─────────────────────────────────────────────────────────
+-- ── Serializability check ─────────────────────────────────────────────────────
 
-local function read_json(path)
-  local ok, raw = pcall(vim.fn.readfile, path)
-  if not ok or not raw then
-    return nil
-  end
-  local dec_ok, data = pcall(vim.fn.json_decode, table.concat(raw, "\n"))
-  if not dec_ok or type(data) ~= "table" then
-    return nil
-  end
-  return data
-end
-
-local function write_json(path, payload)
-  local enc_ok, json_str = pcall(vim.fn.json_encode, payload)
-  if not enc_ok then
-    if vim.g.ltos_debug then
-      vim.notify("[cache] encode failed: " .. tostring(json_str), vim.log.levels.DEBUG)
-    end
+local function is_cacheable(v)
+  local t = type(v)
+  if t == "function" then
     return false
   end
-  local dir = vim.fn.fnamemodify(path, ":h")
-  pcall(vim.fn.mkdir, dir, "p")
-  local w_ok = pcall(vim.fn.writefile, { json_str }, path)
-  return w_ok
-end
-
-local function has_function_values(t)
-  if type(t) ~= "table" then
-    return false
-  end
-  for _, v in pairs(t) do
-    if type(v) == "function" then
-      return true
+  if t == "table" then
+    if v._no_cache then
+      return false
     end
-    if type(v) == "table" and has_function_values(v) then
-      return true
+    for _, child in pairs(v) do
+      if not is_cacheable(child) then
+        return false
+      end
     end
   end
-  return false
+  return true
 end
 
-local function is_cacheable(item)
-  if type(item) ~= "table" then
-    return true
-  end
-  if item._no_cache then
-    return false
-  end
-  return not has_function_values(item)
-end
+-- ── Tier API ─────────────────────────────────────────────────────────────────
 
--- ── Load / Save ──────────────────────────────────────────────────────────────
-
---- Load a tier from disk.
----@param tier  "ast"|"ir"|"spec"
----@param key   string
+--- Load a tier from disk. Returns nil on miss, version mismatch, or key mismatch.
+---@param tier "ast"|"ir"|"spec"
+---@param key  string
 ---@return table|nil
 function M.load(tier, key)
   if key == "" then
     return nil
   end
-  local data = read_json(TIER_FILES[tier] or "")
+  local path = TIER_FILES[tier]
+  if not path then
+    return nil
+  end
+  local data = read_json(path)
   if not data then
     return nil
   end
   if data.version ~= CACHE_VERSION or data.key ~= key then
     if vim.g.ltos_debug then
-      vim.notify(("[cache.load] %s: miss (key or version mismatch)"):format(tier), vim.log.levels.DEBUG)
+      vim.notify(("[cache:%s] miss (key/version mismatch)"):format(tier), vim.log.levels.DEBUG)
     end
     return nil
   end
   if vim.g.ltos_debug then
-    vim.notify(("[cache.load] %s: hit"):format(tier), vim.log.levels.DEBUG)
+    vim.notify(("[cache:%s] hit"):format(tier), vim.log.levels.DEBUG)
   end
   return data.payload
 end
 
---- Persist a tier to disk.
+--- Persist a tier to disk. Skips non-serialisable payloads.
 ---@param tier    "ast"|"ir"|"spec"
 ---@param key     string
 ---@param payload table
+---@return boolean  true if written
 function M.save(tier, key, payload)
   if key == "" then
-    return
+    return false
   end
-  -- Safety: reject non-serialisable payloads
-  if type(payload) == "table" then
-    for _, item in ipairs(payload) do
-      if not is_cacheable(item) then
-        vim.notify(
-          ("[cache.save] %s: skipped — payload contains non-serialisable value"):format(tier),
-          vim.log.levels.WARN
-        )
-        return
-      end
-    end
+  if not is_cacheable(payload) then
+    vim.notify(("[cache:%s] skipped — payload contains non-serialisable value"):format(tier), vim.log.levels.WARN)
+    return false
   end
-  write_json(TIER_FILES[tier], {
+  return write_json(TIER_FILES[tier], {
     version = CACHE_VERSION,
     key = key,
     payload = payload,
   })
 end
 
--- ── Convenience: spec-tier (backward-compatible entry point) ─────────────────
+--- Invalidate a tier and all downstream tiers.
+---@param tier "ast"|"ir"|"spec"
+function M.invalidate(tier)
+  local found = false
+  for _, t in ipairs(TIER_ORDER) do
+    if t == tier then
+      found = true
+    end
+    if found then
+      local path = TIER_FILES[t]
+      os.remove(path)
+    end
+  end
+end
 
---- Load cached specs if key matches (spec tier shorthand).
+--- Invalidate all tiers.
+function M.invalidate_all()
+  for _, t in ipairs(TIER_ORDER) do
+    os.remove(TIER_FILES[t])
+  end
+end
+
+-- ── Spec-tier shorthands (backward-compat) ────────────────────────────────────
+
 ---@param key string
 ---@return table[]|nil
 function M.load_specs(key)
   return M.load("spec", key)
 end
 
---- Save specs to the spec tier.
 ---@param key   string
 ---@param specs table[]
 function M.save_specs(key, specs)

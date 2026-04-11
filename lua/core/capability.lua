@@ -1,10 +1,13 @@
 -- ~/.config/nvim/lua/core/capability.lua
--- Central capability registry.
+-- Domain IR layer: immutable CapabilitySet builder (TODO-6.1).
 --
---   • Lang modules RETURN a plain table — zero side-effects.
---   • Only the pipeline's collect Pass writes to the registry via M.add().
---   • M.snapshot() returns a deep-copy so callers cannot mutate internal state.
+-- Design:
+--   • Lang modules RETURN plain tables — zero side-effects.
+--   • Only the collect pass calls M.add() (write path).
+--   • M.snapshot() returns a deep-copy; callers cannot mutate internal state.
 --   • M.reset() is provided for debug_run isolation.
+--   • The global mutable _store is a necessary runtime evil (Neovim module cache
+--     means we can't escape it); it is wrapped in pure-functional accessors.
 
 local schema = require("core.schema")
 
@@ -24,14 +27,49 @@ local M = {}
 ---@field treesitter? string[]
 ---@field mason?      string[]
 
--- { [lang_name]: Capability }
+-- Module-level store: { [lang_name]: Capability }
 local _store = {}
 
+-- ── Pure merge helpers ────────────────────────────────────────────────────────
+
+local function merge_lsp(dst, src)
+  for k, v in pairs(src) do
+    dst[k] = dst[k] and vim.tbl_deep_extend("force", dst[k], v) or vim.deepcopy(v)
+  end
+end
+
+local function merge_list_map(dst, src)
+  for ft, v in pairs(src) do
+    if dst[ft] and type(dst[ft]) == "table" then
+      vim.list_extend(dst[ft], vim.deepcopy(v))
+    else
+      dst[ft] = vim.deepcopy(v)
+    end
+  end
+end
+
+-- ── Write path (collect pass only) ───────────────────────────────────────────
+
 --- Add (deep-merge) a validated capability bundle.
+--- Returns { ok, diags } so the caller can surface schema errors.
 ---@param name string
----@param cap  Capability
-function M.add(name, cap)
-  cap = schema.validate(name, cap)
+---@param raw  table
+---@return { ok: boolean, diags: table[] }
+function M.add(name, raw)
+  local result = schema.validate(name, raw)
+
+  -- Surface warnings even on success
+  if #result.diags > 0 then
+    local msg = schema.format_diags(result.diags)
+    local level = result.ok and vim.log.levels.WARN or vim.log.levels.ERROR
+    vim.notify(("[capability:%s] schema issues:\n%s"):format(name, msg), level)
+  end
+
+  if not result.ok or not result.cap then
+    return { ok = false, diags = result.diags }
+  end
+
+  local cap = result.cap
 
   if not _store[name] then
     _store[name] = { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
@@ -39,42 +77,27 @@ function M.add(name, cap)
   local r = _store[name]
 
   if cap.lsp then
-    for k, v in pairs(cap.lsp) do
-      r.lsp[k] = r.lsp[k] and vim.tbl_deep_extend("force", r.lsp[k], v) or vim.deepcopy(v)
-    end
+    merge_lsp(r.lsp, cap.lsp)
   end
-
   if cap.formatters then
-    for ft, v in pairs(cap.formatters) do
-      -- v is always a list (schema enforces this); deep-merge lists
-      if r.formatters[ft] and type(r.formatters[ft]) == "table" then
-        vim.list_extend(r.formatters[ft], vim.deepcopy(v))
-      else
-        r.formatters[ft] = vim.deepcopy(v)
-      end
-    end
+    merge_list_map(r.formatters, cap.formatters)
   end
-
   if cap.linters then
-    for ft, v in pairs(cap.linters) do
-      if r.linters[ft] then
-        vim.list_extend(r.linters[ft], v)
-      else
-        r.linters[ft] = vim.deepcopy(v)
-      end
-    end
+    merge_list_map(r.linters, cap.linters)
   end
-
   if cap.treesitter then
     vim.list_extend(r.treesitter, cap.treesitter)
   end
-
   if cap.mason then
     vim.list_extend(r.mason, cap.mason)
   end
+
+  return { ok = true, diags = result.diags }
 end
 
---- Return a deep-copy snapshot of the registry (immutable to callers).
+-- ── Read path ─────────────────────────────────────────────────────────────────
+
+--- Return a deep-copy snapshot (immutable to callers).
 ---@return table<string, Capability>
 function M.snapshot()
   return vim.deepcopy(_store)
@@ -85,7 +108,7 @@ function M.reset()
   _store = {}
 end
 
---- Dump the raw store for introspection (debug only).
+--- Raw dump for introspection (debug only).
 ---@return string
 function M.dump()
   return vim.inspect(_store)

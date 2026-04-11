@@ -1,57 +1,43 @@
 -- ~/.config/nvim/lua/runtime/adapters/conform.lua
--- Codegen adapter: IR → conform.nvim LazySpec.
---
--- P0-1 compliance: raw function values are rejected at schema layer;
--- this adapter only handles strings and FormatterNode tables with .fn injected
--- by the normalize pass.  The `type(fmts) == "function"` branch is removed.
+-- Backend layer: IR → conform.nvim LazySpec.
+-- Builds formatters_by_ft from IR.caps.
+-- FormatterNode.fn closures are preserved as conform custom formatters.
 
 local M = {}
 
----@param ir table  post-optimize IR
+---@param ir table
 ---@return table[]
 function M.build(ir)
-  if not ir or not ir.caps then
-    vim.notify("[ltos:conform] IR missing 'caps' field", vim.log.levels.WARN)
+  if not ir.caps then
+    vim.notify("[ltos:conform] IR missing required field: caps", vim.log.levels.WARN)
     return {}
   end
 
-  local by_ft = {
-    ["*"] = { "codespell" },
-    ["_"] = { "trim_whitespace" },
-  }
-
-  local has_fn = false
+  -- Merge all formatter maps across caps: { [ft]: (string|fun)[] }
+  local formatters_by_ft = {}
 
   for _, cap in pairs(ir.caps) do
     if cap.formatters then
       for ft, fmts in pairs(cap.formatters) do
-        -- fmts is always a list: string | FormatterNode (schema-enforced)
-        local resolved = {}
-        local ft_has_fn = false
-
-        for _, v in ipairs(fmts) do
-          if type(v) == "table" and v.kind == "formatter" then
-            if v.fn then
-              -- Strategy function injected by normalize pass
-              by_ft[ft] = v.fn
-              ft_has_fn = true
-              has_fn = true
-              resolved = nil -- signal: ft is handled
-              break
-            elseif v.name then
-              resolved[#resolved + 1] = v.name
-            end
-            -- nodes with neither fn nor name are no-ops (malformed; schema should catch)
-          elseif type(v) == "string" then
-            resolved[#resolved + 1] = v
-          end
+        if not formatters_by_ft[ft] then
+          formatters_by_ft[ft] = {}
         end
-
-        if not ft_has_fn and resolved ~= nil then
-          if by_ft[ft] and type(by_ft[ft]) == "table" then
-            vim.list_extend(by_ft[ft], resolved)
-          else
-            by_ft[ft] = vim.deepcopy(resolved)
+        for _, v in ipairs(fmts) do
+          if type(v) == "string" then
+            -- Plain formatter name
+            formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = v
+          elseif type(v) == "table" and v.kind == "formatter" then
+            if v.fn then
+              -- FormatterNode with resolved fn → conform stop_after_first wrapper
+              formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = {
+                -- conform supports function formatters via a custom entry
+                -- We use a { name, fn } pattern via conform's formatters table
+                name = v.name or v.strategy or "ltos_dynamic",
+                fn = v.fn,
+              }
+            elseif v.name then
+              formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = v.name
+            end
           end
         end
       end
@@ -62,11 +48,15 @@ function M.build(ir)
     {
       "stevearc/conform.nvim",
       _source = "ltos:conform",
-      _no_cache = has_fn or nil,
-      dependencies = { "mason-org/mason.nvim" },
       opts = {
-        formatters_by_ft = by_ft,
-        formatters = { injected = { options = { ignore_errors = true } } },
+        formatters_by_ft = formatters_by_ft,
+        format_on_save = false, -- controlled by vim.g.autoformat via LazyVim
+        default_format_opts = {
+          timeout_ms = 3000,
+          async = false,
+          quiet = false,
+          lsp_fallback = true,
+        },
       },
     },
   }

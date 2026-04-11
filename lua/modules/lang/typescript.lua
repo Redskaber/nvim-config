@@ -1,40 +1,54 @@
 -- ~/.config/nvim/lua/modules/lang/typescript.lua
--- markup.lua is the single source of truth for: css, scss, html, yaml,
--- markdown, json, jsonc.  typescript.lua only owns js/ts filetypes.
+-- DSL: TypeScript / JavaScript toolchain declaration.
 
 return {
-  treesitter = { "javascript", "jsdoc", "typescript", "tsx" },
+  treesitter = { "javascript", "typescript", "tsx", "jsdoc" },
   lsp = {
     vtsls = {
       settings = {
+        complete_function_calls = true,
+        vtsls = {
+          enableMoveToFileCodeAction = true,
+          autoUseWorkspaceTsdk = true,
+          experimental = {
+            maxInlayHintLength = 30,
+            completion = {
+              enableServerSideFuzzyMatch = true,
+            },
+          },
+        },
         typescript = {
+          updateImportsOnFileMove = { enabled = "always" },
+          suggest = { completeFunctionCalls = true },
           inlayHints = {
+            enumMemberValues = { enabled = true },
+            functionLikeReturnTypes = { enabled = true },
             parameterNames = { enabled = "literals" },
             parameterTypes = { enabled = true },
-            variableTypes = { enabled = true },
             propertyDeclarationTypes = { enabled = true },
-            functionLikeReturnTypes = { enabled = true },
-            enumMemberValues = { enabled = true },
+            variableTypes = { enabled = false },
           },
         },
         javascript = {
+          updateImportsOnFileMove = { enabled = "always" },
+          suggest = { completeFunctionCalls = true },
           inlayHints = {
+            enumMemberValues = { enabled = true },
+            functionLikeReturnTypes = { enabled = true },
             parameterNames = { enabled = "literals" },
             parameterTypes = { enabled = true },
-            variableTypes = { enabled = true },
             propertyDeclarationTypes = { enabled = true },
-            functionLikeReturnTypeHints = { enabled = true },
+            variableTypes = { enabled = false },
           },
         },
       },
     },
   },
-  -- Owns only JS/TS/JSX/TSX filetypes; markup filetypes live in markup.lua.
   formatters = {
-    javascript = { "prettierd" },
-    javascriptreact = { "prettierd" },
-    typescript = { "prettierd" },
-    typescriptreact = { "prettierd" },
+    javascript = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
+    javascriptreact = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
+    typescript = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
+    typescriptreact = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
   },
   linters = {
     javascript = { "eslint" },
@@ -42,5 +56,5 @@ return {
     typescript = { "eslint" },
     typescriptreact = { "eslint" },
   },
-  mason = { "vtsls", "prettierd" },
+  mason = { "vtsls", "prettierd", "eslint_d" },
 }

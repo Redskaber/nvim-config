@@ -1,6 +1,7 @@
 -- ~/.config/nvim/init.lua
--- nvim-config v2 · redskaber
--- entry: bootstrap core, then hand off to lazy
+-- nvim-config v3 · LTOS compiler kernel
+-- Layer 0: bootstrap (netrw off, leader keys)
+-- Layer 1: lazy.nvim + LTOS compiler pipeline
 
-require("core.bootstrap") -- earliest-possible inits (netrw, etc.)
+require("core.bootstrap")
 require("config.lazy")

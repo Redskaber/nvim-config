@@ -1,6 +1,5 @@
 -- ~/.config/nvim/lua/runtime/adapters/treesitter.lua
--- Pure function: ctx → nvim-treesitter spec.
--- dedup delegated to core/util.dedup instead of inline seen/add.
+-- Backend layer: IR → nvim-treesitter LazySpec.
 
 local M = {}
 
@@ -21,16 +20,15 @@ local BASE_PARSERS = {
   "vimdoc",
 }
 
----@param ctx table
+---@param ir table
 ---@return table[]
-function M.build(ctx)
-  if not ctx.all_parsers then
+function M.build(ir)
+  if not ir.all_parsers then
     vim.notify("[ltos:treesitter] IR missing required field: all_parsers", vim.log.levels.WARN)
     return {}
   end
 
-  -- use util.dedup instead of local seen/add pattern
-  local parsers = util.dedup(vim.list_extend(vim.deepcopy(BASE_PARSERS), ctx.all_parsers))
+  local parsers = util.dedup(vim.list_extend(vim.deepcopy(BASE_PARSERS), ir.all_parsers))
 
   return {
     {

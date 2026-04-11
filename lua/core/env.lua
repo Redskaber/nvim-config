@@ -1,5 +1,6 @@
 -- ~/.config/nvim/lua/core/env.lua
--- Runtime environment detection. Results are memoised at module load time.
+-- Kernel layer: runtime environment detection.
+-- All results are memoised at module-load time — call freely.
 
 local M = {}
 

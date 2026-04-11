@@ -1,170 +1,219 @@
 -- ~/.config/nvim/lua/core/schema.lua
--- Capability schema: fail-fast AST validation gate (P0-1).
+-- Domain IR layer: typed DSL validator + error recovery.
 --
--- Rules enforced here:
---   • formatters values must be a list of string | FormatterNode — NO raw functions.
---   • Sentinel strings (surrounded by __) are rejected.
---   • All node kinds must be in KNOWN_NODE_KINDS.
+-- Validates lang module capability tables (the AST layer).
+-- Rules:
+--   • formatters values → list of string | FormatterNode only.
+--   • Sentinel strings (__xxx__) are rejected.
+--   • Raw functions are rejected — use FormatterNode { kind, strategy }.
 --   • mason[] contains only non-empty strings.
+--   • On validation failure: returns structured Diagnostic, not a Lua error.
 
 local M = {}
 
--- ── AST node type definitions ────────────────────────────────────────────────
+-- ── AST node type definitions ─────────────────────────────────────────────────
 
 ---@class FormatterNode
 ---@field kind      "formatter"
----@field name?     string                        -- concrete formatter name
----@field strategy? string                        -- strategy key (resolved in normalize)
----@field fn?       fun(bufnr: integer): string[] -- injected by normalize; never in source
+---@field name?     string         concrete formatter name
+---@field strategy? string         strategy key, resolved by normalize pass
+---@field fn?       fun(bufnr: integer): string[]   injected by normalize; NEVER in source
 
--- Known AST node kinds
 local KNOWN_NODE_KINDS = { formatter = true }
 
--- ── Helpers ──────────────────────────────────────────────────────────────────
+-- ── Diagnostic type ───────────────────────────────────────────────────────────
 
-local function assert_type(path, value, expected)
-  local t = type(value)
-  if t ~= expected then
-    error(("[schema] %s: expected %s, got %s"):format(path, expected, t), 3)
-  end
+---@class SchemaDiagnostic
+---@field path     string
+---@field message  string
+---@field severity "error"|"warn"
+
+---@param path     string
+---@param message  string
+---@param severity? "error"|"warn"
+---@return SchemaDiagnostic
+local function diag(path, message, severity)
+  return { path = path, message = message, severity = severity or "error" }
 end
 
-local function assert_list_of_strings(path, value)
-  assert_type(path, value, "table")
-  for i, v in ipairs(value) do
-    if type(v) ~= "string" then
-      error(("[schema] %s[%d]: expected string, got %s"):format(path, i, type(v)), 3)
-    end
-  end
-end
+-- ── Internal validators ───────────────────────────────────────────────────────
 
 local function is_sentinel(s)
   return type(s) == "string" and s:match("^__.+__$") ~= nil
 end
 
-local function assert_ast_node(path, node)
+---@param path  string
+---@param node  table
+---@param diags SchemaDiagnostic[]
+local function validate_formatter_node(path, node, diags)
   if not KNOWN_NODE_KINDS[node.kind] then
-    error(
-      ("[schema] %s: unknown node kind %q; expected one of: %s"):format(
-        path,
+    diags[#diags + 1] = diag(
+      path,
+      ("unknown node kind %q; valid: %s"):format(
         tostring(node.kind),
         table.concat(vim.tbl_keys(KNOWN_NODE_KINDS), ", ")
-      ),
-      3
+      )
     )
+    return
   end
   if node.name ~= nil and type(node.name) ~= "string" then
-    error(("[schema] %s.name: expected string, got %s"):format(path, type(node.name)), 3)
+    diags[#diags + 1] = diag(path .. ".name", "expected string, got " .. type(node.name))
   end
   if node.strategy ~= nil and type(node.strategy) ~= "string" then
-    error(("[schema] %s.strategy: expected string, got %s"):format(path, type(node.strategy)), 3)
+    diags[#diags + 1] = diag(path .. ".strategy", "expected string, got " .. type(node.strategy))
   end
-  -- fn is ONLY injected by the normalize pass — never allowed in source modules
   if node.fn ~= nil then
-    error(("[schema] %s.fn: must not be set in lang module source; injected by normalize pass only"):format(path), 3)
+    diags[#diags + 1] =
+      diag(path .. ".fn", "fn must not be set in source modules; it is injected by the normalize pass")
   end
 end
 
---- Validate a formatters or linters map: { [ft]: string[] | FormatterNode[] }
---- Raw function values are REJECTED (P0-1: no function fallback).
-local function assert_ft_tool_map(path, value)
-  assert_type(path, value, "table")
+---@param path  string
+---@param value any
+---@param diags SchemaDiagnostic[]
+local function validate_ft_tool_map(path, value, diags)
+  if type(value) ~= "table" then
+    diags[#diags + 1] = diag(path, "expected table, got " .. type(value))
+    return
+  end
   for ft, list in pairs(value) do
     if type(ft) ~= "string" or ft == "" then
-      error(("[schema] %s key: expected non-empty string, got %s"):format(path, type(ft)), 3)
+      diags[#diags + 1] = diag(path .. ".<key>", "key must be a non-empty string")
     end
-    -- STRICT: reject raw functions — use FormatterNode { kind="formatter", strategy="..." }
+    local item_path = path .. "." .. tostring(ft)
     if type(list) == "function" then
-      error(
-        (
-          "[schema] %s.%s: raw function values are not allowed. "
-          .. 'Use a FormatterNode instead: { kind = "formatter", strategy = "my_strategy" }'
-        ):format(path, ft),
-        3
+      diags[#diags + 1] = diag(
+        item_path,
+        'raw function values are not allowed; use FormatterNode: { kind = "formatter", strategy = "..." }'
       )
-    end
-    if type(list) ~= "table" then
-      error(("[schema] %s.%s: expected list (table), got %s"):format(path, ft, type(list)), 3)
-    end
-    local item_path = path .. "." .. ft
-    for i, v in ipairs(list) do
-      if type(v) == "table" then
-        assert_ast_node(item_path .. "[" .. i .. "]", v)
-      elseif type(v) == "string" then
-        if is_sentinel(v) then
-          error(
-            (
-              "[schema] %s[%d]: Sentinel %q is forbidden. "
-              .. 'Use FormatterNode: { kind = "formatter", strategy = "..." }'
-            ):format(item_path, i, v),
-            3
-          )
+    elseif type(list) ~= "table" then
+      diags[#diags + 1] = diag(item_path, "expected list, got " .. type(list))
+    else
+      for i, v in ipairs(list) do
+        local elem_path = item_path .. "[" .. i .. "]"
+        if type(v) == "table" then
+          validate_formatter_node(elem_path, v, diags)
+        elseif type(v) == "string" then
+          if is_sentinel(v) then
+            diags[#diags + 1] = diag(
+              elem_path,
+              ('sentinel %q is forbidden; use FormatterNode: { kind = "formatter", strategy = "..." }'):format(v)
+            )
+          end
+        else
+          diags[#diags + 1] = diag(elem_path, "expected string or FormatterNode, got " .. type(v))
         end
-        -- plain string is valid
-      else
-        error(("[schema] %s[%d]: expected string or FormatterNode, got %s"):format(item_path, i, type(v)), 3)
       end
     end
   end
 end
 
--- ── Public API ───────────────────────────────────────────────────────────────
+---@param path  string
+---@param value any
+---@param diags SchemaDiagnostic[]
+local function validate_string_list(path, value, diags)
+  if type(value) ~= "table" then
+    diags[#diags + 1] = diag(path, "expected list, got " .. type(value))
+    return
+  end
+  for i, v in ipairs(value) do
+    if type(v) ~= "string" then
+      diags[#diags + 1] = diag(path .. "[" .. i .. "]", "expected string, got " .. type(v))
+    end
+  end
+end
 
---- Validate a raw capability table.
---- Returns the same table on success; throws a descriptive error on violation.
----@param name string
+-- ── Public API ────────────────────────────────────────────────────────────────
+
+---@class ValidationResult
+---@field ok        boolean
+---@field cap?      table              validated cap (nil on hard failure)
+---@field diags     SchemaDiagnostic[]
+
+--- Validate a raw capability table from a lang module.
+--- Returns a ValidationResult; never throws.
+---@param name string   lang module identifier (for error context)
 ---@param cap  table
----@return table
+---@return ValidationResult
 function M.validate(name, cap)
-  local p = "cap[" .. name .. "]"
-  assert_type(p, cap, "table")
+  local diags = {}
 
+  if type(cap) ~= "table" then
+    return {
+      ok = false,
+      diags = { diag(name, "module must return a table, got " .. type(cap)) },
+    }
+  end
+
+  -- lsp: { [server]: LspConfig }
   if cap.lsp ~= nil then
-    assert_type(p .. ".lsp", cap.lsp, "table")
-    for server, cfg in pairs(cap.lsp) do
-      if type(server) ~= "string" then
-        error(("[schema] %s.lsp key must be string, got %s"):format(p, type(server)), 2)
-      end
-      assert_type(p .. ".lsp." .. server, cfg, "table")
-      if cfg.settings ~= nil and type(cfg.settings) ~= "table" then
-        error(("[schema] %s.lsp.%s.settings must be table or nil"):format(p, server), 2)
-      end
-      if cfg.cmd ~= nil then
-        assert_list_of_strings(p .. ".lsp." .. server .. ".cmd", cfg.cmd)
-      end
-      if cfg.mason ~= nil and type(cfg.mason) ~= "boolean" then
-        error(("[schema] %s.lsp.%s.mason must be boolean or nil"):format(p, server), 2)
+    if type(cap.lsp) ~= "table" then
+      diags[#diags + 1] = diag(name .. ".lsp", "expected table, got " .. type(cap.lsp))
+    else
+      for server, cfg in pairs(cap.lsp) do
+        if type(server) ~= "string" or server == "" then
+          diags[#diags + 1] = diag(name .. ".lsp.<key>", "server name must be a non-empty string")
+        end
+        if type(cfg) ~= "table" then
+          diags[#diags + 1] = diag(name .. ".lsp." .. tostring(server), "expected table, got " .. type(cfg))
+        end
       end
     end
   end
 
+  -- formatters / linters
   if cap.formatters ~= nil then
-    assert_ft_tool_map(p .. ".formatters", cap.formatters)
+    validate_ft_tool_map(name .. ".formatters", cap.formatters, diags)
   end
-
   if cap.linters ~= nil then
-    assert_ft_tool_map(p .. ".linters", cap.linters)
+    validate_ft_tool_map(name .. ".linters", cap.linters, diags)
   end
 
+  -- treesitter: string[]
   if cap.treesitter ~= nil then
-    assert_list_of_strings(p .. ".treesitter", cap.treesitter)
+    validate_string_list(name .. ".treesitter", cap.treesitter, diags)
   end
 
+  -- mason: string[]
   if cap.mason ~= nil then
-    local filtered = {}
-    for _, pkg in ipairs(cap.mason) do
-      if type(pkg) == "string" and pkg ~= "" then
-        filtered[#filtered + 1] = pkg
-      elseif pkg == "" then
-        vim.notify(("[schema] %s.mason: empty string filtered out"):format(p), vim.log.levels.WARN)
-      else
-        error(("[schema] %s.mason: expected string, got %s"):format(p, type(pkg)), 2)
+    validate_string_list(name .. ".mason", cap.mason, diags)
+    if type(cap.mason) == "table" then
+      for i, v in ipairs(cap.mason) do
+        if type(v) == "string" and v == "" then
+          diags[#diags + 1] = diag(name .. ".mason[" .. i .. "]", "mason entries must be non-empty strings")
+        end
       end
     end
-    cap.mason = filtered
   end
 
-  return cap
+  -- Hard errors prevent the cap from being used
+  local has_error = false
+  for _, d in ipairs(diags) do
+    if d.severity == "error" then
+      has_error = true
+      break
+    end
+  end
+
+  return {
+    ok = not has_error,
+    cap = not has_error and cap or nil,
+    diags = diags,
+  }
+end
+
+--- Format diagnostics to a human-readable string (for notify / :LtosDebug).
+---@param diags SchemaDiagnostic[]
+---@return string
+function M.format_diags(diags)
+  if #diags == 0 then
+    return ""
+  end
+  local lines = {}
+  for _, d in ipairs(diags) do
+    lines[#lines + 1] = ("[schema:%s] %s — %s"):format(d.severity, d.path, d.message)
+  end
+  return table.concat(lines, "\n")
 end
 
 return M

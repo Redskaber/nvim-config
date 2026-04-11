@@ -1,7 +1,7 @@
 -- ~/.config/nvim/lua/runtime/adapters/mason.lua
--- Codegen adapter: IR → mason-nvim LazySpec.
--- Resolution decisions already live in ir.resolved (pipeline pass 3).
--- This adapter only reads IR; no toolchain logic here (P0-4 / P1-2).
+-- Backend layer: IR → mason-nvim LazySpec.
+-- Resolution decisions already live in IR.resolved (Phase 3).
+-- This adapter only reads IR — no toolchain logic here.
 
 local M = {}
 
@@ -10,8 +10,8 @@ local util = require("core.util")
 
 local BASE_TOOLS = { "codespell" }
 
----@param ir table  post-optimize IR
----@return table[]
+---@param ir table  LIR or SPEC-ready IR
+---@return table[]  LazySpec[]
 function M.build(ir)
   if not ir.caps then
     vim.notify("[ltos:mason] IR missing required field: caps", vim.log.levels.WARN)
@@ -28,14 +28,13 @@ function M.build(ir)
     end
   end
 
-  -- Build a set of known LSP mason package names to guard against
-  -- double-counting if a lang module lists them explicitly in cap.mason.
+  -- Guard against double-counting LSP packages that appear in cap.mason
   local lsp_pkgs = {}
   for _, pkg in pairs(mappings.lsp_to_mason) do
     lsp_pkgs[pkg] = true
   end
 
-  -- Formatters & linters (via explicit mason lists on each cap)
+  -- Formatters & linters from explicit cap.mason lists
   for _, cap in pairs(ir.caps) do
     if cap.mason then
       for _, t in ipairs(cap.mason) do
@@ -50,13 +49,11 @@ function M.build(ir)
     end
   end
 
-  local ensure_installed = util.dedup(raw)
-
   return {
     {
       "mason-org/mason.nvim",
-      opts = { ensure_installed = ensure_installed },
       _source = "ltos:mason",
+      opts = { ensure_installed = util.dedup(raw) },
     },
   }
 end

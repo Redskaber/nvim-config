@@ -1,9 +1,10 @@
 -- ~/.config/nvim/lua/runtime/adapters/lint.lua
--- Codegen adapter: IR → nvim-lint LazySpec.
+-- Backend layer: IR → nvim-lint LazySpec.
+-- Builds linters_by_ft from IR.caps.
 
 local M = {}
 
----@param ir table  post-optimize IR
+---@param ir table
 ---@return table[]
 function M.build(ir)
   if not ir.caps then
@@ -11,15 +12,19 @@ function M.build(ir)
     return {}
   end
 
-  local by_ft = { text = { "typos" } }
+  -- Merge all linter maps: { [ft]: string[] }
+  local linters_by_ft = {}
 
   for _, cap in pairs(ir.caps) do
     if cap.linters then
-      for ft, lnts in pairs(cap.linters) do
-        if by_ft[ft] then
-          vim.list_extend(by_ft[ft], lnts)
-        else
-          by_ft[ft] = vim.deepcopy(lnts)
+      for ft, linters in pairs(cap.linters) do
+        if not linters_by_ft[ft] then
+          linters_by_ft[ft] = {}
+        end
+        for _, linter in ipairs(linters) do
+          if type(linter) == "string" then
+            linters_by_ft[ft][#linters_by_ft[ft] + 1] = linter
+          end
         end
       end
     end
@@ -28,12 +33,10 @@ function M.build(ir)
   return {
     {
       "mfussenegger/nvim-lint",
-      opts = {
-        events = { "BufWritePost", "BufReadPost", "InsertLeave" },
-        linters_by_ft = by_ft,
-        linters = {},
-      },
       _source = "ltos:lint",
+      opts = {
+        linters_by_ft = linters_by_ft,
+      },
     },
   }
 end

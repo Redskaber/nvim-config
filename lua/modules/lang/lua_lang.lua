@@ -1,6 +1,8 @@
 -- ~/.config/nvim/lua/modules/lang/lua_lang.lua
+-- DSL: Lua language toolchain declaration.
+
 return {
-  treesitter = { "lua", "luadoc" },
+  treesitter = { "lua", "luadoc", "luap" },
   lsp = {
     lua_ls = {
       settings = {
@@ -21,6 +23,8 @@ return {
       },
     },
   },
-  formatters = { lua = { "stylua" } },
+  formatters = {
+    lua = { "stylua" },
+  },
   mason = { "stylua" },
 }
