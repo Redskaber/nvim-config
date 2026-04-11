@@ -25,7 +25,9 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 -- Run the five-stage pipeline; returns flat list of lazy plugin specs.
-local lang_specs = require("runtime").build()
+local runtime = require("runtime")
+local lang_specs = runtime.build()
+runtime.setup_commands()
 
 require("lazy").setup({
   spec = vim.list_extend(

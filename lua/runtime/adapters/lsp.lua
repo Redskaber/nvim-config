@@ -24,6 +24,7 @@ function M.build(ctx)
     {
       "neovim/nvim-lspconfig",
       opts = { servers = clean },
+      _source = "ltos:lsp",
     },
   }
 end

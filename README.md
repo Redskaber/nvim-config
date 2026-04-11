@@ -1,138 +1,254 @@
-# nvim
+# LTOS — Language Toolchain Orchestration System
 
-## Arch
+A compiler-inspired Neovim configuration framework. Lang modules are the "source language" (DSL); a five-stage pipeline compiles them into lazy.nvim plugin specs (the "target code").
 
-```bash
-~/.config/nvim/
-├── init.lua
-├── lua/
-│   ├── core/
-│   │   ├── bootstrap.lua
-│   │   ├── capability.lua
-│   │   ├── env.lua
-│   │   ├── icons.lua
-│   │   └── util.lua
-│   ├── config/
-│   │   ├── autocmds.lua
-│   │   ├── globals.lua
-│   │   ├── keymaps.lua
-│   │   ├── lazy.lua
-│   │   └── options.lua
-│   ├── modules/
-│   │   └── lang/
-│   │       ├── c_cpp.lua
-│   │       ├── go.lua
-│   │       ├── lua_lang.lua
-│   │       ├── markup.lua
-│   │       ├── nix.lua
-│   │       ├── python.lua
-│   │       ├── rust.lua
-│   │       ├── shell.lua
-│   │       ├── typescript.lua
-│   │       └── zig.lua
-│   ├── runtime/
-│   │   ├── init.lua
-│   │   ├── api.lua
-│   │   └── adapters/
-│   │       ├── lsp.lua
-│   │       ├── mason.lua
-│   │       ├── treesitter.lua
-│   │       ├── conform.lua
-│   │       └── lint.lua
-│   ├── toolchain/
-│   │   ├── mappings.lua
-│   │   └── rules.lua
-│   └── plugins/
-│       ├── ai.lua
-│       ├── coding.lua
-│       ├── colorscheme.lua
-│       ├── editor.lua
-│       ├── formatting.lua
-│       ├── linting.lua
-│       ├── lsp.lua
-│       ├── snacks.lua
-│       ├── treesitter.lua
-│       └── ui.lua
+## Architecture
+
+```
+modules/lang/*.lua   →   Pipeline (5 stages)   →   lazy.nvim specs
+     (DSL)                                           (codegen output)
 ```
 
+### Layer Overview
 
-# TODO LIST
+```
+┌─────────────────────────────────────────────┐
+│  Entry: init.lua → core/bootstrap.lua       │
+│         → config/lazy.lua                  │
+└──────────────────┬──────────────────────────┘
+                   │ runtime.build()
+┌──────────────────▼──────────────────────────┐
+│  Orchestration: runtime/init.lua            │
+│  Pipeline:      runtime/pipeline.lua        │
+│  (State Machine + 5-stage execution)        │
+└──┬──────┬──────┬──────┬──────┬──────────────┘
+   │      │      │      │      │
+collect normalize resolve optimize codegen
+┌──▼──────▼──────▼──────▼──────▼──────────────┐
+│  IR Layer: core/ir.lua + core/schema.lua    │
+└──┬───────────────────────────────────────────┘
+   │
+┌──▼───────────────────────────────────────────┐
+│  Declaration: core/capability.lua (Registry) │
+│  modules/lang/*.lua  (pure DSL, no effects)  │
+└──┬───────────────────────────────────────────┘
+   │
+┌──▼───────────────────────────────────────────┐
+│  Toolchain: toolchain/rules.lua              │
+│             toolchain/mappings.lua           │
+│             toolchain/strategies/            │
+└──┬───────────────────────────────────────────┘
+   │
+┌──▼───────────────────────────────────────────┐
+│  Adapters: runtime/adapters/{lsp,mason,      │
+│            treesitter,conform,lint}.lua      │
+└──┬───────────────────────────────────────────┘
+   │ LazySpec[]
+┌──▼───────────────────────────────────────────┐
+│  Plugins: plugins/*.lua  (UI/editor/AI)      │
+│  Facade:  runtime/api.lua + config/keymaps   │
+└──────────────────────────────────────────────┘
+```
 
-## P0 - 必须做
+### Pipeline Stages
 
-1. **P0-1 [高]**: 引入明确的编译型Pipeline架构
-   - 实现五阶段Pipeline：collect → normalize → resolve → optimize → codegen
-   - collect阶段：收集DSL声明（modules/lang）
-   - normalize阶段：标准化formatter/lsp server名称
-   - resolve阶段：toolchain决策（system vs mason）
-   - optimize阶段：去重、合并、lazy策略
-   - codegen阶段：生成lazy.nvim spec
+| Stage | Input | Output |
+|-------|-------|--------|
+| **collect** | `modules/lang/*.lua` module paths | `IR.caps` — validated capability registry |
+| **normalize** | `IR.caps` | strategy refs injected into `FormatterNode` |
+| **resolve** | `IR.caps` | `IR.resolved` — per-tool mason/system decision |
+| **optimize** | `IR.resolved` | `IR.merged_lsp`, `IR.all_parsers` — deduped |
+| **codegen** | full IR | `LazySpec[]` consumed by lazy.nvim |
 
-2. **P0-2 [高]**: 将mason mapping规则外置到toolchain层
-   - 创建toolchain/rules.lua和toolchain/mappings.lua
-   - 统一管理lsp_to_mason和formatter_to_mason映射
-   - 支持用户自定义override
+The pipeline runs through a state machine (`idle → collecting → normalizing → resolving → optimizing → codegen → done`). Illegal transitions enter the `error` state; the pipeline always returns the most complete spec list possible rather than crashing.
 
-3. **P0-3 [高]**: capability增加基础类型验证
-   - 定义schema约束（lsp.server、formatter.name等）
-   - 实现validate函数进行fail-fast校验
-   - 确保adapter接收的是受约束的AST而非弱类型table
+### Pipeline Caching
 
-## P1 - 重要
+Results are cached to disk keyed by `sha256` of all lang module contents. On subsequent startups the pipeline is skipped entirely on a cache hit. Cache is invalidated automatically when any lang module changes.
 
-4. **P1-1 [中]**: modules/lang改造为纯声明式无副作用
-   - 改造cap.register()为return table结构
-   - 实现registry.add()统一注册机制
-   - 支持静态分析和可测试性
+## File Structure
 
-5. **P1-2 [中]**: adapter层降级为纯函数
-   - 移除adapter中的semantic inference逻辑
-   - 确保adapter.build(IR) → spec的纯函数特性
-   - 禁止adapter访问环境变量或执行逻辑判断
+```
+~/.config/nvim/
+├── init.lua                        # entry point
+└── lua/
+    ├── core/
+    │   ├── bootstrap.lua           # earliest inits
+    │   ├── capability.lua          # central registry (add/all)
+    │   ├── cache.lua               # sha256-keyed pipeline cache
+    │   ├── env.lua                 # Nix / system environment detection
+    │   ├── icons.lua               # internal icon set
+    │   ├── ir.lua                  # IR struct + stage field contracts
+    │   ├── schema.lua              # AST node validation, fail-fast
+    │   └── util.lua                # dedup, misc helpers
+    ├── config/
+    │   ├── autocmds.lua
+    │   ├── globals.lua
+    │   ├── keymaps.lua             # imports runtime.api only
+    │   ├── lazy.lua                # bootstrap lazy.nvim + runtime.build()
+    │   └── options.lua
+    ├── modules/
+    │   └── lang/                   # pure DSL — zero side-effects
+    │       ├── c_cpp.lua
+    │       ├── go.lua
+    │       ├── lua_lang.lua
+    │       ├── markup.lua
+    │       ├── nix.lua
+    │       ├── python.lua
+    │       ├── rust.lua
+    │       ├── shell.lua
+    │       ├── typescript.lua
+    │       └── zig.lua
+    ├── runtime/
+    │   ├── init.lua                # orchestrator, profile, cache integration
+    │   ├── pipeline.lua            # state machine + 5-stage pipeline
+    │   ├── commands.lua            # :LtosDebug, :LtosInfo
+    │   ├── api.lua                 # unified facade for keymaps
+    │   └── adapters/
+    │       ├── lsp.lua
+    │       ├── mason.lua
+    │       ├── treesitter.lua
+    │       ├── conform.lua
+    │       └── lint.lua
+    ├── toolchain/
+    │   ├── mappings.lua            # tool → mason package name, overrides
+    │   ├── rules.lua               # ToolchainStrategy: mason vs system
+    │   └── strategies/
+    │       ├── init.lua            # FormatterStrategy registry
+    │       └── formatters.lua      # ruff_or_black, prettierd_or_prettier
+    └── plugins/                    # UI / editor / AI — no toolchain logic
+        ├── ai.lua
+        ├── coding.lua
+        ├── colorscheme.lua
+        ├── editor.lua
+        ├── formatting.lua
+        ├── linting.lua
+        ├── lsp.lua
+        ├── snacks.lua
+        ├── treesitter.lua
+        └── ui.lua
+```
 
-6. **P1-3 [中]**: runtime.build拆分为多阶段执行
-   - 实现阶段间上下文共享机制
-   - 支持中间优化策略插入
-   - 提供阶段调试和dump能力
+## Lang Modules (DSL)
 
-## P2 - 优化
+Each file under `modules/lang/` is a pure Lua table — no `require`, no side effects. The pipeline's `collect` stage loads and validates them.
 
-7. **P2-1 [低]**: 统一命名规范和约束
-   - formatter/linter/lsp命名标准化
-   - 实现工具名称规范校验
-   - 建立工具名称注册表
+```lua
+-- modules/lang/typescript.lua  — plain strings, fully compatible with conform.nvim
+return {
+  treesitter = { "javascript", "typescript", "tsx" },
+  lsp        = { vtsls = { settings = { ... } } },
+  formatters = {
+    typescript      = { "prettierd" },
+    typescriptreact = { "prettierd" },
+  },
+  linters = { typescript = { "eslint" } },
+  mason   = { "vtsls", "prettierd" },
+}
+```
 
-8. **P2-2 [低]**: 增加IR调试和可视化能力
-   - 实现debug dump功能打印中间表示
-   - 提供IR可视化工具
-   - 支持构建过程跟踪
+Formatter values are plain strings by default — exactly what conform.nvim's `formatters_by_ft` expects. The pipeline passes them through unchanged.
 
-9. **P2-3 [低]**: 实现按filetype的lazy加载
-   - lang modules按需加载机制
-   - filetype触发的capability注册
-   - 减少启动时的资源消耗
+### FormatterNode (optional)
 
-## P3 - 进阶
+For formatters that need runtime fallback logic, a `FormatterNode` table can be used instead of a plain string. The `normalize` stage resolves the strategy to a concrete tool list at runtime:
 
-10. **P3-1 [低]**: 支持多profile构建策略
-    - minimal/profile构建模式
-    - 环境感知（nix/non-nix）
-    - backend适配（lazy/packer/rocks）
+```lua
+-- modules/lang/python.lua  — strategy-based, resolves at runtime
+formatters = {
+  python = { { kind = "formatter", strategy = "ruff_or_black" } },
+},
+```
 
-11. **P3-2 [低]**: capability支持继承机制
-    - base capability定义
-    - lang-specific capability扩展
-    - 继承链管理和冲突解决
+| Strategy | Behavior |
+|----------|----------|
+| `ruff_or_black` | prefers `ruff_format`; falls back to `isort + black` |
+| `prettierd_or_prettier` | prefers `prettierd`; falls back to `prettier` |
 
-12. **P3-3 [低]**: 实现插件冲突检测
-    - formatter vs lsp format冲突识别
-    - 工具链版本兼容性检查
-    - 自动冲突解决建议
+Plain strings and `FormatterNode` entries can be mixed freely in the same list. Use `FormatterNode` only when you need runtime tool selection; otherwise plain strings are simpler and equally valid.
 
-## 补充建议
+Register custom strategies in `toolchain/strategies/`:
 
-- **架构定位**: 明确系统定位为"语言工具链编排系统"而非简单Neovim配置
-- **核心瓶颈**: 重点补全中间层语义建模（IR + pipeline）
-- **扩展性**: 通过IR和pipeline设计实现指数级可扩展性提升
+```lua
+local strategies = require("toolchain.strategies")
+strategies.register("my_strategy", function(bufnr)
+  return { "my_formatter" }
+end)
+```
+
+## Toolchain Resolution
+
+`toolchain/rules.lua` implements the `ToolchainStrategy` interface. Resolution priority:
+
+1. User overrides (`vim.g.ltos_tool_overrides` or `toolchain/mappings.lua` `overrides`)
+2. `always_system` list (rustfmt, gofmt, zigfmt, fish, nixpkgs_fmt, …)
+3. Nix environment detection (`core/env.lua`)
+4. `tool_to_mason` mapping table
+5. Identity fallback (tool name = mason package name)
+
+Tools that ship with their language toolchain (rustfmt, gofmt, zigfmt) are always marked `always_system` and never installed via mason.
+
+## Profiles
+
+Set `vim.g.ltos_profile` before startup to control which modules are loaded:
+
+| Profile | Modules |
+|---------|---------|
+| `"full"` (default) | all lang modules |
+| `"minimal"` | core modules only (`lua_lang`) |
+| `"nix"` | all modules, system tools preferred |
+
+```lua
+-- globals.lua
+vim.g.ltos_profile = "minimal"
+```
+
+## User Commands
+
+| Command | Description |
+|---------|-------------|
+| `:LtosInfo` | Show active profile, pipeline state, registered modules and tool count |
+| `:LtosDebug [stage]` | Dump IR snapshot at `collect`/`normalize`/`resolve`/`optimize` in a scratch buffer |
+
+## Adding a New Language
+
+Create `lua/modules/lang/mylang.lua`:
+
+```lua
+return {
+  treesitter = { "mylang" },
+  lsp        = { mylang_ls = {} },
+  formatters = { mylang = { "myfmt" } },
+  linters    = { mylang = { "mylint" } },
+  mason      = { "mylang-language-server" },
+}
+```
+
+Then add the module path to `LANG_MODULES` in `lua/runtime/init.lua`. The pipeline handles the rest.
+
+## Supported Languages
+
+| Language | LSP | Formatter | Linter |
+|----------|-----|-----------|--------|
+| C / C++ | clangd | clang-format | clangtidy |
+| Go | gopls | gofmt | — |
+| Lua | lua_ls | stylua | — |
+| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo | taplo / prettierd-or-prettier | — |
+| Nix | nil_ls | nixpkgs_fmt | — |
+| Python | pyright | ruff-or-black | ruff |
+| Rust | rust_analyzer | rustfmt | clippy |
+| Shell | — | shfmt | shellcheck |
+| TypeScript / JavaScript | vtsls | prettierd-or-prettier | eslint |
+| Zig | zls | zigfmt | — |
+
+## Tests
+
+```bash
+# Formatter strategy unit tests
+nvim --headless -l spec/toolchain/strategies_spec.lua
+
+# :LtosInfo command integration tests
+nvim --headless -l spec/runtime/commands_spec.lua
+```
 
 

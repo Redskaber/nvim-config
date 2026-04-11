@@ -1,13 +1,10 @@
 -- ~/.config/nvim/lua/modules/lang/c_cpp.lua
--- V2: pure return, zero side-effects.
-
-local tc = require("toolchain.rules")
+-- V2: pure return, zero side-effects. Mason decision delegated to resolve stage.
 
 return {
   treesitter = { "c", "cpp" },
   lsp = {
     clangd = {
-      mason = tc.use_mason("clangd"),
       cmd = {
         "clangd",
         "--background-index",
@@ -25,5 +22,5 @@ return {
     c = { "clangtidy" },
     cpp = { "clangtidy" },
   },
-  mason = tc.use_mason("clangd") and { "clangd", "clang-format" } or { "clang-format" },
+  mason = { "clangd", "clang-format" },
 }

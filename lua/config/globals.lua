@@ -2,8 +2,6 @@
 -- All vim.g.* runtime globals. Loaded by options.lua so the order is clear.
 -- Keep this file ONLY for globals; vim.opt.* lives in config/options.lua.
 
-local env = require("core.env")
-
 -- ── LazyVim feature flags ─────────────────────────────────────────────────
 vim.g.autoformat = true
 vim.g.snacks_animate = true

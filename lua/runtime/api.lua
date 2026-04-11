@@ -7,10 +7,15 @@ local M = {}
 -- ── Picker façade ────────────────────────────────────────────────────────────
 local function picker(name, opts)
   return function()
-    if _G.Snacks and Snacks.picker and Snacks.picker[name] then
-      Snacks.picker[name](opts)
-    else
-      vim.notify("[runtime.api] picker not ready: " .. name, vim.log.levels.WARN)
+    local ok, err = pcall(function()
+      if _G.Snacks and Snacks.picker and Snacks.picker[name] then
+        Snacks.picker[name](opts)
+      else
+        error("picker not available: " .. name)
+      end
+    end)
+    if not ok then
+      vim.notify("[runtime.api] picker failed: " .. tostring(err), vim.log.levels.WARN)
     end
   end
 end
@@ -86,4 +91,25 @@ M.format = function(opts)
   end
 end
 
+-- ── Terminal façade ──────────────────────────────────────────────────────────
+M.terminal = {
+  float = function()
+    local ok, err = pcall(function()
+      require("toggleterm").toggle(nil, "float")
+    end)
+    if not ok then
+      vim.notify("[runtime.api] toggleterm unavailable: " .. tostring(err), vim.log.levels.WARN)
+      vim.cmd("terminal")
+    end
+  end,
+  horizontal = function()
+    local ok, err = pcall(function()
+      require("toggleterm").toggle(nil, "horizontal")
+    end)
+    if not ok then
+      vim.notify("[runtime.api] toggleterm unavailable: " .. tostring(err), vim.log.levels.WARN)
+      vim.cmd("split | terminal")
+    end
+  end,
+}
 return M

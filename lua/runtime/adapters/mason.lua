@@ -11,6 +11,10 @@ local BASE_TOOLS = { "codespell" }
 ---@param ctx table
 ---@return table[]
 function M.build(ctx)
+  if not ctx.caps then
+    vim.notify("[ltos:mason] IR missing required field: caps", vim.log.levels.WARN)
+    return {}
+  end
   local seen = {}
   local tools = {}
 
@@ -51,6 +55,7 @@ function M.build(ctx)
     {
       "mason-org/mason.nvim",
       opts = { ensure_installed = tools },
+      _source = "ltos:mason",
     },
   }
 end

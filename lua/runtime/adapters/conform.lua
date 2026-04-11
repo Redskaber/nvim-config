@@ -1,39 +1,55 @@
--- ~/.config/nvim/lua/runtime/adapters/conform.lua
--- Pure function: ctx → conform.nvim spec.
--- Sentinel "__ruff_or_black__" is resolved here to a dynamic function.
+-- lua/runtime/adapters/conform.lua
+-- Pure function: ir -> conform.nvim spec.
+-- FormatterNode with strategy field is resolved via toolchain/strategies registry.
 
 local M = {}
 
-local function ruff_or_black_fn()
-  return function(bufnr)
-    if require("conform").get_formatter_info("ruff_format", bufnr).available then
-      return { "ruff_format" }
-    end
-    return { "isort", "black" }
-  end
-end
-
----@param ctx table
+---@param ir table
 ---@return table[]
-function M.build(ctx)
+function M.build(ir)
+  if not ir or not ir.caps then
+    vim.notify("[ltos:conform] IR missing 'caps' field", vim.log.levels.WARN)
+    return {}
+  end
+
+  local strategies = require("toolchain.strategies")
   local by_ft = {
     ["*"] = { "codespell" },
     ["_"] = { "trim_whitespace" },
   }
 
-  for _, cap in pairs(ctx.caps) do
+  for _, cap in pairs(ir.caps) do
     if cap.formatters then
       for ft, fmts in pairs(cap.formatters) do
         if type(fmts) == "function" then
-          -- already a resolved function (future path)
           by_ft[ft] = fmts
-        elseif #fmts == 1 and fmts[1] == "__ruff_or_black__" then
-          by_ft[ft] = ruff_or_black_fn()
         else
-          if by_ft[ft] and type(by_ft[ft]) == "table" then
-            vim.list_extend(by_ft[ft], fmts)
-          else
-            by_ft[ft] = vim.deepcopy(fmts)
+          local resolved = {}
+          for _, v in ipairs(fmts) do
+            if type(v) == "table" and v.kind == "formatter" then
+              if v.strategy then
+                local strat = strategies.get(v.strategy)
+                if strat then
+                  by_ft[ft] = strat.resolve
+                  resolved = nil
+                  break
+                else
+                  vim.notify("[ltos:conform] unknown formatter strategy: " .. v.strategy, vim.log.levels.WARN)
+                end
+              elseif v.name then
+                resolved[#resolved + 1] = v.name
+              end
+            else
+              resolved[#resolved + 1] = v
+            end
+          end
+
+          if resolved ~= nil then
+            if by_ft[ft] and type(by_ft[ft]) == "table" then
+              vim.list_extend(by_ft[ft], resolved)
+            else
+              by_ft[ft] = vim.deepcopy(resolved)
+            end
           end
         end
       end
@@ -43,6 +59,7 @@ function M.build(ctx)
   return {
     {
       "stevearc/conform.nvim",
+      _source = "ltos:conform",
       dependencies = { "mason-org/mason.nvim" },
       opts = {
         formatters_by_ft = by_ft,

@@ -1,6 +1,4 @@
 -- ~/.config/nvim/lua/modules/lang/python.lua
--- "__ruff_or_black__" sentinel is resolved to a dynamic function in the
--- conform adapter; it must never appear in any other adapter's output.
 return {
   treesitter = { "python" },
   lsp = {
@@ -16,7 +14,7 @@ return {
       },
     },
   },
-  formatters = { python = { "__ruff_or_black__" } },
+  formatters = { python = { { kind = "formatter", strategy = "ruff_or_black" } } },
   linters = { python = { "ruff" } },
-  mason = { "pyright", "ruff", "black" },
+  mason = { "ruff", "pyright", "black" },
 }

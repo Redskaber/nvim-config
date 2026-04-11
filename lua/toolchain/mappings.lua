@@ -24,6 +24,7 @@ M.lsp_to_mason = {
 
 -- Formatter / linter tool name  →  mason package name
 -- Only entries that DIFFER need to be listed.
+-- A nil value means the tool is system-only (never install via mason).
 M.tool_to_mason = {
   ruff_format = "ruff",
   fish_indent = nil, -- system only; never install via mason
@@ -51,6 +52,9 @@ M.always_system = {
   nixpkgs_fmt = true,
 }
 
+-- User-defined overrides. Can also be set via vim.g.ltos_tool_overrides.
+-- Each entry: tool_name → { use_mason: boolean, pkg: string|nil }
+M.overrides = {}
 --- Resolve an LSP server name to its mason package name.
 ---@param server string
 ---@return string
@@ -69,4 +73,44 @@ function M.tool_pkg(tool)
   return M.tool_to_mason[tool] -- may be nil (system-only)
 end
 
+--- Unified resolution entry point for any tool.
+--- Priority: overrides[tool] → always_system[tool] → tool_to_mason[tool] → identity
+---@param tool string
+---@return { use_mason: boolean, pkg: string|nil }
+function M.resolve(tool)
+  -- Check M.overrides and vim.g.ltos_tool_overrides (user-set in globals.lua)
+  local user_overrides = vim.g.ltos_tool_overrides or {}
+  local override = M.overrides[tool] or user_overrides[tool]
+  if override ~= nil then
+    return override
+  end
+
+  -- always_system tools are never mason-managed
+  if M.always_system[tool] then
+    return { use_mason = false, pkg = nil }
+  end
+
+  -- tool_to_mason: iterate with pairs() to detect nil-valued keys (system-only entries)
+  local has_entry = false
+  for k in pairs(M.tool_to_mason) do
+    if k == tool then
+      has_entry = true
+      break
+    end
+  end
+  if has_entry then
+    local pkg = M.tool_to_mason[tool] -- string → mason-managed, nil → system-only
+    if pkg ~= nil then
+      return { use_mason = true, pkg = pkg }
+    else
+      return { use_mason = false, pkg = nil }
+    end
+  end
+
+  -- identity: tool name is its own mason package name
+  if vim.g.ltos_debug then
+    vim.notify("[ltos] identity mapping for tool: " .. tool, vim.log.levels.DEBUG)
+  end
+  return { use_mason = true, pkg = tool }
+end
 return M

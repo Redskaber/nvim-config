@@ -4,6 +4,15 @@
 
 local M = {}
 
+-- ── AST node type definitions ────────────────────────────────────────────────
+
+---@class FormatterNode
+---@field kind      "formatter"
+---@field name?     string   -- concrete formatter name
+---@field strategy? string   -- strategy name (resolved in normalize stage)
+
+-- Known AST node kinds for enumeration validation
+local KNOWN_NODE_KINDS = { formatter = true, linter = true }
 -- ── helpers ─────────────────────────────────────────────────────────────────
 
 local function assert_type(path, value, expected)
@@ -22,15 +31,59 @@ local function assert_list_of_strings(path, value)
   end
 end
 
+--- Validate a single AST node table (FormatterNode, LinterNode, etc.).
+local function assert_ast_node(path, node)
+  if not KNOWN_NODE_KINDS[node.kind] then
+    error(
+      ("[schema] %s: unknown node kind %q, expected one of: %s"):format(
+        path,
+        tostring(node.kind),
+        table.concat(vim.tbl_keys(KNOWN_NODE_KINDS), ", ")
+      ),
+      3
+    )
+  end
+  if node.name ~= nil and type(node.name) ~= "string" then
+    error(("[schema] %s.name: expected string, got %s"):format(path, type(node.name)), 3)
+  end
+  if node.strategy ~= nil and type(node.strategy) ~= "string" then
+    error(("[schema] %s.strategy: expected string, got %s"):format(path, type(node.strategy)), 3)
+  end
+end
+--- Returns true if the string is a legacy Sentinel (surrounded by double underscores).
+local function is_sentinel(s)
+  return type(s) == "string" and s:match("^__.+__$") ~= nil
+end
 local function assert_string_map_of_string_lists(path, value)
   assert_type(path, value, "table")
   for ft, list in pairs(value) do
-    if type(ft) ~= "string" then
-      error(("[schema] %s key: expected string, got %s"):format(path, type(ft)), 3)
+    if type(ft) ~= "string" or ft == "" then
+      error(("[schema] %s key: expected non-empty string, got %s"):format(path, type(ft)), 3)
     end
-    -- allow function sentinel for dynamic formatters
-    if type(list) ~= "function" then
-      assert_list_of_strings(path .. "." .. ft, list)
+    -- allow function sentinel for dynamic formatters (legacy)
+    if type(list) == "function" then
+      -- skip
+    elseif type(list) == "table" then
+      local item_path = path .. "." .. ft
+      for i, v in ipairs(list) do
+        if type(v) == "table" then
+          assert_ast_node(item_path .. "[" .. i .. "]", v)
+        elseif type(v) == "string" then
+          if is_sentinel(v) then
+            error(
+              (
+                "[schema] %s[%d]: Sentinel value %q is not allowed. "
+                .. 'Use a FormatterNode instead, e.g. { kind = "formatter", strategy = "ruff_or_black" }'
+              ):format(item_path, i, v),
+              3
+            )
+          end
+        else
+          error(("[schema] %s[%d]: expected string or FormatterNode, got %s"):format(item_path, i, type(v)), 3)
+        end
+      end
+    else
+      error(("[schema] %s.%s: expected table (list), got %s"):format(path, ft, type(list)), 3)
     end
   end
 end
@@ -53,6 +106,9 @@ function M.validate(name, cap)
         error(("[schema] %s.lsp key must be string, got %s"):format(p, type(server)), 2)
       end
       assert_type(p .. ".lsp." .. server, cfg, "table")
+      if cfg.settings ~= nil and type(cfg.settings) ~= "table" then
+        error(("[schema] %s.lsp.%s.settings must be table or nil"):format(p, server), 2)
+      end
       if cfg.cmd ~= nil then
         assert_list_of_strings(p .. ".lsp." .. server .. ".cmd", cfg.cmd)
       end
@@ -75,10 +131,30 @@ function M.validate(name, cap)
   end
 
   if cap.mason ~= nil then
-    assert_list_of_strings(p .. ".mason", cap.mason)
+    -- filter empty strings with a WARN rather than hard-erroring (Req 7.3)
+    local filtered = {}
+    for _, pkg in ipairs(cap.mason) do
+      if type(pkg) == "string" and pkg ~= "" then
+        filtered[#filtered + 1] = pkg
+      elseif pkg == "" then
+        vim.notify(("[schema] %s.mason: empty string filtered out"):format(p), vim.log.levels.WARN)
+      else
+        error(("[schema] %s.mason: expected string, got %s"):format(p, type(pkg)), 2)
+      end
+    end
+    cap.mason = filtered
   end
 
   return cap
 end
 
+--- Validate IR field completeness for a given pipeline stage.
+--- Delegates to core/ir.lua's ir.validate() and returns the error list.
+---@param ir    table   IR object
+---@param stage string  pipeline stage name
+---@return string[]     list of error descriptions (empty = valid)
+function M.validate_ir(ir, stage)
+  local ir_mod = require("core.ir")
+  return ir_mod.validate(ir, stage)
+end
 return M

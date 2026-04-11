@@ -6,6 +6,10 @@ local M = {}
 ---@param ctx table
 ---@return table[]
 function M.build(ctx)
+  if not ctx.caps then
+    vim.notify("[ltos:lint] IR missing required field: caps", vim.log.levels.WARN)
+    return {}
+  end
   local by_ft = { text = { "typos" } }
 
   for _, cap in pairs(ctx.caps) do
@@ -28,6 +32,7 @@ function M.build(ctx)
         linters_by_ft = by_ft,
         linters = {},
       },
+      _source = "ltos:lint",
     },
   }
 end
