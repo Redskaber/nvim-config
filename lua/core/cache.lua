@@ -76,6 +76,21 @@ end
 
 -- ── Save ─────────────────────────────────────────────────────────────────────
 
+--- Check whether a spec entry contains function-type fields or _no_cache flag.
+--- Returns the reason string if unsafe, nil if safe.
+---@param spec table
+---@return string|nil
+local function unsafe_reason(spec)
+  if spec._no_cache then
+    return "_no_cache=true (source: " .. tostring(spec._source) .. ")"
+  end
+  for k, v in pairs(spec) do
+    if type(v) == "function" then
+      return "function field '" .. tostring(k) .. "' (source: " .. tostring(spec._source) .. ")"
+    end
+  end
+  return nil
+end
 --- Persist specs to the cache file.
 ---@param key     string
 ---@param profile string
@@ -85,6 +100,19 @@ function M.save(key, profile, specs)
     return
   end
 
+  -- Detect specs that cannot be safely serialized
+  for _, spec in ipairs(specs) do
+    if type(spec) == "table" then
+      local reason = unsafe_reason(spec)
+      if reason then
+        vim.notify("[cache.save] skipping cache: contains non-serializable value — " .. reason, vim.log.levels.WARN)
+        if vim.g.ltos_debug then
+          vim.notify("[cache.save] skip reason: " .. reason, vim.log.levels.DEBUG)
+        end
+        return
+      end
+    end
+  end
   local encode_ok, json_str = pcall(vim.fn.json_encode, {
     version = CACHE_VERSION,
     cache_key = key,

@@ -22,5 +22,5 @@ return {
     },
   },
   formatters = { lua = { "stylua" } },
-  mason = { "stylua", "lua-language-server" },
+  mason = { "stylua" },
 }

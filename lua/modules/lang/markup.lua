@@ -13,5 +13,5 @@ return {
     css = { "prettierd" },
     scss = { "prettierd" },
   },
-  mason = { "taplo", "json-lsp", "yaml-language-server", "prettierd" },
+  mason = { "taplo", "prettierd" },
 }

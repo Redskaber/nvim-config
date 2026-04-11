@@ -21,8 +21,8 @@ local BASE_PARSERS = {
 ---@param ctx table
 ---@return table[]
 function M.build(ctx)
-  if not ctx.caps then
-    vim.notify("[ltos:treesitter] IR missing required field: caps", vim.log.levels.WARN)
+  if not ctx.all_parsers then
+    vim.notify("[ltos:treesitter] IR missing required field: all_parsers", vim.log.levels.WARN)
     return {}
   end
   local seen = {}
@@ -39,12 +39,8 @@ function M.build(ctx)
     add(p)
   end
 
-  for _, cap in pairs(ctx.caps) do
-    if cap.treesitter then
-      for _, p in ipairs(cap.treesitter) do
-        add(p)
-      end
-    end
+  for _, p in ipairs(ctx.all_parsers) do
+    add(p)
   end
 
   return {

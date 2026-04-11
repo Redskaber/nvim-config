@@ -72,6 +72,10 @@ function M.all()
   return _store
 end
 
+--- Reset the registry store (used by debug_run to avoid accumulating stale data).
+function M.reset()
+  _store = {}
+end
 --- Snapshot the registry for debug/dump purposes.
 ---@return string
 function M.dump()

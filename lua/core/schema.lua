@@ -8,8 +8,9 @@ local M = {}
 
 ---@class FormatterNode
 ---@field kind      "formatter"
----@field name?     string   -- concrete formatter name
----@field strategy? string   -- strategy name (resolved in normalize stage)
+---@field name?     string                        -- concrete formatter name
+---@field strategy? string                        -- strategy name (resolved in normalize stage)
+---@field fn?       fun(bufnr: integer): string[] -- injected by normalize stage
 
 -- Known AST node kinds for enumeration validation
 local KNOWN_NODE_KINDS = { formatter = true, linter = true }
@@ -148,13 +149,4 @@ function M.validate(name, cap)
   return cap
 end
 
---- Validate IR field completeness for a given pipeline stage.
---- Delegates to core/ir.lua's ir.validate() and returns the error list.
----@param ir    table   IR object
----@param stage string  pipeline stage name
----@return string[]     list of error descriptions (empty = valid)
-function M.validate_ir(ir, stage)
-  local ir_mod = require("core.ir")
-  return ir_mod.validate(ir, stage)
-end
 return M

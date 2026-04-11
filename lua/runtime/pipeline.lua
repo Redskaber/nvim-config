@@ -29,36 +29,36 @@ local TRANSITIONS = {
   codegen = { done = true, error = true },
 }
 
-local state_machine = {
-  state = STATES.IDLE,
-  timestamps = {},
-}
-
-function state_machine.transition(next)
-  local allowed = TRANSITIONS[state_machine.state]
-  if allowed and allowed[next] then
-    state_machine.state = next
-    state_machine.timestamps[next] = os.clock()
-    return true
+--- Factory: creates an independent state machine instance.
+---@return table
+local function new_state_machine()
+  local sm = { state = STATES.IDLE, timestamps = {} }
+  function sm.transition(next)
+    local allowed = TRANSITIONS[sm.state]
+    if allowed and allowed[next] then
+      sm.state = next
+      sm.timestamps[next] = os.clock()
+      return true
+    end
+    -- illegal transition → error state
+    vim.notify(string.format("[pipeline] illegal transition: %s → %s", sm.state, next), vim.log.levels.ERROR)
+    sm.state = STATES.ERROR
+    sm.timestamps[STATES.ERROR] = os.clock()
+    return false
   end
-  -- illegal transition → error state
-  vim.notify(string.format("[pipeline] illegal transition: %s → %s", state_machine.state, next), vim.log.levels.ERROR)
-  state_machine.state = STATES.ERROR
-  state_machine.timestamps[STATES.ERROR] = os.clock()
-  return false
-end
 
-local function reset_state_machine()
-  state_machine.state = STATES.IDLE
-  state_machine.timestamps = {}
+  return sm
 end
+-- Holds the state machine from the most recent run() call (for M.state()).
+local last_run_sm = new_state_machine()
 -- ── Stage helpers ────────────────────────────────────────────────────────────
 
 --- Stage 1 – collect
 ---@param lang_modules string[]
+---@param sm table  state machine instance
 ---@return table  pipeline context
-local function collect(lang_modules)
-  if not state_machine.transition(STATES.COLLECTING) then
+local function collect(lang_modules, sm)
+  if not sm.transition(STATES.COLLECTING) then
     return {}
   end
   local registry = require("core.capability")
@@ -81,21 +81,46 @@ local function collect(lang_modules)
 end
 
 --- Stage 2 – normalize
+--- Resolves FormatterNode.strategy → FormatterNode.fn so downstream stages
+--- and adapters never need to touch the strategies registry.
 ---@param ctx table
+---@param sm table  state machine instance
 ---@return table
-local function normalize(ctx)
-  if not state_machine.transition(STATES.NORMALIZING) then
+local function normalize(ctx, sm)
+  if not sm.transition(STATES.NORMALIZING) then
     return ctx
   end
-  -- Future: walk ctx.caps and apply naming conventions
+  local strategies = require("toolchain.strategies")
+  for _, cap in pairs(ctx.caps) do
+    if cap.formatters then
+      for _, fmts in pairs(cap.formatters) do
+        if type(fmts) == "table" then
+          for _, v in ipairs(fmts) do
+            if type(v) == "table" and v.kind == "formatter" and v.strategy and not v.fn then
+              local strat = strategies.get(v.strategy)
+              if strat then
+                v.fn = strat.resolve
+              else
+                vim.notify("[pipeline.normalize] unknown formatter strategy: " .. v.strategy, vim.log.levels.WARN)
+                v.fn = function()
+                  return {}
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
   return ctx
 end
 
 --- Stage 3 – resolve
 ---@param ctx table
+---@param sm table  state machine instance
 ---@return table
-local function resolve(ctx)
-  if not state_machine.transition(STATES.RESOLVING) then
+local function resolve(ctx, sm)
+  if not sm.transition(STATES.RESOLVING) then
     return ctx
   end
   local rules = require("toolchain.rules")
@@ -136,9 +161,10 @@ end
 
 --- Stage 4 – optimize
 ---@param ctx table
+---@param sm table  state machine instance
 ---@return table
-local function optimize(ctx)
-  if not state_machine.transition(STATES.OPTIMIZING) then
+local function optimize(ctx, sm)
+  if not sm.transition(STATES.OPTIMIZING) then
     return ctx
   end
   local util = require("core.util")
@@ -152,7 +178,11 @@ local function optimize(ctx)
       end
     end
   end
-  ctx.all_parsers_seen = parsers_seen
+  local parsers_list = {}
+  for p in pairs(parsers_seen) do
+    parsers_list[#parsers_list + 1] = p
+  end
+  ctx.all_parsers = parsers_list
 
   local merged_lsp = {}
   for _, cap in pairs(ctx.caps) do
@@ -173,9 +203,10 @@ end
 
 --- Stage 5 – codegen
 ---@param ctx table
+---@param sm table  state machine instance
 ---@return table[]  flat list of lazy.nvim plugin specs
-local function codegen(ctx)
-  if not state_machine.transition(STATES.CODEGEN) then
+local function codegen(ctx, sm)
+  if not sm.transition(STATES.CODEGEN) then
     return {}
   end
   local adapters = {
@@ -206,55 +237,75 @@ end
 ---@param lang_modules string[]
 ---@return table[]
 function M.run(lang_modules)
-  -- Reject re-entrant calls while pipeline is running
-  if
-    state_machine.state ~= STATES.IDLE
-    and state_machine.state ~= STATES.DONE
-    and state_machine.state ~= STATES.ERROR
-  then
-    vim.notify("[pipeline] run() called while pipeline is in state: " .. state_machine.state, vim.log.levels.WARN)
-    return {}
+  local sm = new_state_machine()
+  last_run_sm = sm
+
+  local timings = {}
+
+  local function timed(name, fn, ...)
+    local t0 = os.clock()
+    local ok, result = pcall(fn, ...)
+    timings[name] = os.clock() - t0
+    return ok, result
   end
 
-  reset_state_machine()
-
-  local ok, ctx = pcall(collect, lang_modules)
-  if not ok or state_machine.state == STATES.ERROR then
+  local ok, ctx = timed("collect", collect, lang_modules, sm)
+  if not ok or sm.state == STATES.ERROR then
     vim.notify("[pipeline] collect failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    state_machine.state = STATES.ERROR
+    sm.state = STATES.ERROR
     return {}
   end
 
-  ok, ctx = pcall(normalize, ctx)
-  if not ok or state_machine.state == STATES.ERROR then
+  ok, ctx = timed("normalize", normalize, ctx, sm)
+  if not ok or sm.state == STATES.ERROR then
     vim.notify("[pipeline] normalize failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    state_machine.state = STATES.ERROR
+    sm.state = STATES.ERROR
     return {}
   end
 
-  ok, ctx = pcall(resolve, ctx)
-  if not ok or state_machine.state == STATES.ERROR then
+  ok, ctx = timed("resolve", resolve, ctx, sm)
+  if not ok or sm.state == STATES.ERROR then
     vim.notify("[pipeline] resolve failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    state_machine.state = STATES.ERROR
+    sm.state = STATES.ERROR
     return {}
   end
 
-  ok, ctx = pcall(optimize, ctx)
-  if not ok or state_machine.state == STATES.ERROR then
+  ok, ctx = timed("optimize", optimize, ctx, sm)
+  if not ok or sm.state == STATES.ERROR then
     vim.notify("[pipeline] optimize failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    state_machine.state = STATES.ERROR
+    sm.state = STATES.ERROR
     return {}
   end
 
   local specs
-  ok, specs = pcall(codegen, ctx)
-  if not ok or state_machine.state == STATES.ERROR then
+  ok, specs = timed("codegen", codegen, ctx, sm)
+  if not ok or sm.state == STATES.ERROR then
     vim.notify("[pipeline] codegen failed: " .. tostring(specs), vim.log.levels.ERROR)
-    state_machine.state = STATES.ERROR
+    sm.state = STATES.ERROR
     return {}
   end
 
-  state_machine.transition(STATES.DONE)
+  sm.transition(STATES.DONE)
+
+  -- Persist per-stage timings for :LtosInfo (Requirement 18.1)
+  vim.g.ltos_last_build_timings = timings
+
+  -- Summarise accumulated errors in a single WARN (Requirement 18.2)
+  if ctx.errors and #ctx.errors > 0 then
+    local seen = {}
+    local unique = {}
+    for _, msg in ipairs(ctx.errors) do
+      if not seen[msg] then
+        seen[msg] = true
+        unique[#unique + 1] = msg
+      end
+    end
+    vim.notify(
+      "[pipeline] build completed with " .. #unique .. " error(s):\n" .. table.concat(unique, "\n"),
+      vim.log.levels.WARN
+    )
+  end
+
   return specs
 end
 
@@ -264,18 +315,35 @@ end
 ---@param stop_after? "collect"|"normalize"|"resolve"|"optimize"
 ---@return table  the context at the requested stage, with _timings field
 function M.debug_run(lang_modules, stop_after)
-  reset_state_machine()
+  local sm = new_state_machine()
+
+  require("core.capability").reset()
 
   local stage_fns = {
     {
       "collect",
       function(_)
-        return collect(lang_modules)
+        return collect(lang_modules, sm)
       end,
     },
-    { "normalize", normalize },
-    { "resolve", resolve },
-    { "optimize", optimize },
+    {
+      "normalize",
+      function(c)
+        return normalize(c, sm)
+      end,
+    },
+    {
+      "resolve",
+      function(c)
+        return resolve(c, sm)
+      end,
+    },
+    {
+      "optimize",
+      function(c)
+        return optimize(c, sm)
+      end,
+    },
   }
 
   local ctx = {}
@@ -306,6 +374,6 @@ end
 --- Return the current state machine state (for :LtosInfo).
 ---@return string
 function M.state()
-  return state_machine.state
+  return last_run_sm.state
 end
 return M

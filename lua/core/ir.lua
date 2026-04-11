@@ -15,6 +15,7 @@ local M = {}
 ---@field lsp   table<string, boolean>   -- server  → use_mason
 ---@field tools table<string, boolean>   -- tool    → use_mason
 
+-- FormatterNode is defined in core/schema.lua (fn? field added there)
 ---@class IR
 ---@field caps        table<string, table>   -- [collect]  registry snapshot
 ---@field errors      string[]               -- [collect+] accumulated errors

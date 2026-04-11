@@ -1,6 +1,6 @@
 -- lua/runtime/adapters/conform.lua
 -- Pure function: ir -> conform.nvim spec.
--- FormatterNode with strategy field is resolved via toolchain/strategies registry.
+-- FormatterNode.fn is injected by the normalize stage; this adapter only reads it.
 
 local M = {}
 
@@ -12,7 +12,6 @@ function M.build(ir)
     return {}
   end
 
-  local strategies = require("toolchain.strategies")
   local by_ft = {
     ["*"] = { "codespell" },
     ["_"] = { "trim_whitespace" },
@@ -27,15 +26,11 @@ function M.build(ir)
           local resolved = {}
           for _, v in ipairs(fmts) do
             if type(v) == "table" and v.kind == "formatter" then
-              if v.strategy then
-                local strat = strategies.get(v.strategy)
-                if strat then
-                  by_ft[ft] = strat.resolve
-                  resolved = nil
-                  break
-                else
-                  vim.notify("[ltos:conform] unknown formatter strategy: " .. v.strategy, vim.log.levels.WARN)
-                end
+              if v.fn then
+                -- strategy function injected by normalize stage
+                by_ft[ft] = v.fn
+                resolved = nil
+                break
               elseif v.name then
                 resolved[#resolved + 1] = v.name
               end
@@ -56,10 +51,18 @@ function M.build(ir)
     end
   end
 
+  local has_fn = false
+  for _, v in pairs(by_ft) do
+    if type(v) == "function" then
+      has_fn = true
+      break
+    end
+  end
   return {
     {
       "stevearc/conform.nvim",
       _source = "ltos:conform",
+      _no_cache = has_fn or nil,
       dependencies = { "mason-org/mason.nvim" },
       opts = {
         formatters_by_ft = by_ft,

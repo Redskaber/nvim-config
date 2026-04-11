@@ -45,5 +45,5 @@ return {
     typescript = { "eslint" },
     typescriptreact = { "eslint" },
   },
-  mason = { "vtsls", "prettierd", "json-lsp", "yaml-language-server" },
+  mason = { "vtsls", "prettierd" },
 }

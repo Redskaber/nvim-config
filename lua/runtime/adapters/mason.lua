@@ -30,22 +30,33 @@ function M.build(ctx)
     add(t)
   end
 
-  -- LSP servers
-  for server, cfg in pairs(ctx.merged_lsp or {}) do
-    local want_mason = ctx.resolved and ctx.resolved.lsp[server]
+  -- LSP servers — package names come exclusively from mappings.lsp_pkg()
+  for server, _ in pairs(ctx.merged_lsp or {}) do
+    local want_mason = vim.tbl_get(ctx, "resolved", "lsp", server)
     if want_mason then
       add(mappings.lsp_pkg(server))
     end
   end
 
-  -- Formatters & linters (via explicit mason lists on each cap)
+  -- Build a set of known LSP mason package names to exclude from cap.mason.
+  -- This ensures LSP packages are never double-counted even if a lang module
+  -- still lists them (Requirement 17.3: dedup via seen, no error).
+  local lsp_pkgs = {}
+  for _, pkg in pairs(mappings.lsp_to_mason) do
+    lsp_pkgs[pkg] = true
+  end
+
+  -- Formatters & linters (via explicit mason lists on each cap).
+  -- LSP package names are skipped here; they are sourced via lsp_pkg() above.
   for _, cap in pairs(ctx.caps) do
     if cap.mason then
       for _, t in ipairs(cap.mason) do
-        local pkg = mappings.tool_pkg(t)
-        local want = ctx.resolved and (ctx.resolved.tools[t] ~= false)
-        if want and pkg then
-          add(pkg)
+        if not lsp_pkgs[t] then
+          local pkg = mappings.tool_pkg(t)
+          local want = vim.tbl_get(ctx, "resolved", "tools", t)
+          if want and pkg then
+            add(pkg)
+          end
         end
       end
     end

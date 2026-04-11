@@ -88,6 +88,18 @@ local function cmd_info()
     lines[#lines + 1] = "  • " .. name
   end
 
+  -- Show per-stage build timings if available (Requirement 18.3)
+  local timings = vim.g.ltos_last_build_timings
+  if timings then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Last build timings:"
+    local stage_order = { "collect", "normalize", "resolve", "optimize", "codegen" }
+    for _, stage in ipairs(stage_order) do
+      if timings[stage] then
+        lines[#lines + 1] = string.format("  %-10s %.3f ms", stage, timings[stage] * 1000)
+      end
+    end
+  end
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
