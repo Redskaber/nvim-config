@@ -1,64 +1,69 @@
 -- ~/.config/nvim/lua/runtime/api.lua
--- Unified runtime API façade. config/keymaps.lua imports THIS only.
--- Never import individual plugins from outside this module.
+-- Unified runtime façade (P0-4).
 --
--- terminal backend is resolved via vim.g.ltos_terminal_backend
--- (defaults to "toggleterm").  Swapping the terminal plugin only requires
--- registering a new backend handler — no changes to this file.
+-- API boundary: format / find_files / live_grep / buffers / recent_files /
+--               help_tags / diagnostics / lsp / ui / terminal
+--
+-- Rules:
+--   • config/ and keymaps.lua import ONLY this module — never telescope/snacks directly.
+--   • The terminal backend is pluggable: register via M.terminal.register().
+--   • Plugin modules (telescope, conform, snacks…) are lazy-required at call time.
 
 local M = {}
 
--- ── Picker façade ────────────────────────────────────────────────────────────
-local function picker(name, opts)
-  return function()
-    local ok, err = pcall(function()
-      if _G.Snacks and Snacks.picker and Snacks.picker[name] then
-        Snacks.picker[name](opts)
-      else
-        error("picker not available: " .. name)
-      end
-    end)
-    if not ok then
-      vim.notify("[runtime.api] picker failed: " .. tostring(err), vim.log.levels.WARN)
-    end
+-- ── Format ───────────────────────────────────────────────────────────────────
+
+function M.format(opts)
+  local ok, conform = pcall(require, "conform")
+  if ok then
+    conform.format(vim.tbl_extend("force", { async = true, lsp_fallback = true }, opts or {}))
+  else
+    vim.lsp.buf.format(opts)
   end
 end
 
-M.find_files = picker("files")
-M.live_grep = picker("grep")
-M.buffers = picker("buffers")
-M.recent_files = picker("recent")
-M.help_tags = picker("help")
+-- ── Find / search ─────────────────────────────────────────────────────────────
 
--- ── LSP façade ───────────────────────────────────────────────────────────────
-M.lsp = {
-  definition = function()
-    vim.lsp.buf.definition()
-  end,
-  references = function()
-    vim.lsp.buf.references()
-  end,
-  implementation = function()
-    vim.lsp.buf.implementation()
-  end,
-  type_definition = function()
-    vim.lsp.buf.type_definition()
-  end,
-  rename = function()
-    vim.lsp.buf.rename()
-  end,
-  code_action = function()
-    vim.lsp.buf.code_action()
-  end,
-  hover = function()
-    vim.lsp.buf.hover()
-  end,
-  signature_help = function()
-    vim.lsp.buf.signature_help()
-  end,
-}
+local function picker()
+  -- prefer snacks.picker if available, else telescope
+  local ok, snacks = pcall(require, "snacks")
+  if ok and snacks.picker then
+    return snacks.picker
+  end
+  local ok2, tel = pcall(require, "telescope.builtin")
+  if ok2 then
+    return tel
+  end
+  return nil
+end
 
--- ── Diagnostics façade ───────────────────────────────────────────────────────
+local function pick(method, ...)
+  local p = picker()
+  if p and type(p[method]) == "function" then
+    p[method](...)
+  else
+    vim.notify("[ltos:api] picker not available", vim.log.levels.WARN)
+  end
+end
+
+function M.find_files(opts)
+  pick("files", opts)
+end
+function M.live_grep(opts)
+  pick("grep", opts)
+end
+function M.buffers(opts)
+  pick("buffers", opts)
+end
+function M.recent_files(opts)
+  pick("recent", opts)
+end
+function M.help_tags(opts)
+  pick("help", opts)
+end
+
+-- ── Diagnostics ───────────────────────────────────────────────────────────────
+
 M.diagnostics = {
   next = function()
     vim.diagnostic.goto_next()
@@ -70,103 +75,82 @@ M.diagnostics = {
     vim.diagnostic.open_float()
   end,
   list = function()
-    if _G.Snacks and Snacks.picker then
-      Snacks.picker.diagnostics()
+    local ok, snacks = pcall(require, "snacks")
+    if ok and snacks.picker then
+      snacks.picker.diagnostics()
     else
       vim.diagnostic.setloclist()
     end
   end,
 }
 
--- ── Git façade ───────────────────────────────────────────────────────────────
-M.git = {
-  status = picker("git_status"),
-  log = picker("git_log"),
-  diff = picker("git_diff"),
-}
+-- ── Terminal (pluggable backend) ──────────────────────────────────────────────
 
--- ── Format façade ────────────────────────────────────────────────────────────
-M.format = function(opts)
-  local ok, conform = pcall(require, "conform")
-  if ok then
-    conform.format(vim.tbl_extend("force", { async = true, lsp_format = "fallback" }, opts or {}))
-  else
-    vim.lsp.buf.format(opts)
-  end
-end
+local _terminal_backends = {}
 
--- ── Terminal façade ──────────────────────────────────────────────────────────
--- backend is pluggable.  Register a custom backend by setting
---   vim.g.ltos_terminal_backend = "my_backend"
--- and calling:
---   require("runtime.api").terminal.register("my_backend", { float = fn, horizontal = fn })
---
--- Built-in backends: "toggleterm" (default), "native".
-
-local _terminal_backends = {
-  toggleterm = {
-    float = function()
-      local ok, tt = pcall(require, "toggleterm")
-      if ok then
-        tt.toggle(nil, "float")
-      else
-        vim.cmd("terminal")
-      end
-    end,
-    horizontal = function()
-      local ok, tt = pcall(require, "toggleterm")
-      if ok then
-        tt.toggle(nil, "horizontal")
-      else
-        vim.cmd("split | terminal")
-      end
-    end,
-  },
-  native = {
-    float = function()
-      vim.cmd("terminal")
-    end,
-    horizontal = function()
-      vim.cmd("split | terminal")
-    end,
-  },
-}
-
---- Register a custom terminal backend.
----@param name string
----@param backend { float: function, horizontal: function }
-local function register_terminal_backend(name, backend)
+--- Register a named terminal backend.
+--- backend = { float = fn, horizontal = fn, vertical? = fn }
+---@param name    string
+---@param backend table
+function M.terminal_register(name, backend)
+  assert(type(name) == "string" and name ~= "", "backend name must be non-empty string")
+  assert(type(backend) == "table", "backend must be a table")
   _terminal_backends[name] = backend
 end
 
-local function _terminal_dispatch(direction)
-  local backend_name = vim.g.ltos_terminal_backend or "toggleterm"
-  local backend = _terminal_backends[backend_name]
+local function get_terminal()
+  local name = vim.g.ltos_terminal_backend or "toggleterm"
+  local backend = _terminal_backends[name]
   if not backend then
-    vim.notify(
-      "[runtime.api] unknown terminal backend: " .. backend_name .. " — falling back to native",
-      vim.log.levels.WARN
-    )
-    backend = _terminal_backends.native
-  end
-  local fn = backend[direction]
-  if fn then
-    local ok, err = pcall(fn)
-    if not ok then
-      vim.notify("[runtime.api] terminal." .. direction .. " failed: " .. tostring(err), vim.log.levels.WARN)
-      vim.cmd("terminal")
+    -- Auto-register toggleterm if loaded
+    local ok, tt = pcall(require, "toggleterm.terminal")
+    if ok then
+      _terminal_backends["toggleterm"] = {
+        float = function()
+          tt.Terminal:new({ direction = "float" }):toggle()
+        end,
+        horizontal = function()
+          tt.Terminal:new({ direction = "horizontal" }):toggle()
+        end,
+      }
+      return _terminal_backends["toggleterm"]
     end
+    vim.notify("[ltos:api] terminal backend not found: " .. name, vim.log.levels.WARN)
+    return nil
   end
+  return backend
 end
 
 M.terminal = {
+  register = M.terminal_register,
+
   float = function()
-    _terminal_dispatch("float")
+    local b = get_terminal()
+    if b and b.float then
+      b.float()
+    end
   end,
+
   horizontal = function()
-    _terminal_dispatch("horizontal")
+    local b = get_terminal()
+    if b and b.horizontal then
+      b.horizontal()
+    end
   end,
-  register = register_terminal_backend,
+}
+
+-- ── LSP helpers ───────────────────────────────────────────────────────────────
+
+M.lsp = {
+  rename = function()
+    vim.lsp.buf.rename()
+  end,
+  code_action = function()
+    vim.lsp.buf.code_action()
+  end,
+  hover = function()
+    vim.lsp.buf.hover()
+  end,
 }
 
 return M

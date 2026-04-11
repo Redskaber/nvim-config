@@ -1,5 +1,5 @@
 -- ~/.config/nvim/lua/core/env.lua
--- Runtime environment detection. Import anywhere; results are memoised.
+-- Runtime environment detection. Results are memoised at module load time.
 
 local M = {}
 
@@ -15,8 +15,7 @@ function M.has(cmd)
   return vim.fn.executable(cmd) == 1
 end
 
---- Prefer a system binary over Mason when running inside Nix.
---- Returns true when the binary should be managed externally.
+--- Returns true when a binary should be managed externally (Nix host + binary present).
 ---@param cmd string
 ---@return boolean
 function M.prefer_system(cmd)

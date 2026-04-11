@@ -1,18 +1,19 @@
 -- ~/.config/nvim/lua/runtime/adapters/lint.lua
--- Pure function: ctx → nvim-lint spec.
+-- Codegen adapter: IR → nvim-lint LazySpec.
 
 local M = {}
 
----@param ctx table
+---@param ir table  post-optimize IR
 ---@return table[]
-function M.build(ctx)
-  if not ctx.caps then
+function M.build(ir)
+  if not ir.caps then
     vim.notify("[ltos:lint] IR missing required field: caps", vim.log.levels.WARN)
     return {}
   end
+
   local by_ft = { text = { "typos" } }
 
-  for _, cap in pairs(ctx.caps) do
+  for _, cap in pairs(ir.caps) do
     if cap.linters then
       for ft, lnts in pairs(cap.linters) do
         if by_ft[ft] then

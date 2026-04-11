@@ -1,21 +1,35 @@
 -- ~/.config/nvim/lua/core/cache.lua
--- Pipeline incremental cache: skip unchanged lang module builds.
--- All file IO is wrapped in pcall; failures silently return nil.
+-- Three-tier pipeline cache: AST / IR / Spec (P1-1).
+--
+-- Tiers
+--   "ast"   – post-collect validated capability snapshot
+--   "ir"    – post-optimize intermediate representation
+--   "spec"  – final LazySpec[] list (legacy tier, still used for full skip)
+--
+-- Cache key = sha256( concat(module_file_contents) ) + ":" + profile
+-- Each tier is stored in a separate JSON file under stdpath("cache")/ltos/.
+-- Function values (FormatterNode.fn) set _no_cache = true; those specs are
+-- never persisted.  Partial rebuild: modifying one lang module only invalidates
+-- tiers whose key changes.
 
 local M = {}
 
-local CACHE_PATH = vim.fn.stdpath("cache") .. "/ltos/pipeline_cache.json"
-local CACHE_VERSION = 1
+local CACHE_DIR = vim.fn.stdpath("cache") .. "/ltos"
+local CACHE_VERSION = 2 -- bump when serialisation format changes
+
+local TIER_FILES = {
+  ast = CACHE_DIR .. "/ast_cache.json",
+  ir = CACHE_DIR .. "/ir_cache.json",
+  spec = CACHE_DIR .. "/spec_cache.json",
+}
 
 -- ── Key ──────────────────────────────────────────────────────────────────────
 
---- Compute a cache key from the contents of all lang module files.
---- Resolves each module name (e.g. "modules.lang.python") to a file path via
---- `package.searchpath`, reads the contents, concatenates them, and hashes
---- with `vim.fn.sha256`.
+--- Compute a composite cache key for a set of lang modules.
 ---@param lang_modules string[]
----@return string  hex sha256 digest, or "" on failure
-function M.key(lang_modules)
+---@param profile      string
+---@return string  "<sha256>:<profile>", or "" on failure
+function M.key(lang_modules, profile)
   local parts = {}
   for _, mod in ipairs(lang_modules) do
     local path = package.searchpath(mod, package.path)
@@ -29,114 +43,129 @@ function M.key(lang_modules)
   if #parts == 0 then
     return ""
   end
-  return vim.fn.sha256(table.concat(parts, "\0"))
+  return vim.fn.sha256(table.concat(parts, "\0")) .. ":" .. (profile or "full")
 end
 
--- ── Load ─────────────────────────────────────────────────────────────────────
+-- ── Internal helpers ─────────────────────────────────────────────────────────
 
---- Load cached specs if the key and profile match.
----@param key     string
----@param profile string
----@return table[]|nil  specs list, or nil on miss / mismatch / error
-function M.load(key, profile)
-  if key == "" then
-    return nil
-  end
-
-  local ok, raw = pcall(vim.fn.readfile, CACHE_PATH)
+local function read_json(path)
+  local ok, raw = pcall(vim.fn.readfile, path)
   if not ok or not raw then
     return nil
   end
-
-  local json_str = table.concat(raw, "\n")
-  local decode_ok, data = pcall(vim.fn.json_decode, json_str)
-  if not decode_ok or type(data) ~= "table" then
-    if vim.g.ltos_debug then
-      vim.notify("[cache.load] decode failed: " .. tostring(data), vim.log.levels.DEBUG)
-    end
+  local dec_ok, data = pcall(vim.fn.json_decode, table.concat(raw, "\n"))
+  if not dec_ok or type(data) ~= "table" then
     return nil
   end
-
-  if data.version ~= CACHE_VERSION or data.cache_key ~= key or data.profile ~= profile then
-    if vim.g.ltos_debug then
-      vim.notify("[cache.load] cache miss (key or profile mismatch)", vim.log.levels.DEBUG)
-    end
-    return nil
-  end
-
-  if type(data.specs) ~= "table" then
-    return nil
-  end
-
-  if vim.g.ltos_debug then
-    vim.notify("[cache.load] cache hit", vim.log.levels.DEBUG)
-  end
-  return data.specs
+  return data
 end
 
--- ── Save ─────────────────────────────────────────────────────────────────────
-
---- Check whether a spec entry contains function-type fields or _no_cache flag.
---- Returns the reason string if unsafe, nil if safe.
----@param spec table
----@return string|nil
-local function unsafe_reason(spec)
-  if spec._no_cache then
-    return "_no_cache=true (source: " .. tostring(spec._source) .. ")"
+local function write_json(path, payload)
+  local enc_ok, json_str = pcall(vim.fn.json_encode, payload)
+  if not enc_ok then
+    if vim.g.ltos_debug then
+      vim.notify("[cache] encode failed: " .. tostring(json_str), vim.log.levels.DEBUG)
+    end
+    return false
   end
-  for k, v in pairs(spec) do
+  local dir = vim.fn.fnamemodify(path, ":h")
+  pcall(vim.fn.mkdir, dir, "p")
+  local w_ok = pcall(vim.fn.writefile, { json_str }, path)
+  return w_ok
+end
+
+local function has_function_values(t)
+  if type(t) ~= "table" then
+    return false
+  end
+  for _, v in pairs(t) do
     if type(v) == "function" then
-      return "function field '" .. tostring(k) .. "' (source: " .. tostring(spec._source) .. ")"
+      return true
+    end
+    if type(v) == "table" and has_function_values(v) then
+      return true
     end
   end
-  return nil
+  return false
 end
---- Persist specs to the cache file.
+
+local function is_cacheable(item)
+  if type(item) ~= "table" then
+    return true
+  end
+  if item._no_cache then
+    return false
+  end
+  return not has_function_values(item)
+end
+
+-- ── Load / Save ──────────────────────────────────────────────────────────────
+
+--- Load a tier from disk.
+---@param tier  "ast"|"ir"|"spec"
+---@param key   string
+---@return table|nil
+function M.load(tier, key)
+  if key == "" then
+    return nil
+  end
+  local data = read_json(TIER_FILES[tier] or "")
+  if not data then
+    return nil
+  end
+  if data.version ~= CACHE_VERSION or data.key ~= key then
+    if vim.g.ltos_debug then
+      vim.notify(("[cache.load] %s: miss (key or version mismatch)"):format(tier), vim.log.levels.DEBUG)
+    end
+    return nil
+  end
+  if vim.g.ltos_debug then
+    vim.notify(("[cache.load] %s: hit"):format(tier), vim.log.levels.DEBUG)
+  end
+  return data.payload
+end
+
+--- Persist a tier to disk.
+---@param tier    "ast"|"ir"|"spec"
 ---@param key     string
----@param profile string
----@param specs   table[]
-function M.save(key, profile, specs)
+---@param payload table
+function M.save(tier, key, payload)
   if key == "" then
     return
   end
-
-  -- Detect specs that cannot be safely serialized
-  for _, spec in ipairs(specs) do
-    if type(spec) == "table" then
-      local reason = unsafe_reason(spec)
-      if reason then
-        vim.notify("[cache.save] skipping cache: contains non-serializable value — " .. reason, vim.log.levels.WARN)
-        if vim.g.ltos_debug then
-          vim.notify("[cache.save] skip reason: " .. reason, vim.log.levels.DEBUG)
-        end
+  -- Safety: reject non-serialisable payloads
+  if type(payload) == "table" then
+    for _, item in ipairs(payload) do
+      if not is_cacheable(item) then
+        vim.notify(
+          ("[cache.save] %s: skipped — payload contains non-serialisable value"):format(tier),
+          vim.log.levels.WARN
+        )
         return
       end
     end
   end
-  local encode_ok, json_str = pcall(vim.fn.json_encode, {
+  write_json(TIER_FILES[tier], {
     version = CACHE_VERSION,
-    cache_key = key,
-    profile = profile,
-    specs = specs,
+    key = key,
+    payload = payload,
   })
-  if not encode_ok then
-    if vim.g.ltos_debug then
-      vim.notify("[cache.save] encode failed: " .. tostring(json_str), vim.log.levels.DEBUG)
-    end
-    return
-  end
+end
 
-  -- Ensure the cache directory exists
-  local dir = vim.fn.fnamemodify(CACHE_PATH, ":h")
-  local mkdir_ok = pcall(vim.fn.mkdir, dir, "p")
-  if not mkdir_ok then
-    return
-  end
+-- ── Convenience: spec-tier (backward-compatible entry point) ─────────────────
 
-  local write_ok = pcall(vim.fn.writefile, { json_str }, CACHE_PATH)
-  if not write_ok and vim.g.ltos_debug then
-    vim.notify("[cache.save] write failed", vim.log.levels.DEBUG)
-  end
+--- Load cached specs if key matches (spec tier shorthand).
+---@param key string
+---@return table[]|nil
+function M.load_specs(key)
+  return M.load("spec", key)
+end
+
+--- Save specs to the spec tier.
+---@param key   string
+---@param specs table[]
+function M.save_specs(key, specs)
+  M.save("spec", key, specs)
 end
 
 return M

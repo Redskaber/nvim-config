@@ -1,10 +1,10 @@
 -- ~/.config/nvim/lua/core/util.lua
--- Lightweight shared utilities. Keep this dependency-free.
+-- Lightweight shared utilities. Dependency-free.
 
 local M = {}
 
 --- Merge two option tables (right wins on key conflict).
----@param base table
+---@param base     table
 ---@param override table
 ---@return table
 function M.merge(base, override)
@@ -34,7 +34,7 @@ function M.map(t, f)
   return out
 end
 
---- Deduplicate a list (preserves first-seen order).
+--- Deduplicate a list, preserving first-seen order.
 ---@param list any[]
 ---@return any[]
 function M.dedup(list)

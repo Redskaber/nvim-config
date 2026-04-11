@@ -1,15 +1,21 @@
 -- ~/.config/nvim/lua/runtime/pipeline.lua
--- Five-stage compilation pipeline:
+-- Five-stage compilation pipeline with standard Pass interface (P0-2).
+--
 --   collect → normalize → resolve → optimize → codegen
 --
--- Each stage is a pure function: (ctx, sm) → ctx.
--- Intermediate context can be dumped for debugging.
+-- Key invariants (P0-3):
+--   • Every Pass returns a NEW IR; the input is never mutated.
+--   • IR.clone() / IR.with() are used for copy-on-write semantics.
+--   • Each run() / debug_run() call gets its own independent state machine.
+--   • No module-level mutable state except `last_run_sm` (for M.state()).
 --
--- normalize() no longer mutates the shared registry tables in-place.
--- FormatterNode.fn is injected into deep-copied cap entries so debug_run()
--- inspections and subsequent capability.reset() produce clean output.
+-- Pass interface (P0-2):
+--   { name, validate?(IR)->CompileError[], run(IR)->IR }
 
 local M = {}
+
+local ir_mod = require("core.ir")
+local pass_mod = require("core.pass")
 
 -- ── State Machine ────────────────────────────────────────────────────────────
 
@@ -33,9 +39,7 @@ local TRANSITIONS = {
   codegen = { done = true, error = true },
 }
 
---- Factory: creates an independent state machine instance.
----@return table
-local function new_state_machine()
+local function new_sm()
   local sm = { state = STATES.IDLE, timestamps = {} }
   function sm.transition(next)
     local allowed = TRANSITIONS[sm.state]
@@ -44,74 +48,87 @@ local function new_state_machine()
       sm.timestamps[next] = os.clock()
       return true
     end
-    vim.notify(string.format("[pipeline] illegal transition: %s → %s", sm.state, next), vim.log.levels.ERROR)
+    vim.notify(("[pipeline] illegal transition: %s → %s"):format(sm.state, next), vim.log.levels.ERROR)
     sm.state = STATES.ERROR
-    sm.timestamps[STATES.ERROR] = os.clock()
     return false
   end
   return sm
 end
 
--- State machine from the most recent run() call (for M.state()).
-local last_run_sm = new_state_machine()
+-- Track the most recent run() state machine for M.state().
+local last_run_sm = new_sm()
 
--- ── Stage helpers ────────────────────────────────────────────────────────────
+-- ── Pass definitions ─────────────────────────────────────────────────────────
 
---- Stage 1 – collect
----@param lang_modules string[]
----@param sm table
----@return table
-local function collect(lang_modules, sm)
-  if not sm.transition(STATES.COLLECTING) then
-    return {}
-  end
-  local registry = require("core.capability")
-  local ir = { caps = {}, errors = {} }
-  for _, mod in ipairs(lang_modules) do
-    local ok, result = pcall(require, mod)
-    if not ok then
-      vim.notify("[pipeline.collect] failed to load " .. mod .. ": " .. tostring(result), vim.log.levels.WARN)
-      ir.errors[#ir.errors + 1] = "failed to load " .. mod .. ": " .. tostring(result)
-    elseif type(result) == "table" then
-      local name = mod:match("([^.]+)$") or mod
-      registry.add(name, result)
-    else
-      vim.notify("[pipeline.collect] " .. mod .. " did not return a table; skipping", vim.log.levels.WARN)
-      ir.errors[#ir.errors + 1] = mod .. " did not return a table"
+--- Pass 1 – collect
+--- Loads each lang module, validates via schema, builds capability registry,
+--- and returns a snapshot into IR.caps.  IR is constructed with ir.new().
+local collect_pass = {
+  name = "collect",
+
+  ---@param ir IR
+  ---@return IR
+  run = function(ir)
+    local registry = require("core.capability")
+    local lang_modules = ir.meta.lang_modules or {}
+
+    local next_ir = ir_mod.clone(ir)
+    next_ir.caps = {}
+
+    for _, mod in ipairs(lang_modules) do
+      local ok, result = pcall(require, mod)
+      if not ok then
+        local err = ir_mod.error("collect", mod, "failed to load: " .. tostring(result))
+        next_ir = ir_mod.append_error(next_ir, err)
+        vim.notify("[pipeline.collect] " .. err.message, vim.log.levels.WARN)
+      elseif type(result) == "table" then
+        local name = mod:match("([^.]+)$") or mod
+        local add_ok, add_err = pcall(registry.add, name, result)
+        if not add_ok then
+          local err = ir_mod.error("collect", mod, "schema validation failed: " .. tostring(add_err))
+          next_ir = ir_mod.append_error(next_ir, err)
+          vim.notify("[pipeline.collect] " .. err.message, vim.log.levels.WARN)
+        end
+      else
+        local err = ir_mod.error("collect", mod, "module did not return a table; skipping")
+        next_ir = ir_mod.append_error(next_ir, err)
+        vim.notify("[pipeline.collect] " .. err.message, vim.log.levels.WARN)
+      end
     end
-  end
-  ir.caps = registry.all()
-  return ir
-end
 
---- Stage 2 – normalize
---- Resolves FormatterNode.strategy → FormatterNode.fn.
----
---- operates on deep copies of each formatter list so the shared
---- registry tables in core/capability are never mutated.  This keeps debug_run()
---- inspections and subsequent registry.reset() free of injected function refs.
----
----@param ctx table
----@param sm table
----@return table
-local function normalize(ctx, sm)
-  if not sm.transition(STATES.NORMALIZING) then
-    return ctx
-  end
-  local strategies = require("toolchain.strategies")
+    -- Snapshot registry into IR (deep-copy → registry is independent)
+    next_ir.caps = registry.snapshot()
+    return next_ir
+  end,
+}
 
-  -- Work on a shallow-copy of caps; each formatter list is deep-copied on demand.
-  local patched_caps = {}
-  for lang, cap in pairs(ctx.caps) do
-    if cap.formatters then
-      local patched_formatters = {}
-      local needs_patch = false
-      for ft, fmts in pairs(cap.formatters) do
-        if type(fmts) == "table" then
-          local patched_list = nil
+--- Pass 2 – normalize
+--- Resolves FormatterNode.strategy → FormatterNode.fn via the strategy registry.
+--- Operates entirely on deep-copies; the shared registry is never mutated.
+local normalize_pass = {
+  name = "normalize",
+
+  validate = function(ir)
+    return ir_mod.validate(ir, "normalize")
+  end,
+
+  ---@param ir IR
+  ---@return IR
+  run = function(ir)
+    local strategies = require("toolchain.strategies")
+    local next_caps = {}
+
+    for lang, cap in pairs(ir.caps) do
+      if cap.formatters then
+        local patched_formatters = {}
+        local cap_patched = false
+
+        for ft, fmts in pairs(cap.formatters) do
+          -- fmts is always a list (raw functions rejected by schema)
+          local patched_list = nil -- lazy-init on first mutation
+
           for i, v in ipairs(fmts) do
             if type(v) == "table" and v.kind == "formatter" and v.strategy and not v.fn then
-              -- Lazy-init the copied list only when a node actually needs patching
               if not patched_list then
                 patched_list = vim.deepcopy(fmts)
               end
@@ -124,292 +141,295 @@ local function normalize(ctx, sm)
                   return {}
                 end
               end
+              cap_patched = true
             end
           end
-          if patched_list then
-            needs_patch = true
-            patched_formatters[ft] = patched_list
-          else
-            patched_formatters[ft] = fmts -- unchanged — share original ref
+
+          patched_formatters[ft] = patched_list or fmts -- share original if unchanged
+        end
+
+        if cap_patched then
+          -- Shallow-copy cap, replacing only the formatters field
+          local new_cap = {}
+          for k, v in pairs(cap) do
+            new_cap[k] = v
           end
+          new_cap.formatters = patched_formatters
+          next_caps[lang] = new_cap
         else
-          patched_formatters[ft] = fmts
+          next_caps[lang] = cap
+        end
+      else
+        next_caps[lang] = cap
+      end
+    end
+
+    return ir_mod.with(ir, { caps = next_caps })
+  end,
+}
+
+--- Pass 3 – resolve
+--- Decides use_mason for every LSP server and tool; writes IR.resolved.
+local resolve_pass = {
+  name = "resolve",
+
+  validate = function(ir)
+    return ir_mod.validate(ir, "resolve")
+  end,
+
+  ---@param ir IR
+  ---@return IR
+  run = function(ir)
+    local rules = require("toolchain.rules")
+    local resolved = { lsp = {}, tools = {} }
+
+    for _, cap in pairs(ir.caps) do
+      if cap.lsp then
+        for server, cfg in pairs(cap.lsp) do
+          resolved.lsp[server] = rules.use_mason(server) and (cfg.mason ~= false)
         end
       end
-      if needs_patch then
-        -- Shallow-copy the cap, replacing only formatters
-        local patched_cap = {}
-        for k, v in pairs(cap) do
-          patched_cap[k] = v
+
+      local function mark_tools(tbl)
+        if not tbl then
+          return
         end
-        patched_cap.formatters = patched_formatters
-        patched_caps[lang] = patched_cap
-      end
-    end
-  end
-
-  -- Merge patched caps into ctx (original registry untouched)
-  if next(patched_caps) then
-    local merged = {}
-    for lang, cap in pairs(ctx.caps) do
-      merged[lang] = patched_caps[lang] or cap
-    end
-    ctx.caps = merged
-  end
-
-  return ctx
-end
-
---- Stage 3 – resolve
----@param ctx table
----@param sm table
----@return table
-local function resolve(ctx, sm)
-  if not sm.transition(STATES.RESOLVING) then
-    return ctx
-  end
-  local rules = require("toolchain.rules")
-  local resolved = { lsp = {}, tools = {} }
-
-  for _, cap in pairs(ctx.caps) do
-    if cap.lsp then
-      for server, cfg in pairs(cap.lsp) do
-        resolved.lsp[server] = rules.use_mason(server) and (cfg.mason ~= false)
-      end
-    end
-    local function mark_tools(tbl)
-      if not tbl then
-        return
-      end
-      for _, list in pairs(tbl) do
-        if type(list) == "table" then
-          for _, tool in ipairs(list) do
-            if type(tool) == "string" and tool:sub(1, 2) ~= "__" then
-              resolved.tools[tool] = rules.use_mason(tool)
+        for _, list in pairs(tbl) do
+          if type(list) == "table" then
+            for _, item in ipairs(list) do
+              -- Only plain strings are tool names; FormatterNodes have .kind
+              if type(item) == "string" then
+                resolved.tools[item] = rules.use_mason(item)
+              end
             end
           end
         end
       end
-    end
-    mark_tools(cap.formatters)
-    mark_tools(cap.linters)
-    if cap.mason then
-      for _, t in ipairs(cap.mason) do
-        resolved.tools[t] = rules.use_mason(t)
-      end
-    end
-  end
 
-  ctx.resolved = resolved
-  return ctx
-end
+      mark_tools(cap.formatters)
+      mark_tools(cap.linters)
 
---- Stage 4 – optimize
----@param ctx table
----@param sm table
----@return table
-local function optimize(ctx, sm)
-  if not sm.transition(STATES.OPTIMIZING) then
-    return ctx
-  end
-  local util = require("core.util")
-
-  -- Collect and dedup treesitter parsers
-  local all_parsers = {}
-  for _, cap in pairs(ctx.caps) do
-    if cap.treesitter then
-      vim.list_extend(all_parsers, cap.treesitter)
-    end
-  end
-  ctx.all_parsers = util.dedup(all_parsers)
-
-  -- Merge LSP configs (later caps override earlier on conflict)
-  local merged_lsp = {}
-  for _, cap in pairs(ctx.caps) do
-    if cap.lsp then
-      for server, cfg in pairs(cap.lsp) do
-        if merged_lsp[server] then
-          merged_lsp[server] = vim.tbl_deep_extend("force", merged_lsp[server], cfg)
-        else
-          merged_lsp[server] = vim.deepcopy(cfg)
+      if cap.mason then
+        for _, t in ipairs(cap.mason) do
+          resolved.tools[t] = rules.use_mason(t)
         end
       end
     end
+
+    return ir_mod.with(ir, { resolved = resolved })
+  end,
+}
+
+--- Pass 4 – optimize
+--- Deduplicates treesitter parsers; merges LSP configs.
+local optimize_pass = {
+  name = "optimize",
+
+  validate = function(ir)
+    return ir_mod.validate(ir, "optimize")
+  end,
+
+  ---@param ir IR
+  ---@return IR
+  run = function(ir)
+    local util = require("core.util")
+
+    -- Deduplicate treesitter parsers
+    local all_parsers = {}
+    for _, cap in pairs(ir.caps) do
+      if cap.treesitter then
+        vim.list_extend(all_parsers, cap.treesitter)
+      end
+    end
+
+    -- Merge LSP configs (later overrides earlier on conflict)
+    local merged_lsp = {}
+    for _, cap in pairs(ir.caps) do
+      if cap.lsp then
+        for server, cfg in pairs(cap.lsp) do
+          merged_lsp[server] = merged_lsp[server] and vim.tbl_deep_extend("force", merged_lsp[server], cfg)
+            or vim.deepcopy(cfg)
+        end
+      end
+    end
+
+    return ir_mod.with(ir, {
+      all_parsers = util.dedup(all_parsers),
+      merged_lsp = merged_lsp,
+    })
+  end,
+}
+
+--- Pass 5 – codegen (terminal: produces LazySpec[], not a new IR)
+--- This pass is special: it calls into adapters and returns spec[], not IR.
+--- The pipeline runner handles this distinction.
+local codegen_pass = {
+  name = "codegen",
+
+  validate = function(ir)
+    return ir_mod.validate(ir, "codegen")
+  end,
+
+  ---@param ir IR
+  ---@return table[]  LazySpec list
+  build = function(ir)
+    local adapters = {
+      require("runtime.adapters.lsp"),
+      require("runtime.adapters.mason"),
+      require("runtime.adapters.treesitter"),
+      require("runtime.adapters.conform"),
+      require("runtime.adapters.lint"),
+    }
+
+    local specs = {}
+    for _, adapter in ipairs(adapters) do
+      local ok, result = pcall(adapter.build, ir)
+      if ok then
+        for _, spec in ipairs(result) do
+          specs[#specs + 1] = spec
+        end
+      else
+        vim.notify(
+          "[pipeline.codegen] adapter " .. tostring(adapter) .. " failed: " .. tostring(result),
+          vim.log.levels.WARN
+        )
+      end
+    end
+    return specs
+  end,
+}
+
+-- Ordered pass list (all transforming passes; codegen is separate)
+local PASSES = { collect_pass, normalize_pass, resolve_pass, optimize_pass }
+
+-- ── Internal runner ───────────────────────────────────────────────────────────
+
+local STAGE_TO_SM = {
+  collect = STATES.COLLECTING,
+  normalize = STATES.NORMALIZING,
+  resolve = STATES.RESOLVING,
+  optimize = STATES.OPTIMIZING,
+  codegen = STATES.CODEGEN,
+}
+
+--- Run passes up to (and including) `stop_after` (nil = all + codegen).
+---@param lang_modules string[]
+---@param profile      string
+---@param stop_after?  string
+---@param sm           table
+---@return IR, table[]|nil, table<string, number>
+local function execute(lang_modules, profile, stop_after, sm)
+  local ir = ir_mod.new(lang_modules, profile)
+  local timings = {}
+
+  sm.transition(STATES.COLLECTING)
+
+  for _, pass in ipairs(PASSES) do
+    local t0 = os.clock()
+    local next_ir, errs = pass_mod.run_pass(pass, ir)
+    timings[pass.name] = os.clock() - t0
+
+    ir = next_ir
+
+    if #errs > 0 and not stop_after then
+      -- Non-fatal: continue; errors are embedded in IR
+    end
+
+    -- Advance state machine
+    local next_sm_state = STAGE_TO_SM[pass.name]
+    if next_sm_state then
+      -- State is already set by transition(); advance to next
+      local sm_steps = { "collecting", "normalizing", "resolving", "optimizing" }
+      for i, s in ipairs(sm_steps) do
+        if s == next_sm_state then
+          if sm_steps[i + 1] then
+            sm.transition(sm_steps[i + 1])
+          end
+          break
+        end
+      end
+    end
+
+    if stop_after == pass.name then
+      return ir, nil, timings
+    end
   end
-  ctx.merged_lsp = merged_lsp
 
-  return ctx
-end
-
---- Stage 5 – codegen
----@param ctx table
----@param sm table
----@return table[]
-local function codegen(ctx, sm)
-  if not sm.transition(STATES.CODEGEN) then
-    return {}
-  end
-  local adapters = {
-    require("runtime.adapters.lsp"),
-    require("runtime.adapters.mason"),
-    require("runtime.adapters.treesitter"),
-    require("runtime.adapters.conform"),
-    require("runtime.adapters.lint"),
-  }
-
+  -- Codegen
+  local t0 = os.clock()
+  local pre = codegen_pass.validate and codegen_pass.validate(ir) or {}
   local specs = {}
-  for _, adapter in ipairs(adapters) do
-    local ok, result = pcall(adapter.build, ctx)
+  if #pre == 0 then
+    sm.transition(STATES.CODEGEN)
+    local ok, result = pcall(codegen_pass.build, ir)
     if ok then
-      for _, spec in ipairs(result) do
-        specs[#specs + 1] = spec
-      end
+      specs = result
     else
-      vim.notify("[pipeline.codegen] adapter failed: " .. tostring(result), vim.log.levels.WARN)
+      vim.notify("[pipeline.codegen] failed: " .. tostring(result), vim.log.levels.ERROR)
+      sm.state = STATES.ERROR
     end
+  else
+    for _, e in ipairs(pre) do
+      ir = ir_mod.append_error(ir, e)
+    end
+    sm.state = STATES.ERROR
   end
-  return specs
+  timings.codegen = os.clock() - t0
+
+  return ir, specs, timings
 end
 
 -- ── Public API ───────────────────────────────────────────────────────────────
 
 --- Run the full pipeline and return lazy.nvim plugin specs.
 ---@param lang_modules string[]
+---@param profile?     string
 ---@return table[]
-function M.run(lang_modules)
-  local sm = new_state_machine()
+function M.run(lang_modules, profile)
+  local sm = new_sm()
   last_run_sm = sm
 
-  local timings = {}
-  local function timed(name, fn, ...)
-    local t0 = os.clock()
-    local ok, result = pcall(fn, ...)
-    timings[name] = os.clock() - t0
-    return ok, result
+  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm)
+
+  if sm.state ~= STATES.ERROR then
+    sm.transition(STATES.DONE)
   end
 
-  local ok, ctx = timed("collect", collect, lang_modules, sm)
-  if not ok or sm.state == STATES.ERROR then
-    vim.notify("[pipeline] collect failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    sm.state = STATES.ERROR
-    return {}
-  end
-
-  ok, ctx = timed("normalize", normalize, ctx, sm)
-  if not ok or sm.state == STATES.ERROR then
-    vim.notify("[pipeline] normalize failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    sm.state = STATES.ERROR
-    return {}
-  end
-
-  ok, ctx = timed("resolve", resolve, ctx, sm)
-  if not ok or sm.state == STATES.ERROR then
-    vim.notify("[pipeline] resolve failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    sm.state = STATES.ERROR
-    return {}
-  end
-
-  ok, ctx = timed("optimize", optimize, ctx, sm)
-  if not ok or sm.state == STATES.ERROR then
-    vim.notify("[pipeline] optimize failed: " .. tostring(ctx), vim.log.levels.ERROR)
-    sm.state = STATES.ERROR
-    return {}
-  end
-
-  local specs
-  ok, specs = timed("codegen", codegen, ctx, sm)
-  if not ok or sm.state == STATES.ERROR then
-    vim.notify("[pipeline] codegen failed: " .. tostring(specs), vim.log.levels.ERROR)
-    sm.state = STATES.ERROR
-    return {}
-  end
-
-  sm.transition(STATES.DONE)
-
-  -- Persist per-stage timings for :LtosInfo
+  -- Persist timings for :LtosInfo
   vim.g.ltos_last_build_timings = timings
 
-  -- Summarise accumulated errors in a single WARN
-  if ctx.errors and #ctx.errors > 0 then
-    local seen, unique = {}, {}
-    for _, msg in ipairs(ctx.errors) do
-      if not seen[msg] then
-        seen[msg] = true
-        unique[#unique + 1] = msg
-      end
-    end
+  -- Report accumulated errors in a single WARN
+  if ir.errors and #ir.errors > 0 then
     vim.notify(
-      "[pipeline] build completed with " .. #unique .. " error(s):\n" .. table.concat(unique, "\n"),
+      ("[pipeline] build completed with %d error(s):\n%s"):format(#ir.errors, ir_mod.format_errors(ir)),
       vim.log.levels.WARN
     )
   end
 
-  return specs
+  return specs or {}
 end
 
---- Dump intermediate context after each stage (debug capability).
+--- Run the pipeline up to `stop_after` stage and return the IR snapshot.
+--- The capability registry is reset before this run to avoid accumulation.
 ---@param lang_modules string[]
----@param stop_after? "collect"|"normalize"|"resolve"|"optimize"
----@return table
-function M.debug_run(lang_modules, stop_after)
-  local sm = new_state_machine()
+---@param stop_after?  "collect"|"normalize"|"resolve"|"optimize"
+---@param profile?     string
+---@return IR
+function M.debug_run(lang_modules, stop_after, profile)
+  local sm = new_sm()
 
-  -- FIX P0-2 (carried): reset registry before debug run to avoid accumulation
+  -- Reset registry to avoid accumulation across debug runs
   require("core.capability").reset()
 
-  local stage_fns = {
-    {
-      "collect",
-      function(_)
-        return collect(lang_modules, sm)
-      end,
-    },
-    {
-      "normalize",
-      function(c)
-        return normalize(c, sm)
-      end,
-    },
-    {
-      "resolve",
-      function(c)
-        return resolve(c, sm)
-      end,
-    },
-    {
-      "optimize",
-      function(c)
-        return optimize(c, sm)
-      end,
-    },
-  }
+  local ir, _, timings = execute(lang_modules, profile or "full", stop_after, sm)
 
-  local ctx = {}
-  local timings = {}
+  -- Attach timings to IR for :LtosDebug display
+  ir._timings = timings
 
-  for _, entry in ipairs(stage_fns) do
-    local name, fn = entry[1], entry[2]
-    local t0 = os.clock()
-    local ok, result = pcall(fn, ctx)
-    timings[name] = os.clock() - t0
-
-    if not ok then
-      vim.notify("[pipeline.debug_run] " .. name .. " failed: " .. tostring(result), vim.log.levels.ERROR)
-      ctx._timings = timings
-      return ctx
-    end
-
-    ctx = result
-    if name == stop_after then
-      break
-    end
-  end
-
-  ctx._timings = timings
-  return ctx
+  return ir
 end
 
---- Return the state of the most recent run() call (for :LtosInfo).
+--- Return the state string of the most recent run() call (for :LtosInfo).
 ---@return string
 function M.state()
   return last_run_sm.state

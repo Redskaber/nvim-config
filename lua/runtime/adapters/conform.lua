@@ -1,10 +1,13 @@
--- lua/runtime/adapters/conform.lua
--- Pure function: ir -> conform.nvim spec.
--- FormatterNode.fn is injected by the normalize stage; this adapter only reads it.
+-- ~/.config/nvim/lua/runtime/adapters/conform.lua
+-- Codegen adapter: IR → conform.nvim LazySpec.
+--
+-- P0-1 compliance: raw function values are rejected at schema layer;
+-- this adapter only handles strings and FormatterNode tables with .fn injected
+-- by the normalize pass.  The `type(fmts) == "function"` branch is removed.
 
 local M = {}
 
----@param ir table
+---@param ir table  post-optimize IR
 ---@return table[]
 function M.build(ir)
   if not ir or not ir.caps then
@@ -17,47 +20,44 @@ function M.build(ir)
     ["_"] = { "trim_whitespace" },
   }
 
+  local has_fn = false
+
   for _, cap in pairs(ir.caps) do
     if cap.formatters then
       for ft, fmts in pairs(cap.formatters) do
-        if type(fmts) == "function" then
-          by_ft[ft] = fmts
-        else
-          local resolved = {}
-          for _, v in ipairs(fmts) do
-            if type(v) == "table" and v.kind == "formatter" then
-              if v.fn then
-                -- strategy function injected by normalize stage
-                by_ft[ft] = v.fn
-                resolved = nil
-                break
-              elseif v.name then
-                resolved[#resolved + 1] = v.name
-              end
-            else
-              resolved[#resolved + 1] = v
-            end
-          end
+        -- fmts is always a list: string | FormatterNode (schema-enforced)
+        local resolved = {}
+        local ft_has_fn = false
 
-          if resolved ~= nil then
-            if by_ft[ft] and type(by_ft[ft]) == "table" then
-              vim.list_extend(by_ft[ft], resolved)
-            else
-              by_ft[ft] = vim.deepcopy(resolved)
+        for _, v in ipairs(fmts) do
+          if type(v) == "table" and v.kind == "formatter" then
+            if v.fn then
+              -- Strategy function injected by normalize pass
+              by_ft[ft] = v.fn
+              ft_has_fn = true
+              has_fn = true
+              resolved = nil -- signal: ft is handled
+              break
+            elseif v.name then
+              resolved[#resolved + 1] = v.name
             end
+            -- nodes with neither fn nor name are no-ops (malformed; schema should catch)
+          elseif type(v) == "string" then
+            resolved[#resolved + 1] = v
+          end
+        end
+
+        if not ft_has_fn and resolved ~= nil then
+          if by_ft[ft] and type(by_ft[ft]) == "table" then
+            vim.list_extend(by_ft[ft], resolved)
+          else
+            by_ft[ft] = vim.deepcopy(resolved)
           end
         end
       end
     end
   end
 
-  local has_fn = false
-  for _, v in pairs(by_ft) do
-    if type(v) == "function" then
-      has_fn = true
-      break
-    end
-  end
   return {
     {
       "stevearc/conform.nvim",
