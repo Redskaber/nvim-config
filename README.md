@@ -1,6 +1,6 @@
 # nvim-config
 
-A Neovim configuration built on **LazyVim** with a custom compiler-inspired toolchain layer called **LTOS** (Language Toolchain Orchestration System). Lang modules are a pure DSL; a five-stage pipeline compiles them into lazy.nvim plugin specs at startup.
+A Neovim configuration built on **LazyVim** with a custom compiler-inspired toolchain layer — **LTOS** (Language Toolchain Orchestration System). Lang modules are a pure declarative DSL; a six-layer architecture and five-phase compiler pipeline transform them into `lazy.nvim` plugin specs at startup.
 
 ## Requirements
 
@@ -31,9 +31,340 @@ nvim  # lazy.nvim bootstraps itself on first launch
 
 Mason installs LSP servers, formatters, and linters automatically on first startup.
 
+---
+
+## LTOS — Language Toolchain Orchestration System
+
+### Six-Layer Architecture
+
+LTOS enforces strict layer boundaries. Each layer may only depend on layers below it; upward dependencies are forbidden.
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  Layer 5 · app / config     config/  plugins/  modules/lang/         │
+│             Zero compiler knowledge. Pure DSL declarations.          │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 4 · backend          runtime/adapters/*                       │
+│             Read-only IR consumers. No vim API. No DSL imports.      │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 3 · strategy         toolchain/rules  toolchain/mappings      │
+│                              toolchain/strategies/                   │
+│             Strategy interface: applies / transform / priority.      │
+│             No vim API access. No direct adapter calls.              │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 2 · domain IR        core/schema  core/capability             │
+│             Immutable CapabilitySet. Pure-function validation.       │
+│             No runtime state. No side effects.                       │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 1 · compiler         core/ir  core/pass  core/cache           │
+│             CompilerContext · Phase interface · three-tier cache.    │
+│             No vim API. No plugin knowledge.                         │
+├──────────────────────────────────────────────────────────────────────┤
+│  Layer 0 · kernel           core/bootstrap  core/env  core/util      │
+│             Earliest inits. No dependencies on any layer above.      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Layer contracts (enforced by convention):**
+
+| Boundary             | Rule                                                             |
+| -------------------- | ---------------------------------------------------------------- |
+| kernel → compiler    | `core/{bootstrap,env,util}` never import `core/{ir,pass,cache}`  |
+| compiler → domain IR | `core/{ir,pass,cache}` never import `core/{schema,capability}`   |
+| strategy → backend   | `toolchain/*` never import `runtime/adapters/*`                  |
+| backend → vim API    | `runtime/adapters/*` never call `vim.*` directly                 |
+| app → compiler       | `modules/lang/*` and `plugins/*` never import `runtime/pipeline` |
+
+---
+
+### Compiler Pipeline
+
+```
+modules/lang/*.lua  ──►  Pipeline (5 phases)  ──►  LazySpec[]
+      (DSL / AST)                                  (codegen output)
+```
+
+#### Boot sequence
+
+```
+init.lua
+  └─ core/bootstrap          (Layer 0: netrw off, leader keys)
+  └─ config/lazy.lua
+       └─ runtime.build()    (Layer 5 → compiler entry point)
+            └─ runtime/init.lua   (profile resolution, spec-tier cache)
+                 └─ runtime/pipeline.lua  (state machine + 5 phases)
+```
+
+#### State machine
+
+Each `run()` / `debug_run()` gets its own independent state machine instance. Illegal transitions abort to `ERROR`; non-fatal diagnostics accumulate in the IR and do not halt the pipeline.
+
+```
+idle → collecting → normalizing → resolving → optimizing → codegen → done
+                                                                    ↘ error
+```
+
+#### Five phases
+
+| Phase         | SM transition            | IR layer in | IR layer out | Responsibility                                                            |
+| ------------- | ------------------------ | ----------- | ------------ | ------------------------------------------------------------------------- |
+| **collect**   | idle → collecting        | —           | AST          | Load & validate lang module DSL into `IR.caps`                            |
+| **normalize** | collecting → normalizing | AST         | HIR          | Inject `FormatterNode.fn`; deep-copy; registry untouched                  |
+| **resolve**   | normalizing → resolving  | HIR         | MIR          | Per-tool mason-vs-system decision → `IR.resolved`                         |
+| **optimize**  | resolving → optimizing   | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers` |
+| **codegen**   | optimizing → codegen     | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                     |
+
+#### IR sub-layers (immutable, copy-on-write)
+
+```
+AST   raw validated capability snapshot          (collect output)
+HIR   normalised — FormatterNode.fn resolved     (normalize output)
+MIR   strategy resolved — mason/system decided   (resolve output)
+LIR   optimised — deduped parsers, merged LSP    (optimize output)
+SPEC  codegen input — all fields present         (codegen input)
+```
+
+Every phase returns a **new IR** via `ir.with()` / `ir.clone()`. Input IR is never mutated.
+
+#### CompilerContext
+
+```lua
+---@class CompilerContext
+---@field ir          IR
+---@field stage       string
+---@field diagnostics Diagnostic[]
+---@field cache_key   string
+---@field timings     table<string, number>
+```
+
+#### Phase interface (`core/pass.lua`)
+
+```lua
+---@class Phase
+---@field name         string
+---@field input_state  string
+---@field output_state string
+---@field run          fun(ir: IR): IR
+---@field validate?    fun(ir: IR): Diagnostic[]
+```
+
+`run()` is pure: never mutates input, always returns a table, wrapped in `pcall` so errors become `Diagnostic` entries rather than panics.
+
+---
+
+### Strategy System (`toolchain/`)
+
+Strategies encapsulate toolchain decisions behind a uniform interface, decoupled from both the compiler and the backend adapters.
+
+```lua
+---@class Strategy
+---@field applies   fun(ctx, node): boolean
+---@field transform fun(ctx, node): node
+---@field priority  number
+```
+
+**StrategyRegistry** (`toolchain/strategies/init.lua`) supports `register(kind, strategy)` and `resolve(kind, node)`. Built-in strategy kinds: `formatter`, `lsp`, `install` (mason / system).
+
+**Toolchain resolution priority:**
+
+1. User overrides (`vim.g.ltos_tool_overrides` or `toolchain/mappings.lua` `overrides`)
+2. `system_tools` set (rustfmt, gofmt, zigfmt, fish, nixpkgs_fmt, …)
+3. Nix environment (`core/env.lua` `M.is_nix`)
+4. `tool_to_mason` mapping table
+5. Identity fallback
+
+---
+
+### Three-Tier Cache (`core/cache.lua`)
+
+Cache lives under `stdpath("cache")/ltos/`, keyed by `sha256(module_file_contents) + ":" + profile`.
+
+| Tier   | Key unit             | Invalidation                 |
+| ------ | -------------------- | ---------------------------- |
+| `ast`  | per-module file hash | file content change          |
+| `ir`   | IR segment hash      | upstream module change       |
+| `spec` | full build hash      | any module or profile change |
+
+Spec-tier hit skips the pipeline entirely. Specs containing function values set `_no_cache = true` and are excluded from serialization.
+
+---
+
+### Backend Adapters (`runtime/adapters/`)
+
+Adapters implement the backend interface and are the only layer that produces `LazySpec[]`. They read the IR; they never write it.
+
+```lua
+---@class Backend
+---@field supports fun(cap: string): boolean
+---@field emit     fun(ir: IR): LazySpec[]
+```
+
+| Adapter          | Capability driven       |
+| ---------------- | ----------------------- |
+| `lsp.lua`        | `IR.merged_lsp`         |
+| `mason.lua`      | `IR.resolved`           |
+| `treesitter.lua` | `IR.all_parsers`        |
+| `conform.lua`    | `IR.caps[*].formatters` |
+| `lint.lua`       | `IR.caps[*].linters`    |
+
+---
+
+### Profiles
+
+```lua
+-- config/globals.lua
+vim.g.ltos_profile = "minimal"  -- "full" (default) | "minimal" | "nix"
+```
+
+| Profile            | Modules loaded                      |
+| ------------------ | ----------------------------------- |
+| `"full"` (default) | all lang modules                    |
+| `"minimal"`        | `lua_lang` only                     |
+| `"nix"`            | all modules, system tools preferred |
+
+---
+
+### User Commands
+
+| Command              | Description                                                              |
+| -------------------- | ------------------------------------------------------------------------ |
+| `:LtosInfo`          | profile, pipeline state, modules, tools, strategies, per-stage timings   |
+| `:LtosDebug [stage]` | foldable IR snapshot at `collect` / `normalize` / `resolve` / `optimize` |
+| `:LtosIR`            | full LIR dump (post-optimize) in a scratch buffer                        |
+| `:LtosTrace`         | per-phase execution timeline with ASCII bar chart                        |
+| `:LtosGraph`         | module → capability dependency graph                                     |
+
+---
+
+### File Structure
+
+```
+lua/
+├── core/                          Layer 0–2: kernel · compiler · domain IR
+│   ├── bootstrap.lua              [L0] earliest inits (netrw off, leader keys)
+│   ├── env.lua                    [L0] Nix / SSH / GUI environment detection
+│   ├── util.lua                   [L0] dedup, pure helpers
+│   ├── ir.lua                     [L1] IR struct, CompilerContext, clone/with, diagnostics
+│   ├── pass.lua                   [L1] Phase interface + protected run_phase()
+│   ├── cache.lua                  [L1] three-tier sha256-keyed cache
+│   ├── capability.lua             [L2] immutable CapabilitySet: add / snapshot / reset
+│   └── schema.lua                 [L2] typed validator, error recovery, diagnostics
+│
+├── toolchain/                     Layer 3: strategy
+│   ├── rules.lua                  ToolchainStrategy: mason-vs-system decision rules
+│   ├── mappings.lua               tool → mason package; system_tools set
+│   └── strategies/
+│       ├── init.lua               StrategyRegistry: register / resolve / list
+│       └── formatters.lua         built-in strategies: ruff_or_black, prettierd_or_prettier
+│
+├── runtime/                       Layer 1 (orchestration) + Layer 4 (backend)
+│   ├── init.lua                   orchestrator: profile resolution, cache, build()
+│   ├── pipeline.lua               state machine + 5-phase compiler kernel
+│   ├── commands.lua               observability commands: LtosInfo/Debug/IR/Trace/Graph
+│   ├── api.lua                    editor façade: api.editor / api.lsp / api.diagnostics / api.find
+│   └── adapters/                  [L4] backend — read-only IR consumers
+│       ├── lsp.lua
+│       ├── mason.lua
+│       ├── treesitter.lua
+│       ├── conform.lua
+│       └── lint.lua
+│
+├── modules/lang/                  Layer 5: DSL — pure declarations, zero side-effects
+│   ├── c_cpp.lua
+│   ├── go.lua
+│   ├── lua_lang.lua
+│   ├── markup.lua                 json/jsonc/yaml/toml/html/css/scss/md
+│   ├── nix.lua
+│   ├── python.lua
+│   ├── rust.lua
+│   ├── shell.lua
+│   ├── typescript.lua             js/ts/jsx/tsx
+│   └── zig.lua
+│
+├── config/                        Layer 5: app config — zero compiler knowledge
+│   ├── autocmds.lua
+│   ├── globals.lua                vim.g.* defaults (profile, debug flags)
+│   ├── icons.lua                  single source of truth for glyphs
+│   ├── keymaps.lua                editor keymaps via runtime.api façade
+│   ├── lazy.lua                   lazy.nvim bootstrap + runtime.build()
+│   └── options.lua                all vim.opt.* settings
+│
+└── plugins/                       Layer 5: UI / editor / AI — no toolchain logic
+    ├── ai.lua
+    ├── coding.lua
+    ├── colorscheme.lua
+    ├── editor.lua
+    ├── formatting.lua
+    ├── linting.lua
+    ├── lsp.lua
+    ├── snacks.lua
+    ├── treesitter.lua
+    └── ui.lua
+```
+
+---
+
+### Lang Modules (DSL)
+
+Each file under `modules/lang/` is a pure Lua table — no `require`, no side effects, no vim API.
+
+```lua
+-- modules/lang/typescript.lua
+return {
+  treesitter = { "javascript", "typescript", "tsx" },
+  lsp        = { vtsls = { settings = { ... } } },
+  formatters = {
+    typescript      = { "prettierd" },
+    typescriptreact = { "prettierd" },
+  },
+  linters = { typescript = { "eslint" } },
+  mason   = { "vtsls", "prettierd" },
+}
+```
+
+For runtime fallback logic, use a `FormatterNode` instead of a plain string:
+
+```lua
+-- modules/lang/python.lua
+formatters = {
+  python = { { kind = "formatter", strategy = "ruff_or_black" } },
+},
+```
+
+| Strategy                | Behavior                                             |
+| ----------------------- | ---------------------------------------------------- |
+| `ruff_or_black`         | prefers `ruff_format`; falls back to `isort + black` |
+| `prettierd_or_prettier` | prefers `prettierd`; falls back to `prettier`        |
+
+Register custom strategies before the pipeline runs:
+
+```lua
+require("toolchain.strategies").register("my_strategy", function(bufnr)
+  return { "my_formatter" }
+end)
+```
+
+### Adding a New Language
+
+Create `lua/modules/lang/mylang.lua`:
+
+```lua
+return {
+  treesitter = { "mylang" },
+  lsp        = { mylang_ls = {} },
+  formatters = { mylang = { "myfmt" } },
+  linters    = { mylang = { "mylint" } },
+  mason      = { "mylang-language-server" },
+}
+```
+
+Add the module path to `LANG_MODULES` in `lua/runtime/init.lua`. LSP mason packages are resolved automatically — only formatter/linter tool names belong in `mason = {}`.
+
+---
+
 ## Plugin Overview
 
-This config is built on **LazyVim v8** (`LazyVim/LazyVim`) as the base distribution. All plugins below are layered on top.
+Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on top.
 
 ### UI
 
@@ -102,227 +433,6 @@ This config is built on **LazyVim v8** (`LazyVim/LazyVim`) as the base distribut
 | ------------------------- | ----------------------------------------------------- |
 | `akinsho/toggleterm.nvim` | floating / horizontal terminal (`<C-t>`, `<leader>t`) |
 | `nvim-tree/nvim-tree.lua` | file tree sidebar (`<leader>fe`)                      |
-
----
-
-## LTOS — Language Toolchain Orchestration System
-
-The toolchain layer compiles lang module DSL into lazy.nvim specs via a five-stage pipeline.
-
-### Architecture
-
-```
-modules/lang/*.lua   →   Pipeline (5 stages)   →   lazy.nvim specs
-     (DSL)                                           (codegen output)
-```
-
-```
-┌─────────────────────────────────────────────┐
-│  Entry: init.lua                            │
-│    → core/bootstrap.lua  (earliest inits)   │
-│    → config/lazy.lua     (lazy.nvim setup)  │
-└──────────────────┬──────────────────────────┘
-                   │ runtime.build()
-┌──────────────────▼──────────────────────────┐
-│  Orchestration: runtime/init.lua            │
-│  Pipeline:      runtime/pipeline.lua        │
-│  Pass runner:   core/pass.lua               │
-└──┬──────┬──────┬──────┬──────┬──────────────┘
-   │      │      │      │      │
-collect normalize resolve optimize codegen
-┌──▼──────▼──────▼──────▼──────▼──────────────┐
-│  IR: core/ir.lua  ·  Schema: core/schema.lua │
-└──┬───────────────────────────────────────────┘
-   │
-┌──▼───────────────────────────────────────────┐
-│  Registry: core/capability.lua               │
-│  DSL:      modules/lang/*.lua                │
-└──┬───────────────────────────────────────────┘
-   │
-┌──▼───────────────────────────────────────────┐
-│  Toolchain: toolchain/rules.lua              │
-│             toolchain/mappings.lua           │
-│             toolchain/strategies/            │
-└──┬───────────────────────────────────────────┘
-   │
-┌──▼───────────────────────────────────────────┐
-│  Adapters: runtime/adapters/                 │
-│    lsp · mason · treesitter · conform · lint │
-└──────────────────────────────────────────────┘
-```
-
-### Pipeline Stages
-
-| Stage         | Input                      | Output                                                      |
-| ------------- | -------------------------- | ----------------------------------------------------------- |
-| **collect**   | `modules/lang/*.lua` paths | `IR.caps` — validated capability registry                   |
-| **normalize** | `IR.caps`                  | `FormatterNode.fn` injected (deep-copy; registry untouched) |
-| **resolve**   | `IR.caps`                  | `IR.resolved` — per-tool mason/system decision              |
-| **optimize**  | `IR.resolved`              | `IR.merged_lsp`, `IR.all_parsers` — deduped                 |
-| **codegen**   | full IR                    | `LazySpec[]` consumed by lazy.nvim                          |
-
-State machine: `idle → collecting → normalizing → resolving → optimizing → codegen → done`. Each `run()` / `debug_run()` gets its own independent instance.
-
-Each stage is a **Pass** (`core/pass.lua`): `{ name, run(IR)→IR, validate?(IR)→CompileError[] }`. Passes are pure — they never mutate the input IR.
-
-### Pipeline Caching
-
-Three-tier cache (`ast` / `ir` / `spec`) under `stdpath("cache")/ltos/`, keyed by `sha256(module_file_contents) + ":" + profile`. Cache hit skips the pipeline entirely. Specs with function values set `_no_cache = true` and are excluded from serialization.
-
-### File Structure
-
-```
-lua/
-├── core/
-│   ├── bootstrap.lua       earliest inits (netrw, etc.)
-│   ├── capability.lua      registry: add / snapshot / reset
-│   ├── cache.lua           three-tier sha256-keyed cache
-│   ├── env.lua             Nix / SSH / GUI detection
-│   ├── ir.lua              IR struct, clone, validate, error helpers
-│   ├── pass.lua            Pass interface + protected run_pass()
-│   ├── schema.lua          capability validation, fail-fast
-│   └── util.lua            dedup, misc helpers
-├── config/
-│   ├── autocmds.lua
-│   ├── globals.lua         vim.g.* defaults
-│   ├── icons.lua           single source of truth for glyphs
-│   ├── keymaps.lua         editor keymaps via runtime.api facade
-│   ├── lazy.lua            lazy.nvim bootstrap + runtime.build()
-│   └── options.lua         all vim.opt.* settings
-├── modules/lang/           pure DSL — zero side-effects
-│   ├── c_cpp.lua
-│   ├── go.lua
-│   ├── lua_lang.lua
-│   ├── markup.lua          json/jsonc/yaml/toml/html/css/scss/md
-│   ├── nix.lua
-│   ├── python.lua
-│   ├── rust.lua
-│   ├── shell.lua
-│   ├── typescript.lua      js/ts/jsx/tsx
-│   └── zig.lua
-├── runtime/
-│   ├── init.lua            orchestrator: profile, cache, build()
-│   ├── pipeline.lua        state machine + 5-stage pipeline
-│   ├── commands.lua        :LtosDebug, :LtosInfo
-│   ├── api.lua             unified facade: format, picker, terminal, lsp, diagnostics
-│   └── adapters/
-│       ├── lsp.lua
-│       ├── mason.lua
-│       ├── treesitter.lua
-│       ├── conform.lua
-│       └── lint.lua
-├── toolchain/
-│   ├── mappings.lua        tool → mason pkg; system_tools set
-│   ├── rules.lua           ToolchainStrategy: mason vs system
-│   └── strategies/
-│       ├── init.lua        FormatterStrategy registry
-│       └── formatters.lua  bootstrap(registry): ruff_or_black, prettierd_or_prettier
-└── plugins/                UI / editor / AI — no toolchain logic
-    ├── ai.lua
-    ├── coding.lua
-    ├── colorscheme.lua
-    ├── editor.lua
-    ├── formatting.lua
-    ├── linting.lua
-    ├── lsp.lua
-    ├── snacks.lua
-    ├── treesitter.lua
-    └── ui.lua
-```
-
-### Lang Modules (DSL)
-
-Each file under `modules/lang/` is a pure Lua table — no `require`, no side effects.
-
-```lua
--- modules/lang/typescript.lua
-return {
-  treesitter = { "javascript", "typescript", "tsx" },
-  lsp        = { vtsls = { settings = { ... } } },
-  formatters = {
-    typescript      = { "prettierd" },
-    typescriptreact = { "prettierd" },
-  },
-  linters = { typescript = { "eslint" } },
-  mason   = { "vtsls", "prettierd" },
-}
-```
-
-For runtime fallback logic, use a `FormatterNode` instead of a plain string:
-
-```lua
--- modules/lang/python.lua
-formatters = {
-  python = { { kind = "formatter", strategy = "ruff_or_black" } },
-},
-```
-
-| Strategy                | Behavior                                             |
-| ----------------------- | ---------------------------------------------------- |
-| `ruff_or_black`         | prefers `ruff_format`; falls back to `isort + black` |
-| `prettierd_or_prettier` | prefers `prettierd`; falls back to `prettier`        |
-
-Register custom strategies before the pipeline runs:
-
-```lua
-require("toolchain.strategies").register("my_strategy", function(bufnr)
-  return { "my_formatter" }
-end)
-```
-
-### Toolchain Resolution Priority
-
-1. User overrides (`vim.g.ltos_tool_overrides` or `toolchain/mappings.lua` `overrides`)
-2. `system_tools` set (rustfmt, gofmt, zigfmt, fish, nixpkgs_fmt, git, …)
-3. Nix environment (`core/env.lua` `M.is_nix`)
-4. `tool_to_mason` mapping table
-5. Identity fallback
-
-### Profiles
-
-```lua
--- config/globals.lua
-vim.g.ltos_profile = "minimal"  -- or "full" (default) or "nix"
-```
-
-| Profile            | Modules loaded                      |
-| ------------------ | ----------------------------------- |
-| `"full"` (default) | all lang modules                    |
-| `"minimal"`        | `lua_lang` only                     |
-| `"nix"`            | all modules, system tools preferred |
-
-### User Commands
-
-| Command              | Description                                                        |
-| -------------------- | ------------------------------------------------------------------ |
-| `:LtosInfo`          | profile, state, modules, tools, strategies, per-stage timings      |
-| `:LtosDebug [stage]` | foldable IR snapshot at `collect`/`normalize`/`resolve`/`optimize` |
-
-### Terminal Backend (pluggable)
-
-```lua
-require("runtime.api").terminal.register("snacks_term", {
-  float      = function() Snacks.terminal() end,
-  horizontal = function() Snacks.terminal(nil, { win = { position = "bottom" } }) end,
-})
-vim.g.ltos_terminal_backend = "snacks_term"
-```
-
-### Adding a New Language
-
-Create `lua/modules/lang/mylang.lua`:
-
-```lua
-return {
-  treesitter = { "mylang" },
-  lsp        = { mylang_ls = {} },
-  formatters = { mylang = { "myfmt" } },
-  linters    = { mylang = { "mylint" } },
-  mason      = { "mylang-language-server" },
-}
-```
-
-Add the module path to `LANG_MODULES` in `lua/runtime/init.lua`. LSP mason packages are resolved automatically — only formatter/linter tool names belong in `mason = {}`.
 
 ---
 
