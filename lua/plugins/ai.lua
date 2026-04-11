@@ -1,7 +1,12 @@
 -- ~/.config/nvim/lua/plugins/ai.lua
+-- adapter: copilot
 -- AI coding assistant: codecompanion.nvim
 
 return {
+  {
+    "github/copilot.vim",
+    cmd = "Copilot",
+  },
   {
     "olimorris/codecompanion.nvim",
     dependencies = {
@@ -15,13 +20,11 @@ return {
     },
     keys = {
       { "<leader>ai", "<cmd>CodeCompanionChat Toggle<cr>", desc = "AI: toggle chat" },
-      { "<leader>aa", "<cmd>CodeCompanionActions<cr>",     desc = "AI: actions",    mode = { "n", "v" } },
-      { "<leader>ac", "<cmd>CodeCompanion<cr>",            desc = "AI: inline",     mode = { "n", "v" } },
+      { "<leader>aa", "<cmd>CodeCompanionActions<cr>", desc = "AI: actions", mode = { "n", "v" } },
+      { "<leader>ac", "<cmd>CodeCompanion<cr>", desc = "AI: inline", mode = { "n", "v" } },
     },
     opts = {
-      opts = {
-        log_level = "ERROR", -- set to "DEBUG" or "TRACE" when debugging
-      },
+      log_level = "ERROR",
     },
   },
 }
