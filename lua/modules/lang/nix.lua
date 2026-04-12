@@ -1,10 +1,16 @@
 -- ~/.config/nvim/lua/modules/lang/nix.lua
--- nil_ls and nixpkgs_fmt are always system-managed on a Nix host.
--- On non-Nix hosts, nil_ls falls back to mason via toolchain.rules.
+-- DSL: Nix toolchain declaration.
+-- nixpkgs-fmt is system-managed on NixOS; resolved by toolchain rules.
+
 return {
   treesitter = { "nix" },
-  lsp = { nil_ls = {} },
-  formatters = { nix = { "nixpkgs_fmt" } },
-  -- mason list intentionally empty: both tools are system-resolved
+  lsp = {
+    nil_ls = {},
+  },
+  formatters = {
+    nix = { "nixpkgs_fmt" },
+  },
+  -- nixpkgs_fmt is in system_tools → rules.resolve() returns use_mason=false
+  -- nil_ls mason package name resolved via lsp_to_mason mapping
   mason = {},
 }

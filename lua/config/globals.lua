@@ -17,3 +17,9 @@ vim.g.root_lsp_ignore = { "copilot" }
 
 -- Markdown: don't let LazyVim fight our custom indent
 vim.g.markdown_recommended_style = 0
+
+-- ── LTOS runtime knobs ────────────────────────────────────────────────────────
+-- vim.g.ltos_profile          = "full"     -- "full" | "minimal" | "nix"
+-- vim.g.ltos_debug            = false      -- enable debug-level notify
+-- vim.g.ltos_tool_overrides   = {}         -- per-tool { use_mason, pkg } overrides
+-- vim.g.ltos_terminal_backend = "toggleterm"

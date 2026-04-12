@@ -2,7 +2,7 @@
 -- V2: pure return, zero side-effects. Mason decision delegated to resolve stage.
 
 return {
-  treesitter = { "c", "cpp" },
+  treesitter = { "c", "cpp", "cmake" },
   lsp = {
     clangd = {
       cmd = {

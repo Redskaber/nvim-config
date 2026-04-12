@@ -1,6 +1,6 @@
 -- ~/.config/nvim/lua/modules/lang/shell.lua
 return {
-  treesitter = { "bash" },
+  treesitter = { "bash", "fish", "zsh" },
   formatters = {
     sh = { "shfmt" },
     bash = { "shfmt" },

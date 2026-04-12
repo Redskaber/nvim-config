@@ -64,6 +64,33 @@ map("n", "<leader>xd", function()
   require("runtime.api").diagnostics.list()
 end, { desc = "Diagnostics list" })
 
+-- ── LSP (via façade) ──────────────────────────────────────────────────────────
+map("n", "<leader>cr", function()
+  require("runtime.api").lsp.rename()
+end, { desc = "Rename symbol" })
+map("n", "<leader>ca", function()
+  require("runtime.api").lsp.code_action()
+end, { desc = "Code action" })
+map("n", "K", function()
+  require("runtime.api").lsp.hover()
+end, { desc = "Hover" })
+
+-- ── Terminal (via façade) ─────────────────────────────────────────────────────
+map("n", "<C-t>", function()
+  require("runtime.api").terminal.horizontal()
+end, { desc = "Toggle terminal" })
+map("n", "<leader>t", function()
+  require("runtime.api").terminal.float()
+end, { desc = "Float terminal" })
+
+-- ── UI ────────────────────────────────────────────────────────────────────────
+map("n", "<leader>z", function()
+  require("runtime.api").ui.zen()
+end, { desc = "Toggle zen mode" })
+map("n", "<leader>Z", function()
+  require("runtime.api").ui.zoom()
+end, { desc = "Toggle zoom" })
+
 -- ── Search ────────────────────────────────────────────────────────────────
 map("n", "<Esc>", "<cmd>nohlsearch<cr>", { desc = "Clear highlight" })
 
