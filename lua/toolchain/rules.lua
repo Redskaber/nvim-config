@@ -1,76 +1,97 @@
--- ~/.config/nvim/lua/toolchain/rules.lua
--- Strategy layer: toolchain resolution engine (Strategy pattern).
+-- lua/toolchain/rules.lua
+-- Layer 3 strategy: tool resolution rule pipeline.
 --
--- resolve(tool) → { use_mason, pkg }
--- Priority: user overrides → system_tools → Nix detection → mappings → identity
---
--- Codegen adapters call only use_mason() / mason_pkg(); no tool-selection logic there.
+-- REFACTOR (TODO-1.1 + TODO-4.3):
+--   • Added nix_rule consuming env facts (env.is_nix + env.has) — removed from env.lua
+--   • Rules are now a pipeline (apply-chain), not if/else
+--   • Each rule: apply(ctx, tool) -> { use_mason, pkg } | nil (nil = pass to next rule)
 
 local env = require("core.kernel.env")
 local mappings = require("toolchain.mappings")
 
 local M = {}
 
+-- ── Rule pipeline ─────────────────────────────────────────────────────────────
+
+--- Rule 1: user override (highest priority)
+---@param tool string
+---@return table|nil
+local function override_rule(tool)
+  local overrides = vim.g.ltos_tool_overrides or mappings.overrides or {}
+  if overrides[tool] then
+    return overrides[tool] -- { use_mason, pkg }
+  end
+  return nil
+end
+
+--- Rule 2: system_tools whitelist (rustfmt, gofmt, zigfmt, etc.)
+---@param tool string
+---@return table|nil
+local function system_tool_rule(tool)
+  if mappings.system_tools[tool] then
+    return { use_mason = false, pkg = nil }
+  end
+  return nil
+end
+
+--- Rule 3: Nix host — if binary present on PATH, use system
+--- REFACTOR: this logic was previously in env.prefer_system(); moved here.
+---@param tool string
+---@return table|nil
+local function nix_rule(tool)
+  if env.is_nix and env.has(tool) then
+    return { use_mason = false, pkg = nil }
+  end
+  return nil
+end
+
+--- Rule 4: explicit tool → mason pkg mapping
+---@param tool string
+---@return table|nil
+local function mapping_rule(tool)
+  local pkg = mappings.tool_to_mason[tool]
+  if pkg ~= nil then
+    return { use_mason = true, pkg = pkg }
+  end
+  return nil
+end
+
+--- Rule 5: identity fallback (tool name == mason pkg name)
+---@param tool string
+---@return table
+local function identity_rule(tool)
+  return { use_mason = true, pkg = tool }
+end
+
+local RULES = {
+  override_rule,
+  system_tool_rule,
+  nix_rule,
+  mapping_rule,
+  identity_rule, -- always matches; terminates chain
+}
+
+-- ── Public API ────────────────────────────────────────────────────────────────
+
+--- Resolve a tool name → { use_mason: boolean, pkg: string|nil }
 ---@param tool string
 ---@return { use_mason: boolean, pkg: string|nil }
 function M.resolve(tool)
-  local result = mappings.resolve(tool)
-
-  -- Respect system-only decision from mappings
-  if not result.use_mason then
-    return result
+  for _, rule in ipairs(RULES) do
+    local result = rule(tool)
+    if result ~= nil then
+      return result
+    end
   end
-
-  -- Nix overlay: if binary is available from Nix, prefer system
-  if env.prefer_system(tool) then
-    return { use_mason = false, pkg = nil }
-  end
-
-  return result
+  -- Should never reach here (identity_rule always fires)
+  return { use_mason = true, pkg = tool }
 end
 
+--- Convenience: returns true if tool should be mason-managed.
 ---@param tool string
 ---@return boolean
 function M.use_mason(tool)
   return M.resolve(tool).use_mason
-end
-
----@param tool string
----@return string|nil
-function M.mason_pkg(tool)
-  return M.resolve(tool).pkg
-end
-
---- Resolve LSP server; explicit_mason=false opts out of mason.
----@param server          string
----@param explicit_mason? boolean
----@return string|nil
-function M.mason_lsp_pkg(server, explicit_mason)
-  if explicit_mason == false then
-    return nil
-  end
-  local result = M.resolve(server)
-  if not result.use_mason then
-    return nil
-  end
-  return mappings.lsp_pkg(server)
-end
-
---- Deduplicate and filter a raw tool list to mason-installable packages.
----@param tools string[]
----@param seen? table<string, boolean>
----@return string[]
-function M.mason_list(tools, seen)
-  seen = seen or {}
-  local out = {}
-  for _, t in ipairs(tools) do
-    local pkg = M.mason_pkg(t)
-    if pkg and not seen[pkg] then
-      out[#out + 1] = pkg
-      seen[pkg] = true
-    end
-  end
-  return out
 end
 
 return M

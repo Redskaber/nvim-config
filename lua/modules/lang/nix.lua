@@ -3,6 +3,7 @@
 -- nixpkgs-fmt is system-managed on NixOS; resolved by toolchain rules.
 
 return {
+  version = 1,
   treesitter = { "nix" },
   lsp = {
     nil_ls = {},

@@ -8,8 +8,7 @@ local M = {}
 ---@return table[]
 function M.build(ir)
   if not ir.caps then
-    vim.notify("[ltos:lint] IR missing required field: caps", vim.log.levels.WARN)
-    return {}
+    return { { _ltos_error = "[ltos:lint] IR missing required field: caps" } }
   end
 
   -- Merge all linter maps: { [ft]: string[] }

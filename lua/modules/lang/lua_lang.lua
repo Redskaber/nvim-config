@@ -2,6 +2,7 @@
 -- DSL: Lua language toolchain declaration.
 
 return {
+  version = 1,
   treesitter = { "lua", "luadoc", "luap" },
   lsp = {
     lua_ls = {

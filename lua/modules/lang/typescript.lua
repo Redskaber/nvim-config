@@ -2,6 +2,7 @@
 -- DSL: TypeScript / JavaScript toolchain declaration.
 
 return {
+  version = 1,
   treesitter = { "javascript", "typescript", "tsx", "jsdoc" },
   lsp = {
     vtsls = {

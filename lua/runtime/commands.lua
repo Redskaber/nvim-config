@@ -129,13 +129,23 @@ end
 
 -- ── :LtosIR ──────────────────────────────────────────────────────────────────
 
-local function cmd_ir()
+local function cmd_ir(opts)
+  local stage = (opts.args ~= "") and opts.args or "optimize"
+
+  if not VALID_DEBUG_STAGES[stage] and stage ~= "optimize" then
+    vim.notify(
+      ("[LtosIR] unknown stage %q; valid: collect, normalize, resolve, optimize"):format(stage),
+      vim.log.levels.ERROR
+    )
+    return
+  end
   local runtime = require("runtime")
   local pipeline = require("runtime.pipeline")
-  -- Run to optimize (LIR) — full IR before codegen
-  local ir = pipeline.debug_run(runtime.LANG_MODULES, "optimize")
+  local ir = pipeline.debug_run(runtime.LANG_MODULES, stage)
 
-  local header = ("LTOS LIR (post-optimize)  modules=%d  %s"):format(
+  local header = ("LTOS IR  stage=%s  sub-layer=%s  modules=%d  %s"):format(
+    stage,
+    ir.stage or "?",
     #(runtime.LANG_MODULES or {}),
     format_timings(ir._timings)
   )
@@ -143,7 +153,7 @@ local function cmd_ir()
   local dump = vim.deepcopy(ir)
   dump._timings = nil
 
-  open_scratch(vim.split(vim.inspect(dump), "\n"), "LtosIR", header)
+  open_scratch(vim.split(vim.inspect(dump), "\n"), "LtosIR:" .. stage, header)
 end
 
 -- ── :LtosTrace ───────────────────────────────────────────────────────────────
@@ -192,9 +202,41 @@ end
 
 -- ── :LtosGraph ───────────────────────────────────────────────────────────────
 
-local function cmd_graph()
+local function cmd_graph(opts)
+  local mode = (opts.args ~= "") and opts.args or "caps"
   local runtime = require("runtime")
   local pipeline = require("runtime.pipeline")
+  -- Pipeline DAG mode
+  if mode == "dag" then
+    local lines = {
+      "LTOS Pipeline DAG",
+      "=================",
+      "",
+      "  [modules/lang/*]  ──►  collect  ──►  normalize  ──►  resolve  ──►  optimize  ──►  codegen  ──►  LazySpec[]",
+      "",
+      "State machine transitions:",
+      "  idle → collecting → normalizing → resolving → optimizing → codegen → done",
+      "                                                                       ↘ error",
+      "",
+      "IR sub-layers:",
+      "  AST  (collect output)    — raw validated capability snapshot",
+      "  HIR  (normalize output)  — FormatterNode.fn resolved",
+      "  MIR  (resolve output)    — mason/system decisions baked",
+      "  LIR  (optimize output)   — deduped parsers, merged LSP",
+      "  SPEC (codegen input)     — all fields present, drives adapters",
+      "",
+      "Adapters (codegen → LazySpec[]):",
+      "  LIR.merged_lsp   → lsp.lua    → nvim-lspconfig + mason-lspconfig",
+      "  LIR.resolved     → mason.lua  → mason.nvim",
+      "  LIR.all_parsers  → treesitter.lua → nvim-treesitter",
+      "  LIR.caps.fmt     → conform.lua → conform.nvim",
+      "  LIR.caps.lint    → lint.lua   → nvim-lint",
+    }
+    open_scratch(lines, "LtosGraph:dag", nil)
+    return
+  end
+
+  -- Default: module capability graph
   local ir = pipeline.debug_run(runtime.LANG_MODULES, "collect")
 
   local lines = {
@@ -210,19 +252,16 @@ local function cmd_graph()
     local cap = ir.caps[name]
     lines[#lines + 1] = ("[ %s ]"):format(name)
 
-    -- LSP servers
     local lsp_names = vim.tbl_keys(cap.lsp or {})
     table.sort(lsp_names)
     if #lsp_names > 0 then
       lines[#lines + 1] = "  lsp         → " .. table.concat(lsp_names, ", ")
     end
 
-    -- Treesitter parsers
     if cap.treesitter and #cap.treesitter > 0 then
       lines[#lines + 1] = "  treesitter  → " .. table.concat(cap.treesitter, ", ")
     end
 
-    -- Formatters
     local ft_fmts = {}
     for ft, fmts in pairs(cap.formatters or {}) do
       local names = {}
@@ -240,7 +279,6 @@ local function cmd_graph()
       lines[#lines + 1] = "  formatters  → " .. table.concat(ft_fmts, "  ")
     end
 
-    -- Linters
     local ft_lints = {}
     for ft, lints in pairs(cap.linters or {}) do
       ft_lints[#ft_lints + 1] = ft .. ": " .. table.concat(lints, "|")
@@ -250,7 +288,6 @@ local function cmd_graph()
       lines[#lines + 1] = "  linters     → " .. table.concat(ft_lints, "  ")
     end
 
-    -- Mason explicit
     if cap.mason and #cap.mason > 0 then
       lines[#lines + 1] = "  mason       → " .. table.concat(cap.mason, ", ")
     end
@@ -258,14 +295,17 @@ local function cmd_graph()
     lines[#lines + 1] = ""
   end
 
-  open_scratch(lines, "LtosGraph", nil)
+  open_scratch(lines, "LtosGraph:caps", nil)
 end
 
 -- ── :LtosInfo ────────────────────────────────────────────────────────────────
 
 local function cmd_info()
-  local caps = require("core.domain.capability").snapshot()
+  local runtime = require("runtime")
   local pipeline = require("runtime.pipeline")
+  -- Obtain caps from a fresh debug_run (collect only) to avoid stale state
+  local ir = pipeline.debug_run(runtime.LANG_MODULES, "collect")
+  local caps = ir.caps or {}
 
   local profile = vim.g.ltos_profile or "full"
   local state = pipeline.state()
@@ -331,6 +371,19 @@ local function cmd_info()
     end
   end
 
+  -- Cache hit/miss stats
+  local cache_stats = require("core.compiler.cache").stats()
+  if next(cache_stats) then
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Cache stats:"
+    for tier, s in pairs(cache_stats) do
+      local total = (s.hits or 0) + (s.misses or 0)
+      local ratio = total > 0 and math.floor(100 * (s.hits or 0) / total) or 0
+      lines[#lines + 1] = ("  %-6s  hits=%d  misses=%d  ratio=%d%%"):format(
+        tier, s.hits or 0, s.misses or 0, ratio
+      )
+    end
+  end
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
@@ -351,8 +404,11 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command("LtosIR", cmd_ir, {
-    nargs = 0,
-    desc = "Dump full LTOS LIR (post-optimize IR) in a scratch buffer",
+    nargs = "?",
+    desc = "Dump LTOS IR at a given stage (collect|normalize|resolve|optimize, default: optimize)",
+    complete = function()
+      return { "collect", "normalize", "resolve", "optimize" }
+    end,
   })
 
   vim.api.nvim_create_user_command("LtosTrace", cmd_trace, {
@@ -361,8 +417,11 @@ function M.setup()
   })
 
   vim.api.nvim_create_user_command("LtosGraph", cmd_graph, {
-    nargs = 0,
-    desc = "Show module capability dependency graph",
+    nargs = "?",
+    desc = "Show module capability graph (caps) or pipeline DAG (dag)",
+    complete = function()
+      return { "caps", "dag" }
+    end,
   })
 end
 

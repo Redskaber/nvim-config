@@ -1,6 +1,7 @@
 -- lua/core/kernel/env.lua
--- Layer 0 kernel: runtime environment detection.
--- All results are memoised at module-load time — call freely.
+-- Layer 0 kernel: runtime environment FACTS only.
+-- REFACTOR: removed prefer_system() — decision logic moved to toolchain/rules.lua
+-- All results are memoised at module-load time.
 
 local M = {}
 
@@ -16,11 +17,8 @@ function M.has(cmd)
   return vim.fn.executable(cmd) == 1
 end
 
---- Returns true when a binary should be managed externally (Nix host + binary present).
----@param cmd string
----@return boolean
-function M.prefer_system(cmd)
-  return M.is_nix and M.has(cmd)
-end
+-- NOTE: prefer_system() intentionally removed.
+-- Decision "should this be system-managed?" belongs in toolchain/rules.lua.
+-- Call: env.is_nix and env.has(cmd) at the rules layer.
 
 return M

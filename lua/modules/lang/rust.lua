@@ -3,6 +3,7 @@
 -- rustfmt and clippy are system-managed (via rustup); never via mason.
 
 return {
+  version = 1,
   treesitter = { "rust", "toml" },
   lsp = {
     rust_analyzer = {

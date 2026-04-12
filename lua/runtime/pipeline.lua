@@ -1,29 +1,13 @@
--- ~/.config/nvim/lua/runtime/pipeline.lua
--- Compiler kernel: five-phase compilation pipeline.
---
--- State machine (TODO-1.2) — 8 canonical states:
---   IDLE → COLLECTING → NORMALIZING → RESOLVING → OPTIMIZING → CODEGEN → DONE
---                                                                       ↘ ERROR
---
--- Each Phase declares input_state / output_state; the runner validates every
--- transition before execution.  Illegal transitions always go to ERROR.
---
--- CompilerContext (TODO-1.1) flows through each Phase:
---   { ir, stage, diagnostics, cache_key, timings }
---
--- Key invariants:
---   • Every Phase returns a NEW IR (copy-on-write via ir.with / ir.clone).
---   • The input IR is never mutated.
---   • Each run() / debug_run() gets its own independent state machine instance.
---   • Non-fatal errors are accumulated in IR.diagnostics; pipeline continues.
---   • Fatal errors (codegen pre-condition failure) abort and set ERROR state.
+-- lua/runtime/pipeline.lua
+-- REFACTOR:
+--   • debug_run() no longer calls cap_mod.reset() — global state eliminated.
+--   • Each run gets a fresh IR via ir_mod.new(); collect pass uses cap_mod.new() internally.
+--   • _G._ltos_debug_freeze activated in debug_run for mutation detection.
 
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
 local pass_mod = require("core.compiler.pass")
-
--- ── Phases (loaded once; stateless) ──────────────────────────────────────────
 
 local PHASES = {
   require("runtime.passes.collect"),
@@ -33,7 +17,6 @@ local PHASES = {
 }
 local CODEGEN = require("runtime.passes.codegen")
 
--- Validate all phases at load time (fail loud on misconfiguration)
 for _, p in ipairs(PHASES) do
   pass_mod.assert_valid(p)
 end
@@ -51,7 +34,6 @@ local STATES = {
   ERROR = "error",
 }
 
--- Allowed state transitions (adjacency map)
 local TRANSITIONS = {
   idle = { collecting = true },
   collecting = { normalizing = true, error = true },
@@ -61,7 +43,6 @@ local TRANSITIONS = {
   codegen = { done = true, error = true },
 }
 
----@return table  state machine instance
 local function new_sm()
   local sm = { state = STATES.IDLE, timestamps = {} }
 
@@ -84,64 +65,74 @@ local function new_sm()
   return sm
 end
 
--- Phase name → SM state (for advancing after each pass).
--- Maps each phase's completion to the *entry* state of the next phase.
--- "optimize" completes at OPTIMIZING; the codegen block itself transitions to CODEGEN.
 local PHASE_NEXT_SM = {
   collect = STATES.NORMALIZING,
   normalize = STATES.RESOLVING,
   resolve = STATES.OPTIMIZING,
-  -- optimize intentionally omitted: codegen block owns the OPTIMIZING → CODEGEN transition
 }
 
--- Track the most recent run() state machine for M.state()
 local last_run_sm = new_sm()
 
--- ── Internal executor ─────────────────────────────────────────────────────────
+-- ── Executor ─────────────────────────────────────────────────────────────────
 
---- Run phases up to (and including) `stop_after`; nil = run all + codegen.
 ---@param lang_modules string[]
 ---@param profile      string
----@param stop_after?  string   phase name to halt at
----@param sm           table    state machine instance
+---@param stop_after?  string
+---@param sm           table
+---@param cached_caps? table   pre-validated caps from AST tier (skips collect)
 ---@return IR, table[]|nil, table<string, number>
-local function execute(lang_modules, profile, stop_after, sm)
+local function execute(lang_modules, profile, stop_after, sm, cached_caps)
   local ir = ir_mod.new(lang_modules, profile)
   local timings = {}
 
-  -- Kick off state machine
   if not sm.transition(STATES.COLLECTING) then
     return ir, nil, timings
   end
 
+  -- AST tier fast-path: inject cached caps, skip collect phase (TODO-7.1)
+  if cached_caps then
+    ir = ir_mod.with(ir, { stage = "AST", caps = cached_caps })
+    timings["collect"] = 0
+    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
+      vim.notify("[pipeline] AST cache hit — collect phase skipped", vim.log.levels.DEBUG)
+    end
+    -- Advance SM past collecting state
+    if not sm.transition(STATES.NORMALIZING) then
+      return ir, nil, timings
+    end
+  end
   for _, phase in ipairs(PHASES) do
+    -- Skip collect if AST cache was used (already advanced SM past collecting)
+    if cached_caps and phase.name == "collect" then
+      goto continue
+    end
     local t0 = os.clock()
     local next_ir, _ = pass_mod.run_phase(phase, ir)
     timings[phase.name] = os.clock() - t0
     ir = next_ir
 
-    -- Non-fatal errors: embedded in IR.diagnostics; pipeline continues.
-    -- (Fatal errors are detected at codegen pre-condition time.)
-
     if stop_after == phase.name then
       return ir, nil, timings
     end
 
-    -- Advance state machine to next phase's entry state
     local next_sm_state = PHASE_NEXT_SM[phase.name]
     if next_sm_state and not sm.transition(next_sm_state) then
-      -- Illegal transition → ERROR state; abort
       return ir, nil, timings
     end
 
-    -- If too many errors accumulated, surface them but keep going
     local counts = ir_mod.diag_counts(ir)
     if counts.errors > 0 and vim.g.ltos_debug then
-      vim.notify(("[pipeline.%s] %d error(s) accumulated"):format(phase.name, counts.errors), vim.log.levels.DEBUG)
+      vim.notify(("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors), vim.log.levels.DEBUG)
     end
+    if vim.g.ltos_debug_perf then
+      vim.notify(("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000),
+        vim.log.levels.DEBUG)
+    end
+
+    ::continue::
   end
 
-  -- ── Codegen (terminal phase) ──────────────────────────────────────────────
+  -- Codegen
   local t0 = os.clock()
   local pre = CODEGEN.validate and CODEGEN.validate(ir) or {}
   local specs = {}
@@ -158,7 +149,6 @@ local function execute(lang_modules, profile, stop_after, sm)
       sm.fail()
     end
   else
-    -- Codegen pre-condition failures are fatal
     for _, d in ipairs(pre) do
       ir = ir_mod.append_diag(ir, d)
     end
@@ -171,32 +161,44 @@ end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
---- Run the full pipeline; return LazySpec[].
+--- Run a sub-set of phases against an existing IR (no SM involvement).
+--- Useful for bootstrap sub-flows (formatter resolution, LSP merge).
+---@param phases Phase[]
+---@param ir     IR
+---@return IR, Diagnostic[]
+function M.run_sub(phases, ir)
+  local all_diags = {}
+  local cur = ir
+  for _, phase in ipairs(phases) do
+    pass_mod.assert_valid(phase)
+    local next_ir, diags = pass_mod.run_phase(phase, cur)
+    for _, d in ipairs(diags) do
+      all_diags[#all_diags + 1] = d
+    end
+    cur = next_ir
+  end
+  return cur, all_diags
+end
 ---@param lang_modules string[]
 ---@param profile?     string
+---@param cached_caps? table   AST-tier cached caps for incremental rebuild
 ---@return table[]
-function M.run(lang_modules, profile)
+function M.run(lang_modules, profile, cached_caps)
   local sm = new_sm()
   last_run_sm = sm
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm)
+  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps)
 
   if sm.state ~= STATES.ERROR then
     sm.transition(STATES.DONE)
   end
 
-  -- Persist timings for :LtosInfo
   vim.g.ltos_last_build_timings = timings
 
-  -- Surface accumulated diagnostics
   local counts = ir_mod.diag_counts(ir)
   if counts.errors > 0 or counts.warns > 0 then
     vim.notify(
-      ("[pipeline] build completed with %d error(s), %d warning(s):\n%s"):format(
-        counts.errors,
-        counts.warns,
-        ir_mod.format_diagnostics(ir)
-      ),
+      ("[pipeline] %d error(s), %d warning(s):\n%s"):format(counts.errors, counts.warns, ir_mod.format_diagnostics(ir)),
       counts.errors > 0 and vim.log.levels.WARN or vim.log.levels.INFO
     )
   end
@@ -204,8 +206,6 @@ function M.run(lang_modules, profile)
   return specs or {}
 end
 
---- Run up to `stop_after` stage; return IR snapshot (for :LtosDebug).
---- Resets capability registry to avoid accumulation across debug runs.
 ---@param lang_modules string[]
 ---@param stop_after?  "collect"|"normalize"|"resolve"|"optimize"
 ---@param profile?     string
@@ -213,24 +213,22 @@ end
 function M.debug_run(lang_modules, stop_after, profile)
   local sm = new_sm()
 
-  -- Isolated run: reset registry
-  require("core.domain.capability").reset()
+  -- Enable freeze mode for mutation detection
+  _G._ltos_debug_freeze = true
 
-  local ir, _, timings = execute(lang_modules, profile or "full", stop_after, sm)
+  local ir, _, timings = execute(lang_modules, profile or "full", stop_after, sm, nil)
 
-  -- Attach timings as internal field for :LtosDebug display
+  _G._ltos_debug_freeze = false
+
   ir._timings = timings
-
   return ir
 end
 
---- Return the state string of the most recent run() call.
 ---@return string
 function M.state()
   return last_run_sm.state
 end
 
---- Return per-phase timings from the most recent run() call (ms).
 ---@return table<string, number>|nil
 function M.timings()
   return vim.g.ltos_last_build_timings

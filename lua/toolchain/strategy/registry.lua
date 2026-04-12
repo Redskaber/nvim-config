@@ -17,13 +17,18 @@ local M = {}
 ---@type table<string, Strategy>
 local _registry = {}
 local _bootstrapped = false
+local _locked = false
 
 -- ── Write API ─────────────────────────────────────────────────────────────────
 
 --- Register a strategy. Accepts either a Strategy table or (name, fn) legacy form.
+--- Throws if called after lock().
 ---@overload fun(strategy: Strategy)
 ---@overload fun(name: string, fn: fun(bufnr: integer): string[])
 function M.register(strategy_or_name, fn)
+  if _locked then
+    error("strategy registry is locked — cannot register after bootstrap()", 2)
+  end
   if type(strategy_or_name) == "string" then
     -- Legacy form: register(name, fn)
     local name = strategy_or_name
@@ -79,12 +84,20 @@ end
 -- ── Bootstrap built-ins ───────────────────────────────────────────────────────
 
 --- Register all built-in strategies. Idempotent.
+--- Locks the registry after bootstrap so no further registrations are accepted.
 function M.bootstrap()
   if _bootstrapped then
     return
   end
   _bootstrapped = true
   require("toolchain.strategy.builtin").bootstrap(M)
+  M.lock()
+end
+
+--- Lock the registry — subsequent register() calls will error.
+--- Called automatically by bootstrap(); can also be called explicitly.
+function M.lock()
+  _locked = true
 end
 
 return M

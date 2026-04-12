@@ -168,6 +168,19 @@ IDLE → COLLECTING → NORMALIZING → RESOLVING → OPTIMIZING → CODEGEN →
                                                                     ↘ ERROR
 ```
 
+**状态转换表（完整）：**
+
+| 当前状态    | 允许转换到              | 触发条件                        |
+| ----------- | ----------------------- | ------------------------------- |
+| idle        | collecting              | `pipeline.run()` 开始           |
+| collecting  | normalizing, error      | collect phase 完成 / 失败       |
+| normalizing | resolving, error        | normalize phase 完成 / 失败     |
+| resolving   | optimizing, error       | resolve phase 完成 / 失败       |
+| optimizing  | codegen, error          | optimize phase 完成 / 失败      |
+| codegen     | done, error             | codegen build 完成 / 失败       |
+| done        | —                       | 终态                            |
+| error       | —                       | 终态（非法 transition 也到此）  |
+
 ### 3.2 IR 子层（不可变，copy-on-write）
 
 ```
@@ -189,6 +202,20 @@ DSL 表（modules/lang/*.lua）
   SPEC  全字段就绪，驱动适配器 → LazySpec[]
 ```
 
+**IR schema 表（各阶段字段）：**
+
+| 字段           | 类型                        | 首次出现 | 说明                              |
+| -------------- | --------------------------- | -------- | --------------------------------- |
+| `stage`        | `"AST"\|"HIR"\|"MIR"\|"LIR"\|"SPEC"` | AST | 当前 IR 子层标识         |
+| `caps`         | `table<string, Capability>` | AST      | 验证后的能力快照                  |
+| `diagnostics`  | `Diagnostic[]`              | AST      | 累积诊断（不中断流水线）          |
+| `meta`         | `IRMeta`                    | AST      | 构建元数据（模块列表、时间戳）    |
+| `profile`      | `string`                    | AST      | 构建 profile（full/minimal/nix）  |
+| `resolved`     | `IRResolved`                | MIR      | mason/system 决策结果             |
+| `merged_lsp`   | `table<string, table>`      | LIR      | 去重合并后的 LSP 配置             |
+| `all_parsers`  | `string[]`                  | LIR      | 去重后的 treesitter parser 列表   |
+| `_timings`     | `table<string, number>`     | debug    | debug_run 专用，phase 耗时        |
+
 ### 3.3 CompilerContext
 
 ```lua
@@ -198,6 +225,7 @@ DSL 表（modules/lang/*.lua）
 ---@field diagnostics Diagnostic[]
 ---@field cache_key   string
 ---@field timings     table<string, number>
+---@field run_id      string   unique per run() call
 ```
 
 ### 3.4 Phase 接口（core/compiler/pass.lua）
@@ -210,6 +238,16 @@ DSL 表（modules/lang/*.lua）
 ---@field run          fun(ir: IR): IR
 ---@field validate?    fun(ir: IR): Diagnostic[]
 ```
+
+**Phase contract 表：**
+
+| Phase      | input_state | output_state | IR in  | IR out | 职责                                    |
+| ---------- | ----------- | ------------ | ------ | ------ | --------------------------------------- |
+| collect    | idle        | collecting   | —      | AST    | 加载 DSL → 验证 → CapabilitySet 快照    |
+| normalize  | collecting  | normalizing  | AST    | HIR    | FormatterNode.strategy → .fn 注入       |
+| resolve    | normalizing | resolving    | HIR    | MIR    | mason/system 决策 → IR.resolved         |
+| optimize   | resolving   | optimizing   | MIR    | LIR    | parser 去重 + LSP 深合并                |
+| codegen    | optimizing  | codegen      | LIR    | SPEC   | 驱动 adapters → LazySpec[]              |
 
 ### 3.5 IR 阶段字段契约
 
@@ -225,15 +263,24 @@ DSL 表（modules/lang/*.lua）
 ## 四、三层增量缓存
 
 ```
-cache key = mtime_hash(sorted module paths) + ":" + profile
+cache key = FNV1a(sorted file content hashes) + ":" + profile + ":v4"
 
 Spec Tier (spec_cache.json)   ← 命中则跳过全部流水线
 IR Tier   (ir_cache.json)     ← 命中则从 Phase 4 恢复
 AST Tier  (ast_cache.json)    ← 命中则从 Phase 2 恢复
 
 失效传播：低层失效 → 所有高层同步失效
-不可序列化值（FormatterNode.fn）: _no_cache=true，跳过持久化
+不可序列化值（FormatterNode.fn）: metatable.__ltos_cacheable=false，跳过持久化
 ```
+
+**缓存子模块职责分离：**
+
+| 模块                        | 职责                                    |
+| --------------------------- | --------------------------------------- |
+| `cache/key.lua`             | 键计算（FNV-1a 内容 hash，纯函数）      |
+| `cache/store.lua`           | JSON I/O（唯一 IO 层）                  |
+| `cache/policy.lua`          | 失效传播 + 命中统计 + 可序列化检查      |
+| `cache.lua`                 | 门面（facade），向后兼容 API            |
 
 ---
 
@@ -242,7 +289,7 @@ AST Tier  (ast_cache.json)    ← 命中则从 Phase 2 恢复
 ```
 toolchain/strategy/
 ├── interface.lua   -- Strategy 接口定义（契约，纯类型注解）
-├── registry.lua    -- 运行时注册中心（register / get / list / bootstrap）
+├── registry.lua    -- 运行时注册中心（register / get / list / bootstrap / lock）
 └── builtin.lua     -- 内置策略实现（不依赖 registry 内部）
 ```
 
@@ -251,7 +298,7 @@ toolchain/strategy/
 ```
 用户覆盖 (vim.g.ltos_tool_overrides / mappings.overrides)
     → system_tools 白名单（rustfmt / gofmt / zigfmt 等）
-    → Nix 检测（env.prefer_system(tool)）
+    → Nix 检测（env.is_nix and env.has(tool)）
     → 显式映射（tool_to_mason / lsp_to_mason）
     → Identity 回退（tool 名即 mason 包名）
 ```

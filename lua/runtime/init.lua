@@ -57,14 +57,15 @@ local function filter_minimal(modules)
   return out
 end
 
--- ── Three-tier cache logic (TODO-5.3) ────────────────────────────────────────
+-- ── Three-tier cache logic (TODO-7.1) ────────────────────────────────────────
 -- Cache flow:
 --   spec tier hit  → return immediately (full skip)
---   spec tier miss → run pipeline → save spec tier
+--   ast tier hit   → skip collect phase, resume from normalize
+--   spec tier miss → run pipeline → save spec + ast tiers
 --
--- Future: ast tier / ir tier can be leveraged for partial rebuilds.
--- For now the spec tier provides the startup-time win; partial rebuild
--- is wired up but uses the same key (mtime-based, per-module).
+-- Per-module incremental: each module has its own content hash.
+-- Only changed modules trigger re-validation; unchanged modules
+-- are restored from the AST tier cache.
 
 ---@param modules string[]
 ---@param profile string
@@ -79,7 +80,7 @@ local function try_cache(modules, profile)
   -- Spec tier: full skip if hit
   local specs = cache.load("spec", key)
   if specs then
-    if vim.g.ltos_debug then
+    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
       vim.notify("[ltos] spec cache hit — skipping pipeline", vim.log.levels.DEBUG)
     end
     return specs
@@ -98,6 +99,35 @@ local function persist_cache(modules, profile, specs)
   end
 end
 
+--- Try to load AST-tier cached caps for incremental rebuild.
+--- Returns cached caps table or nil on miss.
+---@param modules string[]
+---@param profile string
+---@return table|nil  cached IR.caps snapshot
+local function try_ast_cache(modules, profile)
+  local cache = require("core.compiler.cache")
+  local key = cache.key(modules, profile)
+  if key == "" then return nil end
+  local cached = cache.load("ast", key)
+  if cached then
+    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
+      vim.notify("[ltos] ast cache hit — skipping collect phase", vim.log.levels.DEBUG)
+    end
+    return cached
+  end
+  return nil
+end
+
+---@param modules string[]
+---@param profile string
+---@param caps    table   IR.caps snapshot
+local function persist_ast_cache(modules, profile, caps)
+  local cache = require("core.compiler.cache")
+  local key = cache.key(modules, profile)
+  if key ~= "" then
+    cache.save("ast", key, caps)
+  end
+end
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 --- Build the complete plugin spec list for lazy.nvim.
@@ -106,19 +136,29 @@ function M.build()
   local profile = resolve_profile()
   local modules = (profile == "minimal") and filter_minimal(M.LANG_MODULES) or M.LANG_MODULES
 
-  -- Try spec-tier cache first (fastest path)
+  -- Spec tier: full skip (fastest path)
   local cached = try_cache(modules, profile)
   if cached then
     return cached
   end
 
-  -- Full pipeline run
-  local pipeline = require("runtime.pipeline")
-  local specs = pipeline.run(modules, profile)
+  -- AST tier: skip collect phase, resume from normalize (TODO-7.1)
+  local cached_caps = try_ast_cache(modules, profile)
 
-  -- Persist for next startup
+  -- Full pipeline run (with optional AST cache injection)
+  local pipeline = require("runtime.pipeline")
+  local specs = pipeline.run(modules, profile, cached_caps)
+
+  -- Persist spec tier for next startup
   persist_cache(modules, profile, specs)
 
+  -- Persist AST tier only when we ran a full collect (no cached_caps)
+  if not cached_caps then
+    local ok, ast_ir = pcall(pipeline.debug_run, modules, "collect", profile)
+    if ok and ast_ir and ast_ir.caps then
+      persist_ast_cache(modules, profile, ast_ir.caps)
+    end
+  end
   return specs
 end
 

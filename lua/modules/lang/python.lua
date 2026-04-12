@@ -2,6 +2,7 @@
 -- DSL: Python toolchain declaration.
 
 return {
+  version = 1,
   treesitter = { "python" },
   lsp = {
     pyright = {

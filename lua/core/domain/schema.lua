@@ -25,16 +25,22 @@ local KNOWN_NODE_KINDS = { formatter = true }
 -- ── Diagnostic type ───────────────────────────────────────────────────────────
 
 ---@class SchemaDiagnostic
+---@field code     string     machine-readable code e.g. "S001"  (TODO-3.2)
 ---@field path     string
 ---@field message  string
 ---@field severity "error"|"warn"
 
+local _code_seq = 0
+local function schema_code()
+  _code_seq = _code_seq + 1
+  return string.format("S%03d", _code_seq)
+end
 ---@param path     string
 ---@param message  string
 ---@param severity? "error"|"warn"
 ---@return SchemaDiagnostic
 local function diag(path, message, severity)
-  return { path = path, message = message, severity = severity or "error" }
+  return { code = schema_code(), path = path, message = message, severity = severity or "error" }
 end
 
 -- ── Internal validators ───────────────────────────────────────────────────────
@@ -125,6 +131,12 @@ local function validate_string_list(path, value, diags)
   end
 end
 
+-- ── Schema version compatibility ─────────────────────────────────────────────
+
+-- Current compiler schema version. Modules declaring a higher version
+-- get a warn diagnostic (forward-compat: we try to process them anyway).
+-- Modules declaring a lower version are accepted silently (backward-compat).
+local CURRENT_SCHEMA_VERSION = 1
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 ---@class ValidationResult
@@ -146,6 +158,20 @@ function M.validate(name, cap)
     }
   end
 
+  -- TODO-6.1: version field compatibility check
+  if cap.version ~= nil then
+    if type(cap.version) ~= "number" then
+      diags[#diags + 1] = diag(name .. ".version", "version must be a number, got " .. type(cap.version), "warn")
+    elseif cap.version > CURRENT_SCHEMA_VERSION then
+      diags[#diags + 1] = diag(
+        name .. ".version",
+        ("module declares version %d but compiler supports up to %d — processing anyway"):format(
+          cap.version, CURRENT_SCHEMA_VERSION
+        ),
+        "warn"
+      )
+    end
+  end
   if cap.lsp ~= nil then
     if type(cap.lsp) ~= "table" then
       diags[#diags + 1] = diag(name .. ".lsp", "expected table, got " .. type(cap.lsp))
@@ -207,7 +233,9 @@ function M.format_diags(diags)
   end
   local lines = {}
   for _, d in ipairs(diags) do
-    lines[#lines + 1] = ("[schema:%s] %s — %s"):format(d.severity, d.path, d.message)
+    lines[#lines + 1] = ("[%s][schema:%s] %s — %s"):format(
+      d.code or "?", d.severity, d.path, d.message
+    )
   end
   return table.concat(lines, "\n")
 end

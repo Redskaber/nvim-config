@@ -4,6 +4,7 @@
 -- css, scss.  typescript.lua no longer declares these.
 
 return {
+  version = 1,
   treesitter = { "json", "jsonc", "yaml", "toml", "markdown", "markdown_inline", "html", "xml" },
   lsp = {
     jsonls = {},

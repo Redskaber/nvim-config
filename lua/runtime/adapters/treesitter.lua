@@ -24,8 +24,7 @@ local BASE_PARSERS = {
 ---@return table[]
 function M.build(ir)
   if not ir.all_parsers then
-    vim.notify("[ltos:treesitter] IR missing required field: all_parsers", vim.log.levels.WARN)
-    return {}
+    return { { _ltos_error = "[ltos:treesitter] IR missing required field: all_parsers" } }
   end
 
   local parsers = util.dedup(vim.list_extend(vim.deepcopy(BASE_PARSERS), ir.all_parsers))

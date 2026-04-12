@@ -3,6 +3,7 @@
 -- gofmt is system-managed via the Go toolchain.
 
 return {
+  version = 1,
   treesitter = { "go", "gomod", "gowork", "gosum" },
   lsp = {
     gopls = {

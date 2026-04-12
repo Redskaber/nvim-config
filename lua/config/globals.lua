@@ -23,3 +23,18 @@ vim.g.markdown_recommended_style = 0
 -- vim.g.ltos_debug            = false      -- enable debug-level notify
 -- vim.g.ltos_tool_overrides   = {}         -- per-tool { use_mason, pkg } overrides
 -- vim.g.ltos_terminal_backend = "toggleterm"
+
+-- LTOS_DEBUG environment variable support
+-- Set LTOS_DEBUG=trace,ir,cache,perf before launching nvim
+local ltos_debug_env = vim.env.LTOS_DEBUG or ""
+if ltos_debug_env ~= "" then
+  local flags = {}
+  for flag in ltos_debug_env:gmatch("[^,]+") do
+    flags[flag:lower()] = true
+  end
+  vim.g.ltos_debug = flags["trace"] or flags["ir"] or flags["cache"] or flags["perf"]
+  vim.g.ltos_debug_cache = flags["cache"]
+  vim.g.ltos_debug_ir = flags["ir"]
+  vim.g.ltos_debug_perf = flags["perf"]
+  vim.g.ltos_debug_trace = flags["trace"]
+end

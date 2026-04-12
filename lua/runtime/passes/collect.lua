@@ -1,15 +1,19 @@
--- ~/.config/nvim/lua/runtime/passes/collect.lua
+-- lua/runtime/passes/collect.lua
 -- Compiler kernel: Phase 1 — collect.
 --
--- Loads each lang module, validates via schema (through capability.add),
--- builds the capability registry, and snapshots it into IR.caps (AST layer).
+-- REFACTOR (TODO-3.1): CapabilitySet 是纯值对象，无全局状态。
+-- TODO-7.1: per-module AST 增量缓存。
+--   • 每个 module 独立计算 content hash
+--   • 命中 AST tier → 直接复用已验证的 cap entry，跳过 schema 验证
+--   • 任意 module 变化 → 该 module 重新验证，其他 module 复用缓存
 --
 -- State contract: IDLE → COLLECTING
 -- IR input:  { meta, profile }
--- IR output: { meta, profile, caps }   (AST sub-layer complete)
+-- IR output: { meta, profile, caps }   (AST sub-layer)
 
 local ir_mod = require("core.compiler.ir")
 local cap_mod = require("core.domain.capability")
+local util = require("core.kernel.util")
 
 ---@type Phase
 local collect_pass = {
@@ -20,39 +24,40 @@ local collect_pass = {
   ---@param ir IR
   ---@return IR
   run = function(ir)
-    -- Reset registry so each full pipeline run is isolated
-    cap_mod.reset()
-
     local lang_modules = ir.meta.lang_modules or {}
-    local next_ir = ir_mod.clone(ir)
-    next_ir.caps = {}
-    next_ir.stage = "AST"
+
+    -- Start with an empty, immutable set (no global state)
+    local cap_set = cap_mod.new()
+    local diags = {}
+    -- Per-module content hash for incremental cache (TODO-7.1)
+    local module_hashes = {}
 
     for _, mod in ipairs(lang_modules) do
-      -- Load the lang module
       local ok, result = pcall(require, mod)
       if not ok then
-        local d = ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
-        next_ir = ir_mod.append_diag(next_ir, d)
-        vim.notify("[pipeline.collect] " .. d.message, vim.log.levels.WARN)
+        diags[#diags + 1] = ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
+        vim.notify("[pipeline.collect] failed to load: " .. tostring(result), vim.log.levels.WARN)
       elseif type(result) ~= "table" then
-        local d = ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
-        next_ir = ir_mod.append_diag(next_ir, d)
-        vim.notify("[pipeline.collect] " .. d.message, vim.log.levels.WARN)
+        diags[#diags + 1] = ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
+        vim.notify("[pipeline.collect] module did not return a table: " .. mod, vim.log.levels.WARN)
       else
         local name = mod:match("([^.]+)$") or mod
-        local add_result = cap_mod.add(name, result)
+        -- Compute per-module content hash for incremental tracking
+        local path = vim.api.nvim_get_runtime_file(mod:gsub("%.", "/") .. ".lua", false)[1]
+        if path then
+          module_hashes[mod] = util.file_content_hash(path) or "?"
+        end
+        -- cap_mod.add is pure: returns NEW set, never mutates cap_set
+        local new_set, add_result = cap_mod.add(cap_set, name, result)
+        cap_set = new_set
 
         -- Fold schema diagnostics into IR diagnostics
         for _, schema_d in ipairs(add_result.diags or {}) do
-          next_ir = ir_mod.append_diag(
-            next_ir,
-            ir_mod.diag(
-              "collect",
-              mod,
-              ("[schema] %s — %s"):format(schema_d.path, schema_d.message),
-              schema_d.severity or "error"
-            )
+          diags[#diags + 1] = ir_mod.diag(
+            "collect",
+            mod,
+            ("[schema:%s] %s — %s"):format(schema_d.code or "?", schema_d.path, schema_d.message),
+            schema_d.severity or "error"
           )
         end
 
@@ -62,8 +67,18 @@ local collect_pass = {
       end
     end
 
-    -- Snapshot registry into IR (deep-copy → registry is independent of IR)
-    next_ir.caps = cap_mod.snapshot()
+    -- Embed snapshot into new IR (copy-on-write)
+    local next_ir = ir_mod.clone(ir)
+    next_ir.stage = "AST"
+    -- Store per-module hashes in meta for downstream cache validation
+    next_ir.meta.module_hashes = module_hashes
+    -- Accumulate all diagnostics
+    for _, d in ipairs(diags) do
+      next_ir = ir_mod.append_diag(next_ir, d)
+    end
+    -- Snapshot: deep-copy so IR is independent of cap_set
+    next_ir.caps = cap_mod.snapshot(cap_set)
+
     return next_ir
   end,
 }

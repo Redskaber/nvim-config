@@ -1,17 +1,21 @@
 -- lua/core/domain/capability.lua
--- Layer 2 domain: immutable CapabilitySet builder.
+-- Layer 2 domain: IMMUTABLE CapabilitySet value object.
 --
--- Design:
---   • Lang modules RETURN plain tables — zero side-effects.
---   • Only the collect pass calls M.add() (write path).
---   • M.snapshot() returns a deep-copy; callers cannot mutate internal state.
---   • M.reset() is provided for debug_run isolation.
+-- REFACTOR (TODO-3.1):
+--   • Removed module-level _store global mutable state.
+--   • CapabilitySet is now a pure value object (persistent data structure).
+--   • M.new()  → empty set
+--   • M.add(set, name, raw) → new set (copy-on-write, never mutates input)
+--   • M.snapshot(set) → deep-copy for IR embedding
+--   • M.empty() → canonical empty set (identity element)
+--   • M.reset() REMOVED — no longer needed; each pipeline run calls M.new()
+--
+-- collect pass owns the accumulation loop; capability module is pure.
 
 local schema = require("core.domain.schema")
+local util = require("core.kernel.util")
 
 local M = {}
-
----@alias CapKind "lsp"|"formatter"|"linter"|"treesitter"|"mason_extra"
 
 ---@class LspConfig
 ---@field settings? table
@@ -20,40 +24,86 @@ local M = {}
 
 ---@class Capability
 ---@field lsp?        table<string, LspConfig>
----@field formatters? table<string, (string|FormatterNode)[]>
----@field linters?    table<string, string[]>
+---@field formatters? table<string, table>
+---@field linters?    table<string, table>
 ---@field treesitter? string[]
 ---@field mason?      string[]
 
-local _store = {}
+---@alias CapabilitySet table<string, Capability>
 
 -- ── Pure merge helpers ────────────────────────────────────────────────────────
 
+--- Deep-merge two LSP config tables (pure, no vim deps in hot path).
+---@param dst table
+---@param src table
+---@return table  new merged table
 local function merge_lsp(dst, src)
-  for k, v in pairs(src) do
-    dst[k] = dst[k] and vim.tbl_deep_extend("force", dst[k], v) or vim.deepcopy(v)
-  end
+  local out = util.deep_merge(dst, src)
+  return out
 end
 
+--- Merge two list-of-items maps ({ [ft]: items[] }) → new map.
+---@param dst table
+---@param src table
+---@return table
 local function merge_list_map(dst, src)
+  local out = {}
+  for k, v in pairs(dst) do
+    out[k] = v -- reference: immutable callers won't mutate
+  end
   for ft, v in pairs(src) do
-    if dst[ft] and type(dst[ft]) == "table" then
-      vim.list_extend(dst[ft], vim.deepcopy(v))
+    if out[ft] and type(out[ft]) == "table" then
+      local merged = {}
+      for _, item in ipairs(out[ft]) do
+        merged[#merged + 1] = item
+      end
+      for _, item in ipairs(v) do
+        merged[#merged + 1] = item
+      end
+      out[ft] = merged
     else
-      dst[ft] = vim.deepcopy(v)
+      out[ft] = v
     end
   end
+  return out
 end
 
--- ── Write path (collect pass only) ───────────────────────────────────────────
+--- Merge two lists (dedup is caller's responsibility).
+---@param a any[]
+---@param b any[]
+---@return any[]
+local function merge_list(a, b)
+  local out = {}
+  for _, v in ipairs(a) do
+    out[#out + 1] = v
+  end
+  for _, v in ipairs(b) do
+    out[#out + 1] = v
+  end
+  return out
+end
 
---- Add (deep-merge) a validated capability bundle.
+-- ── CapabilitySet constructor ─────────────────────────────────────────────────
+
+---@return CapabilitySet
+function M.new()
+  return {}
+end
+
+-- ── Add (pure, copy-on-write) ─────────────────────────────────────────────────
+
+--- Add (deep-merge) a validated capability bundle into a NEW set.
+--- Input `set` is NEVER mutated.
+---@param set  CapabilitySet
 ---@param name string
 ---@param raw  table
+---@return CapabilitySet  new set
 ---@return { ok: boolean, diags: table[] }
-function M.add(name, raw)
+function M.add(set, name, raw)
   local result = schema.validate(name, raw)
 
+  -- Surface schema diagnostics via vim.notify (only side-effect, acceptable here
+  -- as capability module bridges domain validation to user notification).
   if #result.diags > 0 then
     local msg = schema.format_diags(result.diags)
     local level = result.ok and vim.log.levels.WARN or vim.log.levels.ERROR
@@ -61,52 +111,51 @@ function M.add(name, raw)
   end
 
   if not result.ok or not result.cap then
-    return { ok = false, diags = result.diags }
+    return set, { ok = false, diags = result.diags }
   end
 
   local cap = result.cap
 
-  if not _store[name] then
-    _store[name] = { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
-  end
-  local r = _store[name]
+  -- Copy-on-write: shallow-copy the set, deep-copy only the affected entry
+  local existing = set[name] or { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
+  local new_entry = {
+    lsp = cap.lsp and merge_lsp(existing.lsp, cap.lsp) or existing.lsp,
+    formatters = cap.formatters and merge_list_map(existing.formatters, cap.formatters) or existing.formatters,
+    linters = cap.linters and merge_list_map(existing.linters, cap.linters) or existing.linters,
+    treesitter = cap.treesitter and merge_list(existing.treesitter, cap.treesitter) or existing.treesitter,
+    mason = cap.mason and merge_list(existing.mason, cap.mason) or existing.mason,
+  }
 
-  if cap.lsp then
-    merge_lsp(r.lsp, cap.lsp)
+  -- Shallow-copy the outer set, replace only `name`
+  local new_set = {}
+  for k, v in pairs(set) do
+    new_set[k] = v
   end
-  if cap.formatters then
-    merge_list_map(r.formatters, cap.formatters)
-  end
-  if cap.linters then
-    merge_list_map(r.linters, cap.linters)
-  end
-  if cap.treesitter then
-    vim.list_extend(r.treesitter, cap.treesitter)
-  end
-  if cap.mason then
-    vim.list_extend(r.mason, cap.mason)
-  end
+  new_set[name] = new_entry
 
-  return { ok = true, diags = result.diags }
+  return new_set, { ok = true, diags = result.diags }
 end
 
 -- ── Read path ─────────────────────────────────────────────────────────────────
 
---- Return a deep-copy snapshot (immutable to callers).
+--- Return a deep-copy snapshot for embedding into IR.
+--- Callers receive a stable value; mutations don't affect the set.
+---@param set CapabilitySet
 ---@return table<string, Capability>
-function M.snapshot()
-  return vim.deepcopy(_store)
-end
-
---- Reset the registry (used by debug_run to avoid accumulating stale data).
-function M.reset()
-  _store = {}
+function M.snapshot(set)
+  -- vim.deepcopy is acceptable here (domain layer, not compiler layer)
+  return vim.deepcopy(set)
 end
 
 --- Raw dump for introspection (debug only).
+---@param set CapabilitySet
 ---@return string
-function M.dump()
-  return vim.inspect(_store)
+function M.dump(set)
+  return vim.inspect(set)
 end
+
+-- Backward-compat: M.reset() is a no-op; call M.new() instead.
+-- Kept to avoid breaking any external callers during migration.
+function M.reset() end
 
 return M
