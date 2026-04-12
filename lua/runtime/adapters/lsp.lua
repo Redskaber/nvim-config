@@ -4,8 +4,6 @@
 
 local M = {}
 
-local mappings = require("toolchain.mappings")
-
 ---@param ir table  LIR or SPEC-ready IR
 ---@return table[]  LazySpec[]
 function M.build(ir)
@@ -43,12 +41,13 @@ function M.build(ir)
       _source = "ltos:lsp",
       opts = {
         -- Only auto-install servers that are mason-managed
+        -- mason-lspconfig.nvim expects lspconfig server names, not mason pkg names
         ensure_installed = (function()
           local pkgs = {}
           for server, _ in pairs(ir.merged_lsp) do
             local want = vim.tbl_get(ir, "resolved", "lsp", server)
             if want then
-              pkgs[#pkgs + 1] = mappings.lsp_pkg(server)
+              pkgs[#pkgs + 1] = server -- lspconfig server name, not mason pkg name
             end
           end
           return pkgs

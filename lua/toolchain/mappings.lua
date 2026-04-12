@@ -10,6 +10,9 @@
 local M = {}
 
 -- ── LSP server → mason package ────────────────────────────────────────────────
+-- Used ONLY by runtime/adapters/mason.lua to look up mason package names.
+-- mason-lspconfig.nvim's ensure_installed takes lspconfig server names directly
+-- and does its own server→package resolution internally.
 
 M.lsp_to_mason = {
   lua_ls = "lua-language-server",
