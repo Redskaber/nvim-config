@@ -23,5 +23,5 @@ return {
   linters = {
     python = { "ruff" },
   },
-  mason = { "ruff", "pyright", "black", "isort" },
+  mason = { "ruff", "black", "isort" },
 }

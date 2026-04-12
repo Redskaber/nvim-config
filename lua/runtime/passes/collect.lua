@@ -8,8 +8,8 @@
 -- IR input:  { meta, profile }
 -- IR output: { meta, profile, caps }   (AST sub-layer complete)
 
-local ir_mod = require("core.ir")
-local cap_mod = require("core.capability")
+local ir_mod = require("core.compiler.ir")
+local cap_mod = require("core.domain.capability")
 
 ---@type Phase
 local collect_pass = {

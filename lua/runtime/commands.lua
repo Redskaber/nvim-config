@@ -10,7 +10,7 @@
 
 local M = {}
 
-local ir_mod = require("core.ir")
+local ir_mod = require("core.compiler.ir")
 
 -- ── Scratch buffer helper ─────────────────────────────────────────────────────
 -- Idempotent: reuses an existing buffer with the same label rather than
@@ -264,7 +264,7 @@ end
 -- ── :LtosInfo ────────────────────────────────────────────────────────────────
 
 local function cmd_info()
-  local caps = require("core.capability").snapshot()
+  local caps = require("core.domain.capability").snapshot()
   local pipeline = require("runtime.pipeline")
 
   local profile = vim.g.ltos_profile or "full"
@@ -300,7 +300,7 @@ local function cmd_info()
   local module_names = vim.tbl_keys(caps)
   table.sort(module_names)
 
-  local strategies = require("toolchain.strategies")
+  local strategies = require("toolchain.strategy.registry")
   strategies.bootstrap()
 
   local lines = {

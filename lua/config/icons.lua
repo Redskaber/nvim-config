@@ -1,29 +1,5 @@
--- ~/.config/nvim/lua/core/icons.lua
--- Single source of truth for all glyphs / symbols used in the config.
+-- lua/config/icons.lua
+-- Layer 5 app: single source of truth for all glyphs / symbols.
+-- Re-exports from core/domain/icons.lua for use in plugins and config.
 
-return {
-  diagnostics = {
-    Error = " ",
-    Warn = " ",
-    Hint = " ",
-    Info = " ",
-  },
-  git = {
-    added = " ",
-    modified = " ",
-    removed = " ",
-  },
-  fold = {
-    open = "",
-    close = "",
-  },
-  todo = {
-    FIX = " ",
-    TODO = " ",
-    HACK = " ",
-    WARN = " ",
-    PERF = " ",
-    NOTE = " ",
-    TEST = "⏲ ",
-  },
-}
+return require("core.domain.icons")

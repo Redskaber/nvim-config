@@ -4,7 +4,7 @@
 
 require("config.globals")
 
-local env = require("core.env")
+local env = require("core.kernel.env")
 local opt = vim.opt
 
 -- ── File & persistence ───────────────────────────────────────────────────

@@ -1,7 +1,7 @@
--- ~/.config/nvim/lua/toolchain/strategies/formatters.lua
--- Strategy layer: built-in FormatterStrategy implementations.
--- Called by toolchain/strategies/init.lua via M.bootstrap(registry).
--- Does NOT require("toolchain.strategies") — avoids circular dependency.
+-- lua/toolchain/strategy/builtin.lua
+-- Layer 3 strategy: built-in FormatterStrategy implementations.
+-- Called by toolchain/strategy/registry.lua via M.bootstrap(registry).
+-- Does NOT require("toolchain.strategy.registry") — avoids circular dependency.
 
 local M = {}
 

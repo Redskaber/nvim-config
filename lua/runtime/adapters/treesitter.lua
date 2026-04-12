@@ -3,7 +3,7 @@
 
 local M = {}
 
-local util = require("core.util")
+local util = require("core.kernel.util")
 
 local BASE_PARSERS = {
   "bash",

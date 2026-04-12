@@ -8,8 +8,8 @@
 -- IR input:  MIR layer (caps, resolved)
 -- IR output: LIR layer (+ merged_lsp, all_parsers)
 
-local ir_mod = require("core.ir")
-local util = require("core.util")
+local ir_mod = require("core.compiler.ir")
+local util = require("core.kernel.util")
 
 ---@type Phase
 local optimize_pass = {

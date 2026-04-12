@@ -6,7 +6,7 @@
 --
 -- Codegen adapters call only use_mason() / mason_pkg(); no tool-selection logic there.
 
-local env = require("core.env")
+local env = require("core.kernel.env")
 local mappings = require("toolchain.mappings")
 
 local M = {}

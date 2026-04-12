@@ -6,7 +6,7 @@
 local M = {}
 
 local mappings = require("toolchain.mappings")
-local util = require("core.util")
+local util = require("core.kernel.util")
 
 local BASE_TOOLS = { "codespell" }
 

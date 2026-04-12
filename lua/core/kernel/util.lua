@@ -1,5 +1,5 @@
--- ~/.config/nvim/lua/core/util.lua
--- Kernel layer: stateless utility functions.
+-- lua/core/kernel/util.lua
+-- Layer 0 kernel: stateless utility functions.
 -- No vim API side-effects; safe to call from any layer.
 
 local M = {}

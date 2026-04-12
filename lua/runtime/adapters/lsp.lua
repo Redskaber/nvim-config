@@ -29,8 +29,7 @@ function M.build(ir)
     end
   end
 
-  local server_names = vim.tbl_keys(servers)
-
+  -- remove unused variable: server_names not needed
   return {
     {
       "neovim/nvim-lspconfig",

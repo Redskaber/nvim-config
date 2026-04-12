@@ -1,11 +1,12 @@
--- ~/.config/nvim/lua/core/schema.lua
--- Domain IR layer: typed DSL validator + error recovery.
+-- lua/core/domain/schema.lua
+-- Layer 2 domain: typed DSL validator + error recovery.
 --
 -- Validates lang module capability tables (the AST layer).
 -- Rules:
 --   • formatters values → list of string | FormatterNode only.
 --   • Sentinel strings (__xxx__) are rejected.
 --   • Raw functions are rejected — use FormatterNode { kind, strategy }.
+--   • FormatterNode.fn must NOT appear in source DSL (injected by normalize).
 --   • mason[] contains only non-empty strings.
 --   • On validation failure: returns structured Diagnostic, not a Lua error.
 
@@ -62,6 +63,7 @@ local function validate_formatter_node(path, node, diags)
   if node.strategy ~= nil and type(node.strategy) ~= "string" then
     diags[#diags + 1] = diag(path .. ".strategy", "expected string, got " .. type(node.strategy))
   end
+  -- fn must NOT appear in source DSL — it is injected by the normalize pass
   if node.fn ~= nil then
     diags[#diags + 1] =
       diag(path .. ".fn", "fn must not be set in source modules; it is injected by the normalize pass")
@@ -127,12 +129,11 @@ end
 
 ---@class ValidationResult
 ---@field ok        boolean
----@field cap?      table              validated cap (nil on hard failure)
+---@field cap?      table
 ---@field diags     SchemaDiagnostic[]
 
 --- Validate a raw capability table from a lang module.
---- Returns a ValidationResult; never throws.
----@param name string   lang module identifier (for error context)
+---@param name string
 ---@param cap  table
 ---@return ValidationResult
 function M.validate(name, cap)
@@ -145,7 +146,6 @@ function M.validate(name, cap)
     }
   end
 
-  -- lsp: { [server]: LspConfig }
   if cap.lsp ~= nil then
     if type(cap.lsp) ~= "table" then
       diags[#diags + 1] = diag(name .. ".lsp", "expected table, got " .. type(cap.lsp))
@@ -161,7 +161,6 @@ function M.validate(name, cap)
     end
   end
 
-  -- formatters / linters
   if cap.formatters ~= nil then
     validate_ft_tool_map(name .. ".formatters", cap.formatters, diags)
   end
@@ -169,12 +168,10 @@ function M.validate(name, cap)
     validate_ft_tool_map(name .. ".linters", cap.linters, diags)
   end
 
-  -- treesitter: string[]
   if cap.treesitter ~= nil then
     validate_string_list(name .. ".treesitter", cap.treesitter, diags)
   end
 
-  -- mason: string[]
   if cap.mason ~= nil then
     validate_string_list(name .. ".mason", cap.mason, diags)
     if type(cap.mason) == "table" then
@@ -186,7 +183,6 @@ function M.validate(name, cap)
     end
   end
 
-  -- Hard errors prevent the cap from being used
   local has_error = false
   for _, d in ipairs(diags) do
     if d.severity == "error" then
@@ -202,7 +198,7 @@ function M.validate(name, cap)
   }
 end
 
---- Format diagnostics to a human-readable string (for notify / :LtosDebug).
+--- Format diagnostics to a human-readable string.
 ---@param diags SchemaDiagnostic[]
 ---@return string
 function M.format_diags(diags)

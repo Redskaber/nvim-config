@@ -27,7 +27,14 @@ vim.opt.rtp:prepend(lazypath)
 -- Run the five-stage pipeline; returns flat list of lazy plugin specs.
 local runtime = require("runtime")
 local lang_specs = runtime.build()
-runtime.setup_commands()
+-- Defer LTOS user commands to VeryLazy — keeps startup critical path clean.
+vim.api.nvim_create_autocmd("User", {
+  pattern = "VeryLazy",
+  once = true,
+  callback = function()
+    runtime.setup_commands()
+  end,
+})
 
 require("lazy").setup({
   spec = vim.list_extend(

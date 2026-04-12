@@ -8,7 +8,7 @@
 -- IR input:  HIR layer (caps, meta)
 -- IR output: MIR layer (+ resolved)
 
-local ir_mod = require("core.ir")
+local ir_mod = require("core.compiler.ir")
 local rules = require("toolchain.rules")
 
 ---@type Phase

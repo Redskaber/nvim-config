@@ -9,8 +9,8 @@
 -- IR input:  AST layer (caps, meta)
 -- IR output: HIR layer (caps with FormatterNode.fn injected)
 
-local ir_mod = require("core.ir")
-local strategies = require("toolchain.strategies")
+local ir_mod = require("core.compiler.ir")
+local strategies = require("toolchain.strategy.registry")
 
 ---@type Phase
 local normalize_pass = {

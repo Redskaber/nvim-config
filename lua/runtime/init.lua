@@ -70,7 +70,7 @@ end
 ---@param profile string
 ---@return table[]|nil   cached specs, or nil on miss
 local function try_cache(modules, profile)
-  local cache = require("core.cache")
+  local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile)
   if key == "" then
     return nil
@@ -91,7 +91,7 @@ end
 ---@param profile string
 ---@param specs   table[]
 local function persist_cache(modules, profile, specs)
-  local cache = require("core.cache")
+  local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile)
   if key ~= "" then
     cache.save("spec", key, specs)

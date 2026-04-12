@@ -47,20 +47,22 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 │  Layer 4 · backend          runtime/adapters/*                       │
 │             Read-only IR consumers. No vim API. No DSL imports.      │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 3 · strategy         toolchain/rules  toolchain/mappings      │
-│                              toolchain/strategies/                   │
-│             Strategy interface: applies / transform / priority.      │
+│  Layer 3 · strategy         toolchain/strategy/*                     │
+│                              toolchain/rules  toolchain/mappings     │
+│             Strategy interface: applies / resolve / priority.        │
 │             No vim API access. No direct adapter calls.              │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 2 · domain IR        core/schema  core/capability             │
+│  Layer 2 · domain IR        core/domain/schema  core/domain/capability│
 │             Immutable CapabilitySet. Pure-function validation.       │
 │             No runtime state. No side effects.                       │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 1 · compiler         core/ir  core/pass  core/cache           │
+│  Layer 1 · compiler         core/compiler/ir  core/compiler/pass     │
+│                              core/compiler/cache                     │
 │             CompilerContext · Phase interface · three-tier cache.    │
 │             No vim API. No plugin knowledge.                         │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 0 · kernel           core/bootstrap  core/env  core/util      │
+│  Layer 0 · kernel           core/kernel/bootstrap  core/kernel/env   │
+│                              core/kernel/util                        │
 │             Earliest inits. No dependencies on any layer above.      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -69,8 +71,9 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 
 | Boundary             | Rule                                                             |
 | -------------------- | ---------------------------------------------------------------- |
-| kernel → compiler    | `core/{bootstrap,env,util}` never import `core/{ir,pass,cache}`  |
-| compiler → domain IR | `core/{ir,pass,cache}` never import `core/{schema,capability}`   |
+| kernel → compiler    | `core/kernel/*` never import `core/compiler/*`                   |
+| compiler → domain IR | `core/compiler/*` never import `core/domain/*`                   |
+| domain → strategy    | `core/domain/*` never import `toolchain/*`                       |
 | strategy → backend   | `toolchain/*` never import `runtime/adapters/*`                  |
 | backend → vim API    | `runtime/adapters/*` never call `vim.*` directly                 |
 | app → compiler       | `modules/lang/*` and `plugins/*` never import `runtime/pipeline` |
@@ -88,7 +91,7 @@ modules/lang/*.lua  ──►  Pipeline (5 phases)  ──►  LazySpec[]
 
 ```
 init.lua
-  └─ core/bootstrap          (Layer 0: netrw off, leader keys)
+  └─ core/kernel/bootstrap       (Layer 0: netrw off, leader keys)
   └─ config/lazy.lua
        └─ runtime.build()    (Layer 5 → compiler entry point)
             └─ runtime/init.lua   (profile resolution, spec-tier cache)
@@ -241,27 +244,40 @@ vim.g.ltos_profile = "minimal"  -- "full" (default) | "minimal" | "nix"
 ```
 lua/
 ├── core/                          Layer 0–2: kernel · compiler · domain IR
-│   ├── bootstrap.lua              [L0] earliest inits (netrw off, leader keys)
-│   ├── env.lua                    [L0] Nix / SSH / GUI environment detection
-│   ├── util.lua                   [L0] dedup, pure helpers
-│   ├── ir.lua                     [L1] IR struct, CompilerContext, clone/with, diagnostics
-│   ├── pass.lua                   [L1] Phase interface + protected run_phase()
-│   ├── cache.lua                  [L1] three-tier sha256-keyed cache
-│   ├── capability.lua             [L2] immutable CapabilitySet: add / snapshot / reset
-│   └── schema.lua                 [L2] typed validator, error recovery, diagnostics
+│   ├── kernel/                    [L0] earliest inits, zero dependencies
+│   │   ├── bootstrap.lua          netrw off, leader keys
+│   │   ├── env.lua                Nix / SSH / GUI environment detection
+│   │   └── util.lua               dedup, pure helpers
+│   │
+│   ├── compiler/                  [L1] compiler kernel, no vim API
+│   │   ├── ir.lua                 IR struct, CompilerContext, clone/with, diagnostics
+│   │   ├── pass.lua               Phase interface + protected run_phase()
+│   │   └── cache.lua              three-tier sha256-keyed cache
+│   │
+│   └── domain/                    [L2] domain IR, immutable value objects
+│       ├── schema.lua             typed validator, error recovery, diagnostics
+│       ├── capability.lua         immutable CapabilitySet: add / snapshot / reset
+│       └── icons.lua              single source of truth for glyphs
 │
 ├── toolchain/                     Layer 3: strategy
-│   ├── rules.lua                  ToolchainStrategy: mason-vs-system decision rules
+│   ├── strategy/                  Strategy Pattern — three-file separation
+│   │   ├── interface.lua          Strategy type contract (LuaLS annotations only)
+│   │   ├── registry.lua           StrategyRegistry: register / get / list / bootstrap
+│   │   └── builtin.lua            built-in strategies: ruff_or_black, prettierd_or_prettier
 │   ├── mappings.lua               tool → mason package; system_tools set
-│   └── strategies/
-│       ├── init.lua               StrategyRegistry: register / resolve / list
-│       └── formatters.lua         built-in strategies: ruff_or_black, prettierd_or_prettier
+│   └── rules.lua                  ToolchainStrategy: mason-vs-system decision rules
 │
 ├── runtime/                       Layer 1 (orchestration) + Layer 4 (backend)
 │   ├── init.lua                   orchestrator: profile resolution, cache, build()
 │   ├── pipeline.lua               state machine + 5-phase compiler kernel
 │   ├── commands.lua               observability commands: LtosInfo/Debug/IR/Trace/Graph
 │   ├── api.lua                    editor façade: api.editor / api.lsp / api.diagnostics / api.find
+│   ├── passes/                    [L4] compiler phases (pure IR transforms, copy-on-write)
+│   │   ├── collect.lua            Phase 1: IDLE→COLLECTING, DSL→AST
+│   │   ├── normalize.lua          Phase 2: COLLECTING→NORMALIZING, AST→HIR
+│   │   ├── resolve.lua            Phase 3: NORMALIZING→RESOLVING, HIR→MIR
+│   │   ├── optimize.lua           Phase 4: RESOLVING→OPTIMIZING, MIR→LIR
+│   │   └── codegen.lua            Phase 5: OPTIMIZING→CODEGEN→DONE, LIR→SPEC
 │   └── adapters/                  [L4] backend — read-only IR consumers
 │       ├── lsp.lua
 │       ├── mason.lua
@@ -284,22 +300,22 @@ lua/
 ├── config/                        Layer 5: app config — zero compiler knowledge
 │   ├── autocmds.lua
 │   ├── globals.lua                vim.g.* defaults (profile, debug flags)
-│   ├── icons.lua                  single source of truth for glyphs
+│   ├── icons.lua                  re-exports core/domain/icons.lua for app layer
 │   ├── keymaps.lua                editor keymaps via runtime.api façade
 │   ├── lazy.lua                   lazy.nvim bootstrap + runtime.build()
 │   └── options.lua                all vim.opt.* settings
 │
 └── plugins/                       Layer 5: UI / editor / AI — no toolchain logic
-    ├── ai.lua
-    ├── coding.lua
-    ├── colorscheme.lua
-    ├── editor.lua
-    ├── formatting.lua
-    ├── linting.lua
-    ├── lsp.lua
-    ├── snacks.lua
-    ├── treesitter.lua
-    └── ui.lua
+    ├── ai/ai.lua
+    ├── coding/                    coding.lua · comments.lua · pairs.lua · snip.lua
+    ├── editor/                    editor.lua · cursor.lua
+    ├── formatting/formatting.lua
+    ├── linting/linting.lua
+    ├── lsp/lsp.lua
+    ├── sys/                       git.lua · terminal.lua
+    ├── theme/theme.lua
+    ├── treesitter/treesitter.lua
+    └── ui/                        ui.lua · snacks.lua
 ```
 
 ---
@@ -504,6 +520,7 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 ```bash
 nvim --headless -l spec/core/schema_spec.lua
 nvim --headless -l spec/core/ir_spec.lua
+nvim --headless -l spec/core/pass_spec.lua
 nvim --headless -l spec/toolchain/mappings_spec.lua
 nvim --headless -l spec/toolchain/strategies_spec.lua
 nvim --headless -l spec/runtime/pipeline_spec.lua

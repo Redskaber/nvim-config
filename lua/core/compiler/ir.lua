@@ -1,22 +1,19 @@
--- ~/.config/nvim/lua/core/ir.lua
--- Domain IR layer: immutable value type + compiler context.
+-- lua/core/compiler/ir.lua
+-- Layer 1 compiler: IR value type + CompilerContext + Diagnostic.
 --
--- IR sub-layers (TODO-2.1):
+-- IR sub-layers:
 --   AST   — raw validated capability snapshot from collect pass
 --   HIR   — normalised (FormatterNode.fn injected)
 --   MIR   — strategy resolved (use_mason decisions)
 --   LIR   — optimised (deduped parsers, merged LSP configs)
 --   SPEC  — codegen input (all fields present, ready for adapters)
 --
--- CompilerContext (TODO-1.1): unified carry type through the pipeline.
---   { ir, stage, diagnostics, cache_key, timings }
---
 -- Copy-on-write: every Pass returns a NEW IR via ir.with() or ir.clone().
 -- Passes NEVER mutate their input IR.
 
 local M = {}
 
--- ── Diagnostic type (pipeline-level, separate from schema.SchemaDiagnostic) ──
+-- ── Diagnostic type ───────────────────────────────────────────────────────────
 
 ---@class Diagnostic
 ---@field stage    string   pipeline stage
@@ -33,7 +30,7 @@ function M.diag(stage, node, message, severity)
   return { stage = stage, node = node, message = message, severity = severity or "error" }
 end
 
--- Backward-compat alias (old code uses ir.error)
+-- Backward-compat alias
 M.error = M.diag
 
 -- ── IR sub-layer type annotations ─────────────────────────────────────────────
@@ -57,6 +54,7 @@ M.error = M.diag
 ---@field merged_lsp  table<string, table>   [LIR]  deduped LSP configs
 ---@field all_parsers string[]               [LIR]  deduped TS parsers
 ---@field snapshots?  table<string, table>   [debug] per-stage IR snapshots
+---@field _timings?   table<string, number>  [debug] per-phase timings (debug_run only)
 
 -- ── CompilerContext ───────────────────────────────────────────────────────────
 
@@ -81,7 +79,7 @@ function M.ctx(ir, stage, cache_key)
   }
 end
 
--- ── Stage field contracts (for pre-condition validation) ──────────────────────
+-- ── Stage field contracts ─────────────────────────────────────────────────────
 
 local STAGE_REQUIRED = {
   normalize = { "caps", "meta" },
@@ -119,7 +117,6 @@ function M.clone(ir)
 end
 
 --- Shallow-copy an IR, replacing selected top-level fields.
---- Much cheaper than clone() when only 1-2 fields change.
 ---@param ir      IR
 ---@param patches table
 ---@return IR
@@ -146,7 +143,7 @@ function M.append_diag(ir, d)
   return M.with(ir, { diagnostics = new_diags })
 end
 
--- Backward-compat alias
+-- Backward-compat aliases
 M.append_error = M.append_diag
 
 --- Format all diagnostics as a single human-readable string.
@@ -168,7 +165,6 @@ function M.format_diagnostics(ir)
   return table.concat(lines, "\n")
 end
 
--- Backward-compat alias
 M.format_errors = M.format_diagnostics
 
 --- Count diagnostics by severity.
@@ -189,7 +185,6 @@ end
 -- ── Pre-condition validation ──────────────────────────────────────────────────
 
 --- Validate IR has all fields required before entering `stage`.
---- Returns a (possibly empty) list of Diagnostic.
 ---@param ir    IR
 ---@param stage string
 ---@return Diagnostic[]

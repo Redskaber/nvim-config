@@ -1,5 +1,5 @@
--- ~/.config/nvim/lua/core/pass.lua
--- Compiler kernel: standard Phase/Pass interface (TODO-1.2).
+-- lua/core/compiler/pass.lua
+-- Layer 1 compiler: standard Phase/Pass interface.
 --
 -- A Phase is a table with:
 --   name         : string              — unique identifier
@@ -12,10 +12,8 @@
 --   • Never mutate its input IR
 --   • Return a table (IR) or throw — never return nil
 --   • Be wrapped in pcall so errors become Diagnostics, not panics
---
--- Phases are assembled in runtime/pipeline.lua.
 
-local ir_mod = require("core.ir")
+local ir_mod = require("core.compiler.ir")
 
 local M = {}
 
@@ -52,7 +50,10 @@ function M.run_phase(phase, ir)
     if not ok then
       pre_diags[#pre_diags + 1] = ir_mod.diag(phase.name, "validate", tostring(result))
     elseif type(result) == "table" then
-      vim.list_extend(pre_diags, result)
+      -- Pure Lua extend (no vim API in Layer 1)
+      for _, d in ipairs(result) do
+        pre_diags[#pre_diags + 1] = d
+      end
     end
   end
 
@@ -79,7 +80,7 @@ function M.run_phase(phase, ir)
   return next_ir, {}
 end
 
--- Backward-compat alias
+-- Backward-compat aliases
 M.run_pass = M.run_phase
 M.assert_valid_pass = M.assert_valid
 

@@ -7,31 +7,33 @@ return {
   {
     "akinsho/bufferline.nvim",
     keys = {
-      { "<leader>bp", "<Cmd>BufferLineTogglePin<CR>",          desc = "Toggle pin" },
+      { "<leader>bp", "<Cmd>BufferLineTogglePin<CR>", desc = "Toggle pin" },
       { "<leader>bP", "<Cmd>BufferLineGroupClose ungrouped<CR>", desc = "Delete non-pinned buffers" },
-      { "<leader>br", "<Cmd>BufferLineCloseRight<CR>",          desc = "Delete buffers to the right" },
-      { "<leader>bl", "<Cmd>BufferLineCloseLeft<CR>",           desc = "Delete buffers to the left" },
-      { "[b",         "<cmd>BufferLineCyclePrev<cr>",           desc = "Prev buffer" },
-      { "]b",         "<cmd>BufferLineCycleNext<cr>",           desc = "Next buffer" },
-      { "[B",         "<cmd>BufferLineMovePrev<cr>",            desc = "Move buffer prev" },
-      { "]B",         "<cmd>BufferLineMoveNext<cr>",            desc = "Move buffer next" },
+      { "<leader>br", "<Cmd>BufferLineCloseRight<CR>", desc = "Delete buffers to the right" },
+      { "<leader>bl", "<Cmd>BufferLineCloseLeft<CR>", desc = "Delete buffers to the left" },
+      { "[b", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev buffer" },
+      { "]b", "<cmd>BufferLineCycleNext<cr>", desc = "Next buffer" },
+      { "[B", "<cmd>BufferLineMovePrev<cr>", desc = "Move buffer prev" },
+      { "]B", "<cmd>BufferLineMoveNext<cr>", desc = "Move buffer next" },
     },
     opts = {
       options = {
         -- stylua: ignore
         close_command       = function(n) Snacks.bufdelete(n) end,
-        right_mouse_command = function(n) Snacks.bufdelete(n) end,
-        diagnostics         = "nvim_lsp",
-        always_show_bufferline   = false,
-        show_buffer_close_icons  = false,
-        diagnostics_indicator    = function(_, _, diag)
+        right_mouse_command = function(n)
+          Snacks.bufdelete(n)
+        end,
+        diagnostics = "nvim_lsp",
+        always_show_bufferline = false,
+        show_buffer_close_icons = false,
+        diagnostics_indicator = function(_, _, diag)
           local icons = LazyVim.config.icons.diagnostics
-          local ret   = (diag.error   and icons.Error .. diag.error   .. " " or "")
-                     .. (diag.warning and icons.Warn  .. diag.warning or "")
+          local ret = (diag.error and icons.Error .. diag.error .. " " or "")
+            .. (diag.warning and icons.Warn .. diag.warning or "")
           return vim.trim(ret)
         end,
         offsets = {
-          { filetype = "neo-tree",          text = "Neo-tree", highlight = "Directory", text_align = "left" },
+          { filetype = "neo-tree", text = "Neo-tree", highlight = "Directory", text_align = "left" },
           { filetype = "snacks_layout_box" },
         },
         get_element_icon = function(opts)
@@ -54,8 +56,8 @@ return {
 
       local opts = {
         options = {
-          theme            = "auto",
-          globalstatus     = vim.o.laststatus == 3,
+          theme = "auto",
+          globalstatus = vim.o.laststatus == 3,
           disabled_filetypes = {
             statusline = { "dashboard", "alpha", "ministarter", "snacks_dashboard" },
           },
@@ -69,9 +71,9 @@ return {
               "diagnostics",
               symbols = {
                 error = icons.diagnostics.Error,
-                warn  = icons.diagnostics.Warn,
-                info  = icons.diagnostics.Info,
-                hint  = icons.diagnostics.Hint,
+                warn = icons.diagnostics.Warn,
+                info = icons.diagnostics.Info,
+                hint = icons.diagnostics.Hint,
               },
             },
             { "filetype", icon_only = true, separator = "", padding = { left = 1, right = 0 } },
@@ -90,7 +92,7 @@ return {
             {
               "diff",
               symbols = { added = icons.git.added, modified = icons.git.modified, removed = icons.git.removed },
-              source  = function()
+              source = function()
                 local gs = vim.b.gitsigns_status_dict
                 if gs then
                   return { added = gs.added, modified = gs.changed, removed = gs.removed }
@@ -103,7 +105,9 @@ return {
             { "location", padding = { left = 0, right = 1 } },
           },
           lualine_z = {
-            function() return " " .. os.date("%R") end,
+            function()
+              return " " .. os.date("%R")
+            end,
           },
         },
         extensions = { "neo-tree", "lazy", "fzf" },
@@ -113,9 +117,9 @@ return {
       if vim.g.trouble_lualine and LazyVim.has("trouble.nvim") then
         local trouble = require("trouble")
         local symbols = trouble.statusline({
-          mode   = "symbols",
+          mode = "symbols",
           groups = {},
-          title  = false,
+          title = false,
           filter = { range = true },
           format = "{kind_icon}{symbol.name:Normal}",
           hl_group = "lualine_c_normal",
@@ -139,35 +143,35 @@ return {
       lsp = {
         override = {
           ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
-          ["vim.lsp.util.stylize_markdown"]                = true,
-          ["cmp.entry.get_documentation"]                  = true,
+          ["vim.lsp.util.stylize_markdown"] = true,
+          ["cmp.entry.get_documentation"] = true,
         },
       },
       routes = {
         {
           filter = {
             event = "msg_show",
-            any   = {
-              { find = "%d+L, %d+B"     },
-              { find = "; after #%d+"   },
-              { find = "; before #%d+"  },
+            any = {
+              { find = "%d+L, %d+B" },
+              { find = "; after #%d+" },
+              { find = "; before #%d+" },
             },
           },
           view = "mini",
         },
       },
       presets = {
-        bottom_search        = true,
-        command_palette      = true,
+        bottom_search = true,
+        command_palette = true,
         long_message_to_split = true,
       },
       views = {
         cmdline_popup = {
           position = { row = 5, col = "50%" },
-          size     = { width = 60, height = "auto" },
+          size = { width = 60, height = "auto" },
         },
         hover = {
-          border     = { style = "rounded", padding = { 0, 1 } },
+          border = { style = "rounded", padding = { 0, 1 } },
           win_options = { winblend = 10, winhighlight = "Normal:Normal,FloatBorder:FloatBorder" },
         },
         signature = {
@@ -194,8 +198,8 @@ return {
     "nvim-mini/mini.icons",
     opts = {
       file = {
-        [".keep"]            = { glyph = "󰊢", hl = "MiniIconsGrey"  },
-        ["devcontainer.json"] = { glyph = "",  hl = "MiniIconsAzure" },
+        [".keep"] = { glyph = "󰊢", hl = "MiniIconsGrey" },
+        ["devcontainer.json"] = { glyph = "", hl = "MiniIconsAzure" },
       },
       filetype = {
         dotenv = { glyph = "", hl = "MiniIconsYellow" },
@@ -209,35 +213,35 @@ return {
   {
     "folke/snacks.nvim",
     priority = 1000,
-    lazy     = false,
+    lazy = false,
     ---@type snacks.Config
     opts = {
-      bigfile   = { enabled = true },
-      explorer  = { enabled = true },
-      indent    = { enabled = true },
-      input     = { enabled = true },
-      scope     = { enabled = true },
-      scroll    = { enabled = true },
-      notifier  = { enabled = true },
-      picker    = { enabled = true },
+      bigfile = { enabled = true },
+      explorer = { enabled = true },
+      indent = { enabled = true },
+      input = { enabled = true },
+      scope = { enabled = true },
+      scroll = { enabled = true },
+      notifier = { enabled = true },
+      picker = { enabled = true },
       quickfile = { enabled = true },
-      words     = { enabled = true },
-      styles    = { notification = {} },
+      words = { enabled = true },
+      styles = { notification = {} },
       statuscolumn = {
-        enabled     = true,
+        enabled = true,
         relculright = true,
-        separator   = "│",
+        separator = "│",
       },
       toggle = { map = LazyVim.safe_keymap_set },
 
       -- ── Dashboard ──────────────────────────────────────────────────
       dashboard = {
         enabled = true,
-        preset  = {
+        preset = {
           pick = function(cmd, opts)
             return LazyVim.pick(cmd, opts)()
           end,
-       header = [[
+          header = [[
        ██╗      █████╗ ███████╗██╗   ██╗██╗   ██╗██╗███╗   ███╗          Z
        ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝██║   ██║██║████╗ ████║      Z    
        ██║     ███████║  ███╔╝  ╚████╔╝ ██║   ██║██║██╔████╔██║   z       
@@ -251,7 +255,7 @@ return {
       -- ── Snacks window scroll keybindings ───────────────────────────
       win = {
         scroll_down = "<C-j>",
-        scroll_up   = "<C-k>",
+        scroll_up = "<C-k>",
       },
     },
 
@@ -346,85 +350,39 @@ return {
 
     init = function()
       vim.api.nvim_create_autocmd("User", {
-        pattern  = "VeryLazy",
+        pattern = "VeryLazy",
         callback = function()
           -- Debug helpers
-          _G.dd = function(...) Snacks.debug.inspect(...) end
-          _G.bt = function()    Snacks.debug.backtrace()  end
+          _G.dd = function(...)
+            Snacks.debug.inspect(...)
+          end
+          _G.bt = function()
+            Snacks.debug.backtrace()
+          end
 
           if vim.fn.has("nvim-0.11") == 1 then
-            vim._print = function(_, ...) dd(...) end
+            vim._print = function(_, ...)
+              dd(...)
+            end
           else
             vim.print = _G.dd
           end
 
           -- ── Toggles ────────────────────────────────────────────────
-          Snacks.toggle.option("spell",          { name = "Spelling"         }):map("<leader>us")
-          Snacks.toggle.option("wrap",           { name = "Wrap"             }):map("<leader>uw")
-          Snacks.toggle.option("relativenumber", { name = "Relative number"  }):map("<leader>uL")
+          Snacks.toggle.option("spell", { name = "Spelling" }):map("<leader>us")
+          Snacks.toggle.option("wrap", { name = "Wrap" }):map("<leader>uw")
+          Snacks.toggle.option("relativenumber", { name = "Relative number" }):map("<leader>uL")
           Snacks.toggle.diagnostics():map("<leader>ud")
           Snacks.toggle.line_number():map("<leader>ul")
-          Snacks.toggle.option("conceallevel", { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 }):map("<leader>uc")
+          Snacks.toggle
+            .option("conceallevel", { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 })
+            :map("<leader>uc")
           Snacks.toggle.treesitter():map("<leader>uT")
           Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark background" }):map("<leader>ub")
           Snacks.toggle.inlay_hints():map("<leader>uh")
           Snacks.toggle.indent():map("<leader>ug")
           Snacks.toggle.dim():map("<leader>uD")
         end,
-      })
-    end,
-  },
-
-  -- ── Neogit ────────────────────────────────────────────────────────────
-  {
-    "NeogitOrg/neogit",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "sindrets/diffview.nvim",
-      "folke/snacks.nvim",
-    },
-    cmd  = "Neogit",
-    keys = {
-      { "<leader>ngg", "<cmd>Neogit<cr>",          desc = "Neogit UI"  },
-      { "<leader>ngc", "<cmd>Neogit commit<cr>",   desc = "Commit"     },
-      { "<leader>ngp", "<cmd>Neogit push<cr>",     desc = "Push"       },
-      { "<leader>ngl", "<cmd>Neogit pull<cr>",     desc = "Pull"       },
-    },
-  },
-
-  -- ── ToggleTerm ────────────────────────────────────────────────────────
-  {
-    "akinsho/toggleterm.nvim",
-    keys = {
-      { "<C-t>",      "<cmd>ToggleTerm<CR>",                       desc = "Toggle terminal" },
-      { "<leader>t",  "<cmd>ToggleTerm direction=float<CR>",       desc = "Float terminal"  },
-    },
-    opts = {
-      open_mapping = nil,
-      direction    = "horizontal",
-      size = function(term)
-        if term.direction == "horizontal" then
-          return 15
-        elseif term.direction == "vertical" then
-          return math.floor(vim.o.columns * 0.4)
-        end
-      end,
-    },
-  },
-
-  -- ── nvim-tree ─────────────────────────────────────────────────────────
-  {
-    "nvim-tree/nvim-tree.lua",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    keys = {
-      { "<leader>fe", "<cmd>NvimTreeToggle<cr>",  desc = "NvimTree toggle" },
-    },
-    config = function()
-      require("nvim-tree").setup({
-        sort     = { sorter = "case_sensitive" },
-        view     = { width = 30 },
-        renderer = { group_empty = true },
-        filters  = { dotfiles = true },
       })
     end,
   },

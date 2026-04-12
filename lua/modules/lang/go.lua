@@ -47,5 +47,5 @@ return {
   formatters = {
     go = { "gofmt", "goimports" },
   },
-  mason = { "gopls", "goimports" },
+  mason = { "goimports" },
 }

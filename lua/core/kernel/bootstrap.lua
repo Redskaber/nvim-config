@@ -1,5 +1,5 @@
--- ~/.config/nvim/lua/core/bootstrap.lua
--- Kernel layer: runs before lazy.nvim.
+-- lua/core/kernel/bootstrap.lua
+-- Layer 0 kernel: runs before lazy.nvim.
 -- Only the absolute minimum that must happen first — no plugin deps here.
 
 -- Disable netrw BEFORE anything else can load it

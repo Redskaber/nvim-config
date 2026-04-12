@@ -22,5 +22,5 @@ return {
     c = { "clangtidy" },
     cpp = { "clangtidy" },
   },
-  mason = { "clangd", "clang-format" },
+  mason = { "clang-format" }, -- clangd resolved via mappings.lsp_pkg("clangd")
 }

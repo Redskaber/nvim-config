@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/ai.lua
+-- ~/.config/nvim/lua/plugins/ai/ai.lua
 -- adapter: copilot
 -- AI coding assistant: codecompanion.nvim
 

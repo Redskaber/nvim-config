@@ -20,8 +20,8 @@
 
 local M = {}
 
-local ir_mod = require("core.ir")
-local pass_mod = require("core.pass")
+local ir_mod = require("core.compiler.ir")
+local pass_mod = require("core.compiler.pass")
 
 -- ── Phases (loaded once; stateless) ──────────────────────────────────────────
 
@@ -116,7 +116,7 @@ local function execute(lang_modules, profile, stop_after, sm)
 
   for _, phase in ipairs(PHASES) do
     local t0 = os.clock()
-    local next_ir, errs = pass_mod.run_phase(phase, ir)
+    local next_ir, _ = pass_mod.run_phase(phase, ir)
     timings[phase.name] = os.clock() - t0
     ir = next_ir
 
@@ -214,7 +214,7 @@ function M.debug_run(lang_modules, stop_after, profile)
   local sm = new_sm()
 
   -- Isolated run: reset registry
-  require("core.capability").reset()
+  require("core.domain.capability").reset()
 
   local ir, _, timings = execute(lang_modules, profile or "full", stop_after, sm)
 

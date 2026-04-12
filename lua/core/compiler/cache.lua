@@ -1,22 +1,22 @@
--- ~/.config/nvim/lua/core/cache.lua
--- Kernel layer: three-tier pipeline cache (TODO-5.2, TODO-5.3).
+-- lua/core/compiler/cache.lua
+-- Layer 1 compiler: three-tier pipeline cache.
 --
 -- Tiers:
---   "ast"   – post-collect validated capability snapshot (CapabilitySet)
+--   "ast"   – post-collect validated capability snapshot
 --   "ir"    – post-optimize intermediate representation (LIR)
 --   "spec"  – final LazySpec[] list (SPEC tier)
 --
--- Cache key = sha256(sorted module-file-contents) + ":" + profile
+-- Cache key = mtime_hash(sorted module-file-contents) + ":" + profile
 -- Each tier lives in a separate JSON file under stdpath("cache")/ltos/.
 --
 -- Function values (FormatterNode.fn) set _no_cache = true; those payloads
--- are never persisted.  A module-file change invalidates only the affected tier
+-- are never persisted. A module-file change invalidates only the affected tier
 -- and all downstream tiers (partial invalidation).
 
 local M = {}
 
 local CACHE_DIR = vim.fn.stdpath("cache") .. "/ltos"
-local CACHE_VERSION = 3 -- bump when serialisation format changes
+local CACHE_VERSION = 3
 
 local TIER_FILES = {
   ast = CACHE_DIR .. "/ast_cache.json",
@@ -69,7 +69,6 @@ end
 -- ── Cache key ─────────────────────────────────────────────────────────────────
 
 --- Compute a composite cache key for a set of lang modules.
---- Uses file modification times (fast) rather than content hashing.
 ---@param lang_modules string[]
 ---@param profile      string
 ---@return string  "<mtime-hash>:<profile>" or "" on failure
@@ -90,7 +89,6 @@ function M.key(lang_modules, profile)
   end
   table.sort(parts)
   local concat = table.concat(parts, "|")
-  -- Simple hash: sum of byte values (no crypto needed, just a fingerprint)
   local hash = 0
   for i = 1, #concat do
     hash = (hash * 31 + string.byte(concat, i)) % (2 ^ 32)
@@ -177,8 +175,7 @@ function M.invalidate(tier)
       found = true
     end
     if found then
-      local path = TIER_FILES[t]
-      os.remove(path)
+      os.remove(TIER_FILES[t])
     end
   end
 end

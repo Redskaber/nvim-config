@@ -56,5 +56,5 @@ return {
     typescript = { "eslint" },
     typescriptreact = { "eslint" },
   },
-  mason = { "vtsls", "prettierd", "eslint_d" },
+  mason = { "prettierd", "eslint_d" },
 }

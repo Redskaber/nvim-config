@@ -1,15 +1,13 @@
--- ~/.config/nvim/lua/core/capability.lua
--- Domain IR layer: immutable CapabilitySet builder (TODO-6.1).
+-- lua/core/domain/capability.lua
+-- Layer 2 domain: immutable CapabilitySet builder.
 --
 -- Design:
 --   • Lang modules RETURN plain tables — zero side-effects.
 --   • Only the collect pass calls M.add() (write path).
 --   • M.snapshot() returns a deep-copy; callers cannot mutate internal state.
 --   • M.reset() is provided for debug_run isolation.
---   • The global mutable _store is a necessary runtime evil (Neovim module cache
---     means we can't escape it); it is wrapped in pure-functional accessors.
 
-local schema = require("core.schema")
+local schema = require("core.domain.schema")
 
 local M = {}
 
@@ -18,7 +16,7 @@ local M = {}
 ---@class LspConfig
 ---@field settings? table
 ---@field cmd?      string[]
----@field mason?    boolean   nil = auto-resolved by toolchain
+---@field mason?    boolean
 
 ---@class Capability
 ---@field lsp?        table<string, LspConfig>
@@ -27,7 +25,6 @@ local M = {}
 ---@field treesitter? string[]
 ---@field mason?      string[]
 
--- Module-level store: { [lang_name]: Capability }
 local _store = {}
 
 -- ── Pure merge helpers ────────────────────────────────────────────────────────
@@ -51,14 +48,12 @@ end
 -- ── Write path (collect pass only) ───────────────────────────────────────────
 
 --- Add (deep-merge) a validated capability bundle.
---- Returns { ok, diags } so the caller can surface schema errors.
 ---@param name string
 ---@param raw  table
 ---@return { ok: boolean, diags: table[] }
 function M.add(name, raw)
   local result = schema.validate(name, raw)
 
-  -- Surface warnings even on success
   if #result.diags > 0 then
     local msg = schema.format_diags(result.diags)
     local level = result.ok and vim.log.levels.WARN or vim.log.levels.ERROR

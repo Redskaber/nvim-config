@@ -12,7 +12,7 @@
 -- Adapter interface: { build(ir: IR): LazySpec[] }
 -- Adapters are isolated backend implementations; they only READ the IR.
 
-local ir_mod = require("core.ir")
+local ir_mod = require("core.compiler.ir")
 
 -- Ordered adapter list — order determines spec list ordering for lazy.nvim
 local ADAPTERS = {
