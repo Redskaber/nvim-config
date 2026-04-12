@@ -1,3 +1,5 @@
+-- ~/.config/nvim/lua/plugins/coding/pairs.lua
+
 return {
   {
     "nvim-mini/mini.pairs",

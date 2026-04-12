@@ -1,3 +1,5 @@
+-- ~/.config/nvim/lua/plugins/ui/snacks.lua
+
 return {
   {
     "folke/snacks.nvim",

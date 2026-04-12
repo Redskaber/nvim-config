@@ -1,4 +1,4 @@
--- lua/plugins/git.lua
+-- lua/plugins/sys/git.lua
 -- Git UI plugins: Neogit (Magit-style) + diffview.
 
 return {

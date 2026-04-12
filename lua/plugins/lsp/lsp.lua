@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/lsp.lua
+-- ~/.config/nvim/lua/plugins/lsp/lsp.lua
 -- LSP engine wiring only. Server configs come from runtime/adapters/lsp.lua.
 
 return {

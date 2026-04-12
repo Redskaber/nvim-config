@@ -1,14 +1,13 @@
--- lua/plugins/terminal.lua
+-- lua/plugins/sys/terminal.lua
 -- Terminal and file-tree plugins.
 
 return {
   {
     "akinsho/toggleterm.nvim",
     keys = {
-      -- { "<C-t>", "<cmd>ToggleTerm<CR>", desc = "Toggle terminal" },
-      { "<C-t>", "<cmd>ToggleTerm direction=float<CR>", desc = "Float terminal" },
-      { "<leader>t", "<cmd>ToggleTerm direction=float<CR>", desc = "Float terminal" },
-      { "<leader>th", "<cmd>ToggleTerm direction=horizontal<CR>", desc = "Horizontal terminal" },
+      { "<C-t>", "<cmd>ToggleTerm direction=float<cr>", desc = "Float terminal" },
+      { "<leader>t", "<cmd>ToggleTerm direction=float<cr>", desc = "Float terminal" },
+      { "<leader>th", "<cmd>ToggleTerm direction=horizontal<cr>", desc = "Horizontal terminal" },
     },
     opts = {
       open_mapping = nil,

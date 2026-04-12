@@ -1,3 +1,4 @@
+-- ~/.config/nvim/lua/plugins/editor/cursor.lua
 return {
   {
     "mg979/vim-visual-multi",

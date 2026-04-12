@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/formatting.lua
+-- ~/.config/nvim/lua/plugins/formatting/formatting.lua
 -- Engine declaration only. formatters_by_ft built by runtime/adapters/conform.lua.
 
 return {

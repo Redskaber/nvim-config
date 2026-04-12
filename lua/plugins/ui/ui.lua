@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/ui.lua
+-- ~/.config/nvim/lua/plugins/ui/ui.lua
 -- UI layer: bufferline, lualine, noice, mini.icons, snacks (dashboard,
 -- picker, explorer, toggles), neogit, toggleterm, nvim-tree.
 
@@ -7,10 +7,10 @@ return {
   {
     "akinsho/bufferline.nvim",
     keys = {
-      { "<leader>bp", "<Cmd>BufferLineTogglePin<CR>", desc = "Toggle pin" },
-      { "<leader>bP", "<Cmd>BufferLineGroupClose ungrouped<CR>", desc = "Delete non-pinned buffers" },
-      { "<leader>br", "<Cmd>BufferLineCloseRight<CR>", desc = "Delete buffers to the right" },
-      { "<leader>bl", "<Cmd>BufferLineCloseLeft<CR>", desc = "Delete buffers to the left" },
+      { "<leader>bp", "<Cmd>BufferLineTogglePin<cr>", desc = "Toggle pin" },
+      { "<leader>bP", "<Cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete non-pinned buffers" },
+      { "<leader>br", "<Cmd>BufferLineCloseRight<cr>", desc = "Delete buffers to the right" },
+      { "<leader>bl", "<Cmd>BufferLineCloseLeft<cr>", desc = "Delete buffers to the left" },
       { "[b", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev buffer" },
       { "]b", "<cmd>BufferLineCycleNext<cr>", desc = "Next buffer" },
       { "[B", "<cmd>BufferLineMovePrev<cr>", desc = "Move buffer prev" },
