@@ -14,8 +14,12 @@ local CORE_MODULES = {
 
 -- Full module registry — add new lang modules here
 M.LANG_MODULES = {
+  "modules.lang.asm",
   "modules.lang.c_cpp",
   "modules.lang.go",
+  "modules.lang.java",
+  "modules.lang.kotlin",
+  "modules.lang.lisp",
   "modules.lang.lua_lang",
   "modules.lang.markup",
   "modules.lang.nix",
