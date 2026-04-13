@@ -102,13 +102,8 @@ end
 function M.add(set, name, raw)
   local result = schema.validate(name, raw)
 
-  -- Surface schema diagnostics via vim.notify (only side-effect, acceptable here
-  -- as capability module bridges domain validation to user notification).
-  if #result.diags > 0 then
-    local msg = schema.format_diags(result.diags)
-    local level = result.ok and vim.log.levels.WARN or vim.log.levels.ERROR
-    vim.notify(("[capability:%s] schema issues:\n%s"):format(name, msg), level)
-  end
+  -- NOTE: vim.notify intentionally removed from domain layer (pure value object).
+  -- Callers (collect pass) are responsible for surfacing diagnostics.
 
   if not result.ok or not result.cap then
     return set, { ok = false, diags = result.diags }

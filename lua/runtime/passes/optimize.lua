@@ -28,19 +28,26 @@ local optimize_pass = {
     local all_parsers = {}
     for _, cap in pairs(ir.caps) do
       if cap.treesitter then
-        vim.list_extend(all_parsers, cap.treesitter)
+        for _, p in ipairs(cap.treesitter) do
+          all_parsers[#all_parsers + 1] = p
+        end
       end
     end
 
-    -- ── LSP: deep-merge configs; later cap wins on conflict ───────────────
+    -- ── LSP: deep-merge configs using util.deep_merge (no vim API) ────────
     local merged_lsp = {}
     for _, cap in pairs(ir.caps) do
       if cap.lsp then
         for server, cfg in pairs(cap.lsp) do
           if merged_lsp[server] then
-            merged_lsp[server] = vim.tbl_deep_extend("force", merged_lsp[server], cfg)
+            merged_lsp[server] = util.deep_merge(merged_lsp[server], cfg)
           else
-            merged_lsp[server] = vim.deepcopy(cfg)
+            -- shallow-copy to avoid sharing references
+            local copy = {}
+            for k, v in pairs(cfg) do
+              copy[k] = v
+            end
+            merged_lsp[server] = copy
           end
         end
       end

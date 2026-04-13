@@ -11,6 +11,7 @@
 
 local ir_mod = require("core.compiler.ir")
 local strategies = require("toolchain.strategy.registry")
+local util = require("core.kernel.util")
 
 ---@type Phase
 local normalize_pass = {
@@ -44,18 +45,19 @@ local normalize_pass = {
           for i, v in ipairs(fmts) do
             if type(v) == "table" and v.kind == "formatter" and v.strategy and not v.fn then
               if not patched_list then
-                patched_list = vim.deepcopy(fmts)
+                patched_list = util.deep_copy(fmts)
               end
 
               local strat = strategies.get(v.strategy)
               if strat then
                 patched_list[i].fn = strat.resolve
               else
-                vim.notify("[pipeline.normalize] unknown formatter strategy: " .. v.strategy, vim.log.levels.WARN)
-                -- Graceful degradation: inject a no-op fn rather than crashing
+                -- Graceful degradation: inject a no-op fn; diagnostic surfaced via IR
                 patched_list[i].fn = function()
                   return {}
                 end
+                -- Record unknown strategy as a warn diagnostic (no vim.notify in Phase.run)
+                patched_list[i]._unknown_strategy = v.strategy
               end
 
               cap_patched = true
@@ -80,7 +82,30 @@ local normalize_pass = {
       end
     end
 
-    return ir_mod.with(ir, { caps = next_caps, stage = "HIR" })
+    -- Accumulate diagnostics for unknown strategies (pure IR path, no vim.notify)
+    local diags = {}
+    for lang, cap in pairs(next_caps) do
+      if cap.formatters then
+        for ft, fmts in pairs(cap.formatters) do
+          for _, v in ipairs(fmts) do
+            if type(v) == "table" and v._unknown_strategy then
+              diags[#diags + 1] = ir_mod.diag(
+                "normalize",
+                lang .. ".formatters." .. ft,
+                "unknown formatter strategy: " .. v._unknown_strategy,
+                "warn"
+              )
+            end
+          end
+        end
+      end
+    end
+
+    local next_ir = ir_mod.with(ir, { caps = next_caps, stage = "HIR" })
+    for _, d in ipairs(diags) do
+      next_ir = ir_mod.append_diag(next_ir, d)
+    end
+    return next_ir
   end,
 }
 

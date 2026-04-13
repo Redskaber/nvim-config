@@ -125,10 +125,11 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps)
       vim.notify(("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors), vim.log.levels.DEBUG)
     end
     if vim.g.ltos_debug_perf then
-      vim.notify(("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000),
-        vim.log.levels.DEBUG)
+      vim.notify(
+        ("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000),
+        vim.log.levels.DEBUG
+      )
     end
-
     ::continue::
   end
 
@@ -182,7 +183,8 @@ end
 ---@param lang_modules string[]
 ---@param profile?     string
 ---@param cached_caps? table   AST-tier cached caps for incremental rebuild
----@return table[]
+---@return table[]   specs
+---@return IR        final IR (for AST cache persistence)
 function M.run(lang_modules, profile, cached_caps)
   local sm = new_sm()
   last_run_sm = sm
@@ -203,7 +205,24 @@ function M.run(lang_modules, profile, cached_caps)
     )
   end
 
-  return specs or {}
+  -- TODO-0.3: structured debug output (JSON lines) when LTOS_DEBUG=trace
+  if vim.g.ltos_debug_trace then
+    local ok, encoded = pcall(vim.json.encode, {
+      event = "pipeline.done",
+      run_id = sm.timestamps and tostring(sm.timestamps.collecting) or "?",
+      profile = profile or "full",
+      modules = #lang_modules,
+      specs = #(specs or {}),
+      timings = timings,
+      errors = counts.errors,
+      warns = counts.warns,
+    })
+    if ok then
+      vim.notify("[ltos:trace] " .. encoded, vim.log.levels.DEBUG)
+    end
+  end
+
+  return specs or {}, ir
 end
 
 ---@param lang_modules string[]

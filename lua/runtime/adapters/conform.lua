@@ -1,5 +1,5 @@
 -- lua/runtime/adapters/conform.lua
--- REFACTOR (TODO-5.4): pure IR reader — no vim.notify, no vim API calls.
+-- REFACTOR (TODO-5.4): pure IR reader — no side-effects, no vim API calls.
 -- Missing IR fields: return { error = "..." } for emitter to surface.
 
 local M = {}

@@ -107,7 +107,9 @@ end
 local function try_ast_cache(modules, profile)
   local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile)
-  if key == "" then return nil end
+  if key == "" then
+    return nil
+  end
   local cached = cache.load("ast", key)
   if cached then
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
@@ -147,17 +149,15 @@ function M.build()
 
   -- Full pipeline run (with optional AST cache injection)
   local pipeline = require("runtime.pipeline")
-  local specs = pipeline.run(modules, profile, cached_caps)
+  local specs, run_ir = pipeline.run(modules, profile, cached_caps)
 
   -- Persist spec tier for next startup
   persist_cache(modules, profile, specs)
 
-  -- Persist AST tier only when we ran a full collect (no cached_caps)
-  if not cached_caps then
-    local ok, ast_ir = pcall(pipeline.debug_run, modules, "collect", profile)
-    if ok and ast_ir and ast_ir.caps then
-      persist_ast_cache(modules, profile, ast_ir.caps)
-    end
+  -- Persist AST tier from the run IR (no second pipeline run needed).
+  -- Only when we ran a full collect (no cached_caps); caps are in run_ir.
+  if not cached_caps and run_ir and run_ir.caps then
+    persist_ast_cache(modules, profile, run_ir.caps)
   end
   return specs
 end

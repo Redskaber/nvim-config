@@ -15,7 +15,7 @@ OUTPUT_FILE="$2"
 
 while IFS= read -r filepath; do
   if [ -f "$filepath" ]; then
-    echo "--- FILE-START ---" >>"$OUTPUT_FILE"
+    echo "--- FILE-START: $filepath ---" >>"$OUTPUT_FILE"
     cat "$filepath" >>"$OUTPUT_FILE"
     echo "--- FILE-END ---" >>"$OUTPUT_FILE"
   else

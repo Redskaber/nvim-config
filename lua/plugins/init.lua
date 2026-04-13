@@ -22,43 +22,43 @@
 
 -- Ordered sub-module list — determines spec merge order for lazy.nvim.
 local SUB_MODULES = {
-    "plugins.ai.ai",
-    "plugins.coding.coding",
-    "plugins.coding.comments",
-    "plugins.coding.pairs",
-    "plugins.coding.snip",
-    "plugins.editor.editor",
-    "plugins.editor.cursor",
-    "plugins.formatting.formatting",
-    "plugins.linting.linting",
-    "plugins.lsp.lsp",
-    "plugins.treesitter.treesitter",
-    "plugins.sys.git",
-    "plugins.sys.terminal",
-    "plugins.theme.theme",
-    "plugins.ui.ui",
-    "plugins.ui.snacks",
+  "plugins.ai.ai",
+  "plugins.coding.coding",
+  "plugins.coding.comments",
+  "plugins.coding.pairs",
+  "plugins.coding.snip",
+  "plugins.editor.editor",
+  "plugins.editor.cursor",
+  "plugins.formatting.formatting",
+  "plugins.linting.linting",
+  "plugins.lsp.lsp",
+  "plugins.treesitter.treesitter",
+  "plugins.sys.git",
+  "plugins.sys.terminal",
+  "plugins.theme.theme",
+  "plugins.ui.ui",
+  "plugins.ui.snacks",
 }
 
 local specs = {}
 
 for _, modname in ipairs(SUB_MODULES) do
-    local ok, result = pcall(require, modname)
-    if not ok then
-        -- Surface load errors without crashing the whole startup
-        vim.notify("[plugins.init] failed to load " .. modname .. ":\n" .. tostring(result), vim.log.levels.ERROR)
-    elseif type(result) == "table" then
-        -- Each module returns either a single spec or a list of specs
-        if #result > 0 and type(result[1]) == "table" then
-            -- List of specs: flatten into specs
-            for _, spec in ipairs(result) do
-                specs[#specs + 1] = spec
-            end
-        else
-            -- Single spec table
-            specs[#specs + 1] = result
-        end
+  local ok, result = pcall(require, modname)
+  if not ok then
+    -- Surface load errors without crashing the whole startup
+    vim.notify("[plugins.init] failed to load " .. modname .. ":\n" .. tostring(result), vim.log.levels.ERROR)
+  elseif type(result) == "table" then
+    -- Each module returns either a single spec or a list of specs
+    if #result > 0 and type(result[1]) == "table" then
+      -- List of specs: flatten into specs
+      for _, spec in ipairs(result) do
+        specs[#specs + 1] = spec
+      end
+    else
+      -- Single spec table
+      specs[#specs + 1] = result
     end
+  end
 end
 
 return specs

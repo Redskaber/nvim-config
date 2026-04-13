@@ -88,7 +88,12 @@ function M.freeze(t, label)
   if not _G._ltos_debug_freeze then
     return t
   end
-  return setmetatable({}, {
+  -- LuaJIT (Lua 5.1 compat): __pairs metamethod is NOT supported.
+  -- We use a proxy that blocks writes but forwards reads via __index.
+  -- Iteration via pairs() on the proxy returns nothing (LuaJIT limitation);
+  -- callers that need to iterate must use the original table.
+  -- To support ir_mod.with() correctly, we attach the original table as __ltos_src.
+  local proxy = setmetatable({}, {
     __index = t,
     __newindex = function(_, k)
       error(
@@ -99,13 +104,23 @@ function M.freeze(t, label)
         2
       )
     end,
-    __pairs = function()
-      return pairs(t)
-    end,
     __len = function()
       return #t
     end,
+    __ltos_src = t, -- expose original for ir_mod.with() to iterate
   })
+  return proxy
+end
+
+--- Extract the original (unfrozen) table from a freeze proxy, or return t as-is.
+---@param t table
+---@return table
+function M.unfreeze(t)
+  local mt = getmetatable(t)
+  if mt and mt.__ltos_src then
+    return mt.__ltos_src
+  end
+  return t
 end
 
 --- Split a module path "foo.bar.baz" and return the last segment "baz".
@@ -146,10 +161,10 @@ local function fnv1a_lua(str)
 end
 
 --- Hash a string using FNV-1a (auto-selects JIT or pure-Lua).
-M.hash           = _bit and fnv1a_jit or fnv1a_lua
+M.hash = _bit and fnv1a_jit or fnv1a_lua
 
 -- Expose individual implementations for testing
-M.fnv1a          = fnv1a_jit
+M.fnv1a = fnv1a_jit
 M.fnv1a_fallback = fnv1a_lua
 
 --- Hash the contents of a file. Returns nil if file cannot be read.
@@ -157,11 +172,27 @@ M.fnv1a_fallback = fnv1a_lua
 ---@return string|nil  8-char hex string
 function M.file_content_hash(path)
   local f = io.open(path, "r")
-  if not f then return nil end
+  if not f then
+    return nil
+  end
   local content = f:read("*a")
   f:close()
-  if not content then return nil end
+  if not content then
+    return nil
+  end
   return string.format("%08x", M.hash(content))
 end
 
+--- Pure deep-copy (no vim API dependency).
+--- Handles tables recursively; functions and userdata are copied by reference.
+---@param t any
+---@return any
+function M.deep_copy(t)
+  if type(t) ~= "table" then return t end
+  local copy = {}
+  for k, v in pairs(t) do
+    copy[k] = M.deep_copy(v)
+  end
+  return copy
+end
 return M

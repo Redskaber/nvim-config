@@ -36,10 +36,8 @@ local collect_pass = {
       local ok, result = pcall(require, mod)
       if not ok then
         diags[#diags + 1] = ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
-        vim.notify("[pipeline.collect] failed to load: " .. tostring(result), vim.log.levels.WARN)
       elseif type(result) ~= "table" then
         diags[#diags + 1] = ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
-        vim.notify("[pipeline.collect] module did not return a table: " .. mod, vim.log.levels.WARN)
       else
         local name = mod:match("([^.]+)$") or mod
         -- Compute per-module content hash for incremental tracking
@@ -60,25 +58,20 @@ local collect_pass = {
             schema_d.severity or "error"
           )
         end
-
-        if not add_result.ok then
-          vim.notify(("[pipeline.collect] schema validation failed for %s"):format(mod), vim.log.levels.WARN)
-        end
       end
     end
 
-    -- Embed snapshot into new IR (copy-on-write)
-    local next_ir = ir_mod.clone(ir)
-    next_ir.stage = "AST"
-    -- Store per-module hashes in meta for downstream cache validation
-    next_ir.meta.module_hashes = module_hashes
+    -- Embed snapshot into new IR (copy-on-write via ir_mod.with, never direct mutation)
+    local next_ir = ir_mod.with(ir, {
+      stage = "AST",
+      meta = util.merge(ir.meta or {}, { module_hashes = module_hashes }),
+      caps = cap_mod.snapshot(cap_set),
+      diagnostics = ir.diagnostics or {},
+    })
     -- Accumulate all diagnostics
     for _, d in ipairs(diags) do
       next_ir = ir_mod.append_diag(next_ir, d)
     end
-    -- Snapshot: deep-copy so IR is independent of cap_set
-    next_ir.caps = cap_mod.snapshot(cap_set)
-
     return next_ir
   end,
 }

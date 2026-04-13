@@ -16,7 +16,7 @@
 --   • debug-mode freeze on input IR in run_phase (via util.freeze)
 
 local M = {}
--- util.freeze is used by pass.lua (debug mode); not needed directly here
+local util = require("core.kernel.util") -- for unfreeze in ir.with()
 
 -- ── Stage enum ────────────────────────────────────────────────────────────────
 
@@ -188,12 +188,15 @@ function M.clone(ir)
 end
 
 --- Shallow-copy an IR, replacing selected top-level fields (copy-on-write).
+--- Handles freeze proxies correctly (LuaJIT __pairs not supported).
 ---@param ir      IR
 ---@param patches table
 ---@return IR
 function M.with(ir, patches)
+  -- util.unfreeze: if ir is a freeze proxy, get the original table for iteration
+  local src = util.unfreeze(ir)
   local next_ir = {}
-  for k, v in pairs(ir) do
+  for k, v in pairs(src) do
     next_ir[k] = v
   end
   for k, v in pairs(patches) do
@@ -288,8 +291,12 @@ function M.diff(old, new)
   local function walk(a, b, path)
     -- Compare top-level keys present in either
     local keys = {}
-    for k in pairs(a) do keys[k] = true end
-    for k in pairs(b) do keys[k] = true end
+    for k in pairs(a) do
+      keys[k] = true
+    end
+    for k in pairs(b) do
+      keys[k] = true
+    end
 
     for k in pairs(keys) do
       local av, bv = a[k], b[k]
@@ -312,14 +319,12 @@ end
 ---@param changes { path: string, old: any, new: any }[]
 ---@return string
 function M.format_diff(changes)
-  if #changes == 0 then return "(no changes)" end
+  if #changes == 0 then
+    return "(no changes)"
+  end
   local lines = {}
   for _, c in ipairs(changes) do
-    lines[#lines + 1] = ("  %s: %s → %s"):format(
-      c.path,
-      tostring(c.old):sub(1, 60),
-      tostring(c.new):sub(1, 60)
-    )
+    lines[#lines + 1] = ("  %s: %s → %s"):format(c.path, tostring(c.old):sub(1, 60), tostring(c.new):sub(1, 60))
   end
   return table.concat(lines, "\n")
 end

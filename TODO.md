@@ -48,9 +48,9 @@
 * [x] `vim.g.ltos_debug` → 扩展为：
 
   * [x] `LTOS_DEBUG=trace|ir|cache|perf`（`config/globals.lua` 解析环境变量）
-* [ ] debug 输出结构化：
+* [x] debug 输出结构化：
 
-  * [ ] JSON lines（可后续可视化）
+  * [x] JSON lines（`LTOS_DEBUG=trace` → `vim.json.encode` 输出到 `vim.notify`）
 
 ---
 
@@ -225,7 +225,7 @@ new_set, result = cap_mod.add(set, name, data)
 ## TODO-4.1 Strategy = 纯函数化
 
 * [x] `resolve(bufnr) -> string[]` 是纯函数
-* [ ] `applies` 字段从 interface 中保留（向后兼容），builtin 策略不使用它
+* [x] `applies` 字段从 interface 中保留（向后兼容），builtin 策略已实现 `applies` 字段
 
 ---
 
@@ -550,23 +550,46 @@ ir.format_diff(changes)  -- human-readable string
 * `new_sm()` 工厂，每次 run 独立实例
 * 非法 transition → ERROR 状态
 
-### 🔄 5. 剩余待完成
+### ✅ 5. Phase 纯函数性已强化（本次修复）
+
+* `normalize.lua` 移除 `vim.notify`，改用 IR diagnostics（Invariant 2 合规）
+* `capability.lua` 移除 `vim.notify`，domain 层纯函数化（Invariant 2 合规）
+* `collect.lua` 移除 `vim.notify`，所有错误通过 IR diagnostics 传播
+* `optimize.lua` 移除 `vim.list_extend` / `vim.tbl_deep_extend`，改用 `util.deep_merge`（Invariant 2 合规）
+* `runtime/init.lua` 修复双重 pipeline 运行 bug（AST cache 从 `run()` 返回的 IR 中提取）
+* `builtin.lua` 策略改为完整 Strategy 对象（含 `applies` 字段，符合 TODO-4.1）
+* `pipeline.run()` 返回 `(specs, ir)` 二元组，支持 AST cache 持久化
+* TODO-0.3 debug JSON lines 输出已实现（`LTOS_DEBUG=trace`）
+* `util.freeze` / `util.unfreeze` 修复 LuaJIT `__pairs` 不支持问题
+* `ir_mod.with()` 使用 `util.unfreeze` 正确处理冻结代理
+
+### ✅ 6. 测试矩阵已完善（本次补全）
+
+* `spec/toolchain/rules_spec.lua` 新增（规则管道全覆盖）
+* `spec/core/ir_spec.lua` 补全：`ir.transition()` / `ir.assert_stage()` / `ir.ctx()` / `ir.diff()` / `ir.format_diff()`
+* `spec/core/pass_spec.lua` 补全：`run_with_ctx()` 三个测试
+* `spec/core/cache_spec.lua` 补全：key 计算（content hash / schema version / determinism）
+* `spec/core/schema_spec.lua` 补全：version 兼容性（TODO-6.1）/ SchemaDiagnostic.code
+* `spec/toolchain/strategies_spec.lua` 补全：`applies` 字段 / `priority` / `stylua_or_lua_format` / `resolve()` 多分派
+* `spec/runtime/pipeline_spec.lua` 补全：`run()` 返回二元组 / freeze 泄漏检测
+* 总计：151 个测试，全部通过
+
+### 🔄 7. 剩余待完成
 
 * TODO-0.2：IR 字段命名规范（`caps` 跨阶段复用）— 重大重构，需谨慎
 * TODO-2.2：各 pass 文件迁移到 `run(ctx) -> ctx` 签名
 * TODO-7.1：dirty-only recompile（normalize 以下阶段的增量化）
 * TODO-7.3：node-level cache invalidation
 * TODO-6.2/6.3：DSL 声明式约束 + plugins 去逻辑化
-* TODO-8.1：IR snapshot golden test
-* TODO-8.2：error recovery 测试
-* TODO-10.1：README 对齐
+* TODO-9.2：lazy evaluation（formatter fn 延迟注入 / LSP config lazy merge）
+* TODO-10.1：README 对齐（标注 guarantee vs 目标）
 
 ---
 
 # 优先级建议（剩余）
 
-1. **TODO-8.1/8.2** 测试补全（error recovery + IR snapshot）
-2. **TODO-2.2** 各 pass 迁移到 ctx 签名
-3. **TODO-7.1** dirty-only recompile
-4. **TODO-0.2** IR 字段命名规范（breaking change，需版本规划）
+1. **TODO-2.2** 各 pass 迁移到 ctx 签名（基础设施完备，逐步迁移）
+2. **TODO-7.1** dirty-only recompile（normalize 以下增量化）
+3. **TODO-0.2** IR 字段命名规范（breaking change，需版本规划）
+4. **TODO-9.2** lazy evaluation（启动性能优化）
 
