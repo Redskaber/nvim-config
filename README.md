@@ -4,21 +4,23 @@ A Neovim configuration built on **LazyVim** with a custom compiler-inspired tool
 
 ## Requirements
 
-| Dependency                                       | Notes                    |
-| ------------------------------------------------ | ------------------------ |
-| Neovim ≥ 0.11                                    | required                 |
-| Git                                              | lazy.nvim bootstrap      |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | grep / search            |
-| [fd](https://github.com/sharkdp/fd)              | file finding             |
-| A [Nerd Font](https://www.nerdfonts.com/)        | icons / glyphs           |
-| Node.js                                          | many LSP servers         |
-| Python 3                                         | pyright, ruff, etc.      |
-| Rust toolchain                                   | rust_analyzer, rustfmt   |
-| Go toolchain                                     | gopls, gofmt             |
-| Zig toolchain                                    | zls, zigfmt              |
-| `stylua`                                         | Lua formatter (system)   |
-| `shfmt`                                          | shell formatter (system) |
-| `shellcheck`                                     | shell linter (system)    |
+| Dependency                                       | Notes                              |
+| ------------------------------------------------ | ---------------------------------- |
+| Neovim ≥ 0.11                                    | required                           |
+| Git                                              | lazy.nvim bootstrap                |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | grep / search                      |
+| [fd](https://github.com/sharkdp/fd)              | file finding                       |
+| A [Nerd Font](https://www.nerdfonts.com/)        | icons / glyphs                     |
+| Node.js                                          | vtsls, bash-language-server, etc.  |
+| Python 3                                         | pyright, ruff, black, isort        |
+| Rust toolchain                                   | rust_analyzer, rustfmt, clippy     |
+| Go toolchain                                     | gopls, gofmt, goimports            |
+| Zig toolchain                                    | zls, zigfmt                        |
+| Java ≥ 17                                        | jdtls, google-java-format          |
+| Kotlin toolchain                                 | kotlin-language-server, ktfmt      |
+| `stylua`                                         | Lua formatter (system)             |
+| `shfmt`                                          | shell formatter (system)           |
+| `shellcheck`                                     | shell linter (system)              |
 
 On **NixOS / nix-darwin**: tools detected via `core/env.lua` (`M.is_nix`). System-managed binaries are never installed via mason.
 
@@ -167,7 +169,7 @@ Strategies encapsulate toolchain decisions behind a uniform interface, decoupled
 ---@field priority  number
 ```
 
-**StrategyRegistry** (`toolchain/strategies/init.lua`) supports `register(kind, strategy)` and `resolve(kind, node)`. Built-in strategy kinds: `formatter`, `lsp`, `install` (mason / system).
+**StrategyRegistry** (`toolchain/strategy/registry.lua`) supports `register(strategy)` and `get(name)` / `list()`. Built-in strategy kinds: `formatter`.
 
 **Toolchain resolution priority:**
 
@@ -265,7 +267,7 @@ lua/
 │   ├── strategy/                  Strategy Pattern — three-file separation
 │   │   ├── interface.lua          Strategy type contract (LuaLS annotations only)
 │   │   ├── registry.lua           StrategyRegistry: register / get / list / bootstrap
-│   │   └── builtin.lua            built-in strategies: ruff_or_black, prettierd_or_prettier
+│   │   ├── builtin.lua            built-in strategies: ruff_or_black, prettierd_or_prettier, stylua_or_lua_format
 │   ├── mappings.lua               tool → mason package; system_tools set
 │   └── rules.lua                  ToolchainStrategy: mason-vs-system decision rules
 │
@@ -277,7 +279,8 @@ lua/
 │   ├── passes/                    [L4] compiler phases (pure IR transforms, copy-on-write)
 │   │   ├── collect.lua            Phase 1: IDLE→COLLECTING, DSL→AST
 │   │   ├── normalize.lua          Phase 2: COLLECTING→NORMALIZING, AST→HIR
-│   │   ├── resolve.lua            Phase 3: NORMALIZING→RESOLVING, HIR→MIR
+│   │   ├── canonicalize.lua       Phase 2.5: NORMALIZING→CANONICALIZING, HIR→HIR+symbols
+│   │   ├── resolve.lua            Phase 3: CANONICALIZING→RESOLVING, HIR+→MIR
 │   │   ├── optimize.lua           Phase 4: RESOLVING→OPTIMIZING, MIR→LIR
 │   │   └── codegen.lua            Phase 5: OPTIMIZING→CODEGEN→DONE, LIR→SPEC
 │   └── adapters/                  [L4] backend — read-only IR consumers
@@ -288,16 +291,20 @@ lua/
 │       └── lint.lua
 │
 ├── modules/lang/                  Layer 5: DSL — pure declarations, zero side-effects
-│   ├── c_cpp.lua
-│   ├── go.lua
-│   ├── lua_lang.lua
-│   ├── markup.lua                 json/jsonc/yaml/toml/html/css/scss/md
-│   ├── nix.lua
-│   ├── python.lua
-│   ├── rust.lua
-│   ├── shell.lua
-│   ├── typescript.lua             js/ts/jsx/tsx
-│   └── zig.lua
+│   ├── asm.lua                    x86/x64 assembly (asm_lsp)
+│   ├── c_cpp.lua                  C / C++ (clangd, clang-format, clangtidy)
+│   ├── go.lua                     Go (gopls, gofmt, goimports)
+│   ├── java.lua                   Java (jdtls, google-java-format, checkstyle)
+│   ├── kotlin.lua                 Kotlin (kotlin_language_server, ktfmt, ktlint)
+│   ├── lisp.lua                   Lisp / Clojure (clojure_lsp, cljfmt, clj-kondo)
+│   ├── lua_lang.lua               Lua (lua_ls, stylua)
+│   ├── markup.lua                 JSON/JSONC/YAML/TOML/HTML/CSS/SCSS/Markdown
+│   ├── nix.lua                    Nix (nil_ls, nixpkgs_fmt — system)
+│   ├── python.lua                 Python (pyright, ruff-or-black, ruff)
+│   ├── rust.lua                   Rust (rust_analyzer, rustfmt — system, clippy — system)
+│   ├── shell.lua                  Bash/Fish (bashls, shfmt, shellcheck)
+│   ├── typescript.lua             JS/TS/JSX/TSX (vtsls, prettierd-or-prettier, eslint_d)
+│   └── zig.lua                    Zig (zls, zigfmt — system)
 │
 ├── config/                        Layer 5: app config — zero compiler knowledge
 │   ├── autocmds.lua
@@ -327,16 +334,22 @@ lua/
 Each file under `modules/lang/` is a pure Lua table — no `require`, no side effects, no vim API.
 
 ```lua
--- modules/lang/typescript.lua
+-- modules/lang/typescript.lua  (actual current content)
 return {
-  treesitter = { "javascript", "typescript", "tsx" },
+  version    = 1,
+  treesitter = { "javascript", "typescript", "tsx", "jsdoc" },
   lsp        = { vtsls = { settings = { ... } } },
   formatters = {
-    typescript      = { "prettierd" },
-    typescriptreact = { "prettierd" },
+    typescript      = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
+    typescriptreact = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
   },
-  linters = { typescript = { "eslint" } },
-  mason   = { "vtsls", "prettierd" },
+  linters = {
+    typescript      = { "eslint_d" },
+    typescriptreact = { "eslint_d" },
+  },
+  -- LSP packages are resolved automatically via lsp_to_mason — never put them here.
+  -- mason[] is for formatter / linter tools only.
+  mason = { "prettierd", "eslint_d" },
 }
 ```
 
@@ -349,17 +362,21 @@ formatters = {
 },
 ```
 
-| Strategy                | Behavior                                             |
-| ----------------------- | ---------------------------------------------------- |
-| `ruff_or_black`         | prefers `ruff_format`; falls back to `isort + black` |
-| `prettierd_or_prettier` | prefers `prettierd`; falls back to `prettier`        |
+| Strategy                  | Behavior                                              |
+| ------------------------- | ----------------------------------------------------- |
+| `ruff_or_black`           | prefers `ruff_format`; falls back to `isort + black`  |
+| `prettierd_or_prettier`   | prefers `prettierd`; falls back to `prettier`         |
+| `stylua_or_lua_format`    | prefers `stylua`; falls back to `lua_format`          |
 
 Register custom strategies before the pipeline runs:
 
 ```lua
-require("toolchain.strategies").register("my_strategy", function(bufnr)
-  return { "my_formatter" }
-end)
+require("toolchain.strategy.registry").register({
+  name     = "my_strategy",
+  applies  = function(tool) return tool == "my_strategy" end,
+  resolve  = function(bufnr) return { "my_formatter" } end,
+  priority = 50,
+})
 ```
 
 ### Adding a New Language
@@ -368,15 +385,18 @@ Create `lua/modules/lang/mylang.lua`:
 
 ```lua
 return {
+  version    = 1,
   treesitter = { "mylang" },
-  lsp        = { mylang_ls = {} },
+  lsp        = { mylang_ls = {} },          -- LSP pkg resolved via lsp_to_mason automatically
   formatters = { mylang = { "myfmt" } },
   linters    = { mylang = { "mylint" } },
-  mason      = { "mylang-language-server" },
+  mason      = { "myfmt", "mylint" },       -- formatter/linter tools only; never LSP names here
 }
 ```
 
-Add the module path to `LANG_MODULES` in `lua/runtime/init.lua`. LSP mason packages are resolved automatically — only formatter/linter tool names belong in `mason = {}`.
+Add `"modules.lang.mylang"` to `LANG_MODULES` in `lua/runtime/init.lua`.
+If the LSP server name differs from its mason package name, add an entry to `lsp_to_mason` in `lua/toolchain/mappings.lua`.
+If a formatter/linter tool name differs from its mason package name, add an entry to `tool_to_mason`.
 
 ---
 
@@ -456,18 +476,22 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 
 ## Supported Languages
 
-| Language                        | LSP                   | Formatter         | Linter     |
-| ------------------------------- | --------------------- | ----------------- | ---------- |
-| C / C++                         | clangd                | clang-format      | clangtidy  |
-| Go                              | gopls                 | gofmt             | —          |
-| Lua                             | lua_ls                | stylua            | —          |
-| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo | taplo / prettierd | —          |
-| Nix                             | nil_ls                | nixpkgs_fmt       | —          |
-| Python                          | pyright               | ruff-or-black     | ruff       |
-| Rust                            | rust_analyzer         | rustfmt           | clippy     |
-| Shell                           | —                     | shfmt             | shellcheck |
-| TypeScript / JavaScript         | vtsls                 | prettierd         | eslint     |
-| Zig                             | zls                   | zigfmt            | —          |
+| Language                        | LSP                          | Formatter                  | Linter              |
+| ------------------------------- | ---------------------------- | -------------------------- | ------------------- |
+| Assembly (x86/x64)              | asm_lsp                      | —                          | —                   |
+| C / C++                         | clangd                       | clang-format               | clangtidy (system)  |
+| Go                              | gopls                        | gofmt (system), goimports  | —                   |
+| Java                            | jdtls                        | google-java-format         | checkstyle          |
+| Kotlin                          | kotlin_language_server       | ktfmt                      | ktlint              |
+| Lisp / Clojure                  | clojure_lsp                  | cljfmt                     | clj-kondo           |
+| Lua                             | lua_ls                       | stylua                     | —                   |
+| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo        | taplo / prettierd          | —                   |
+| Nix                             | nil_ls                       | nixpkgs_fmt (system)       | —                   |
+| Python                          | pyright                      | ruff-or-black              | ruff                |
+| Rust                            | rust_analyzer                | rustfmt (system)           | clippy (system)     |
+| Shell (Bash/Fish)               | bashls                       | shfmt, fish_indent (system)| shellcheck          |
+| TypeScript / JavaScript         | vtsls                        | prettierd-or-prettier      | eslint_d            |
+| Zig                             | zls                          | zigfmt (system)            | —                   |
 
 ---
 
