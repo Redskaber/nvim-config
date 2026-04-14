@@ -56,7 +56,7 @@ M.tool_to_mason = {
   -- Java
   checkstyle = "checkstyle",
   -- JS/TS
-  eslint_d = "eslint_d",
+  eslint = "eslint_d", -- eslint tool name → eslint_d mason package (eslint_d is identity)
   prettierd = "prettierd",
   prettier = "prettier",
   -- Go

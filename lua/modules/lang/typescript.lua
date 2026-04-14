@@ -52,10 +52,10 @@ return {
     typescriptreact = { { kind = "formatter", strategy = "prettierd_or_prettier" } },
   },
   linters = {
-    javascript = { "eslint" },
-    javascriptreact = { "eslint" },
-    typescript = { "eslint" },
-    typescriptreact = { "eslint" },
+    javascript = { "eslint_d" },
+    javascriptreact = { "eslint_d" },
+    typescript = { "eslint_d" },
+    typescriptreact = { "eslint_d" },
   },
   mason = { "prettierd", "eslint_d" },
 }
