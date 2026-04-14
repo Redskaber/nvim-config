@@ -4,23 +4,23 @@ A Neovim configuration built on **LazyVim** with a custom compiler-inspired tool
 
 ## Requirements
 
-| Dependency                                       | Notes                              |
-| ------------------------------------------------ | ---------------------------------- |
-| Neovim ≥ 0.11                                    | required                           |
-| Git                                              | lazy.nvim bootstrap                |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | grep / search                      |
-| [fd](https://github.com/sharkdp/fd)              | file finding                       |
-| A [Nerd Font](https://www.nerdfonts.com/)        | icons / glyphs                     |
-| Node.js                                          | vtsls, bash-language-server, etc.  |
-| Python 3                                         | pyright, ruff, black, isort        |
-| Rust toolchain                                   | rust_analyzer, rustfmt, clippy     |
-| Go toolchain                                     | gopls, gofmt, goimports            |
-| Zig toolchain                                    | zls, zigfmt                        |
-| Java ≥ 17                                        | jdtls, google-java-format          |
-| Kotlin toolchain                                 | kotlin-language-server, ktfmt      |
-| `stylua`                                         | Lua formatter (system)             |
-| `shfmt`                                          | shell formatter (system)           |
-| `shellcheck`                                     | shell linter (system)              |
+| Dependency                                       | Notes                             |
+| ------------------------------------------------ | --------------------------------- |
+| Neovim ≥ 0.11                                    | required                          |
+| Git                                              | lazy.nvim bootstrap               |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | grep / search                     |
+| [fd](https://github.com/sharkdp/fd)              | file finding                      |
+| A [Nerd Font](https://www.nerdfonts.com/)        | icons / glyphs                    |
+| Node.js                                          | vtsls, bash-language-server, etc. |
+| Python 3                                         | pyright, ruff, black, isort       |
+| Rust toolchain                                   | rust_analyzer, rustfmt, clippy    |
+| Go toolchain                                     | gopls, gofmt, goimports           |
+| Zig toolchain                                    | zls, zigfmt                       |
+| Java ≥ 17                                        | jdtls, google-java-format         |
+| Kotlin toolchain                                 | kotlin-language-server, ktfmt     |
+| `stylua`                                         | Lua formatter (system)            |
+| `shfmt`                                          | shell formatter (system)          |
+| `shellcheck`                                     | shell linter (system)             |
 
 On **NixOS / nix-darwin**: tools detected via `core/env.lua` (`M.is_nix`). System-managed binaries are never installed via mason.
 
@@ -111,14 +111,14 @@ idle → collecting → normalizing → canonicalizing → resolving → optimiz
 
 #### Five phases
 
-| Phase             | SM transition                      | IR layer in | IR layer out | Responsibility                                                            |
-| ----------------- | ---------------------------------- | ----------- | ------------ | ------------------------------------------------------------------------- |
-| **collect**       | idle → collecting                  | —           | AST          | Load & validate lang module DSL into `IR.caps`                            |
-| **normalize**     | collecting → normalizing           | AST         | HIR          | Inject `FormatterNode.fn`; deep-copy; registry untouched                  |
-| **canonicalize**  | normalizing → canonicalizing       | HIR         | HIR+         | Build `IR.symbols`: lsp/tool → canonical mason pkg (single source of truth) |
-| **resolve**       | canonicalizing → resolving         | HIR+        | MIR          | Project `IR.symbols` → `IR.resolved` (mason/system decisions)             |
-| **optimize**      | resolving → optimizing             | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers` |
-| **codegen**       | optimizing → codegen               | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                     |
+| Phase            | SM transition                | IR layer in | IR layer out | Responsibility                                                              |
+| ---------------- | ---------------------------- | ----------- | ------------ | --------------------------------------------------------------------------- |
+| **collect**      | idle → collecting            | —           | AST          | Load & validate lang module DSL into `IR.caps`                              |
+| **normalize**    | collecting → normalizing     | AST         | HIR          | Inject `FormatterNode.fn`; deep-copy; registry untouched                    |
+| **canonicalize** | normalizing → canonicalizing | HIR         | HIR+         | Build `IR.symbols`: lsp/tool → canonical mason pkg (single source of truth) |
+| **resolve**      | canonicalizing → resolving   | HIR+        | MIR          | Project `IR.symbols` → `IR.resolved` (mason/system decisions)               |
+| **optimize**     | resolving → optimizing       | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers`   |
+| **codegen**      | optimizing → codegen         | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                       |
 
 #### IR sub-layers (immutable, copy-on-write)
 
@@ -362,11 +362,11 @@ formatters = {
 },
 ```
 
-| Strategy                  | Behavior                                              |
-| ------------------------- | ----------------------------------------------------- |
-| `ruff_or_black`           | prefers `ruff_format`; falls back to `isort + black`  |
-| `prettierd_or_prettier`   | prefers `prettierd`; falls back to `prettier`         |
-| `stylua_or_lua_format`    | prefers `stylua`; falls back to `lua_format`          |
+| Strategy                | Behavior                                             |
+| ----------------------- | ---------------------------------------------------- |
+| `ruff_or_black`         | prefers `ruff_format`; falls back to `isort + black` |
+| `prettierd_or_prettier` | prefers `prettierd`; falls back to `prettier`        |
+| `stylua_or_lua_format`  | prefers `stylua`; falls back to `lua_format`         |
 
 Register custom strategies before the pipeline runs:
 
@@ -476,22 +476,22 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 
 ## Supported Languages
 
-| Language                        | LSP                          | Formatter                  | Linter              |
-| ------------------------------- | ---------------------------- | -------------------------- | ------------------- |
-| Assembly (x86/x64)              | asm_lsp                      | —                          | —                   |
-| C / C++                         | clangd                       | clang-format               | clangtidy (system)  |
-| Go                              | gopls                        | gofmt (system), goimports  | —                   |
-| Java                            | jdtls                        | google-java-format         | checkstyle          |
-| Kotlin                          | kotlin_language_server       | ktfmt                      | ktlint              |
-| Lisp / Clojure                  | clojure_lsp                  | cljfmt                     | clj-kondo           |
-| Lua                             | lua_ls                       | stylua                     | —                   |
-| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo        | taplo / prettierd          | —                   |
-| Nix                             | nil_ls                       | nixpkgs_fmt (system)       | —                   |
-| Python                          | pyright                      | ruff-or-black              | ruff                |
-| Rust                            | rust_analyzer                | rustfmt (system)           | clippy (system)     |
-| Shell (Bash/Fish)               | bashls                       | shfmt, fish_indent (system)| shellcheck          |
-| TypeScript / JavaScript         | vtsls                        | prettierd-or-prettier      | eslint_d            |
-| Zig                             | zls                          | zigfmt (system)            | —                   |
+| Language                        | LSP                    | Formatter                   | Linter             |
+| ------------------------------- | ---------------------- | --------------------------- | ------------------ |
+| Assembly (x86/x64)              | asm_lsp                | —                           | —                  |
+| C / C++                         | clangd                 | clang-format                | clangtidy (system) |
+| Go                              | gopls                  | gofmt (system), goimports   | —                  |
+| Java                            | jdtls                  | google-java-format          | checkstyle         |
+| Kotlin                          | kotlin_language_server | ktfmt                       | ktlint             |
+| Lisp / Clojure                  | clojure_lsp            | cljfmt                      | clj-kondo          |
+| Lua                             | lua_ls                 | stylua                      | —                  |
+| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo  | taplo / prettierd           | —                  |
+| Nix                             | nil_ls                 | nixpkgs_fmt (system)        | —                  |
+| Python                          | pyright                | ruff-or-black               | ruff               |
+| Rust                            | rust_analyzer          | rustfmt (system)            | clippy (system)    |
+| Shell (Bash/Fish)               | bashls                 | shfmt, fish_indent (system) | shellcheck         |
+| TypeScript / JavaScript         | vtsls                  | prettierd-or-prettier       | eslint_d           |
+| Zig                             | zls                    | zigfmt (system)             | —                  |
 
 ---
 
