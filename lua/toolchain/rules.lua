@@ -17,9 +17,13 @@ local M = {}
 ---@param tool string
 ---@return table|nil
 local function override_rule(tool)
-  local overrides = vim.g.ltos_tool_overrides or mappings.overrides or {}
-  if overrides[tool] then
-    return overrides[tool] -- { use_mason, pkg }
+  -- Check vim.g.ltos_tool_overrides first, then mappings.overrides
+  local g_overrides = vim.g.ltos_tool_overrides
+  if type(g_overrides) == "table" and g_overrides[tool] then
+    return g_overrides[tool]
+  end
+  if mappings.overrides[tool] then
+    return mappings.overrides[tool]
   end
   return nil
 end

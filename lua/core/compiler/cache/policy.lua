@@ -70,6 +70,10 @@ function M.load(tier, key)
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
       vim.notify(("[cache:%s] miss (%s)"):format(tier, err or "read error"), vim.log.levels.DEBUG)
     end
+    -- Miss statistics
+    M._stats = M._stats or {}
+    M._stats[tier] = (M._stats[tier] or { hits = 0, misses = 0 })
+    M._stats[tier].misses = M._stats[tier].misses + 1
     return nil
   end
 
@@ -77,6 +81,10 @@ function M.load(tier, key)
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
       vim.notify(("[cache:%s] miss (version/key mismatch)"):format(tier), vim.log.levels.DEBUG)
     end
+    -- Miss statistics
+    M._stats = M._stats or {}
+    M._stats[tier] = (M._stats[tier] or { hits = 0, misses = 0 })
+    M._stats[tier].misses = M._stats[tier].misses + 1
     return nil
   end
 

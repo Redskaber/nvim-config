@@ -23,8 +23,8 @@ local _locked = false
 
 --- Register a strategy. Accepts either a Strategy table or (name, fn) legacy form.
 --- Throws if called after lock().
----@overload fun(strategy: Strategy)
----@overload fun(name: string, fn: fun(bufnr: integer): string[])
+---@param strategy_or_name Strategy|string  Strategy table, or legacy name string
+---@param fn?              fun(bufnr: integer): string[]  resolver fn (legacy form only)
 function M.register(strategy_or_name, fn)
   if _locked then
     error("strategy registry is locked — cannot register after bootstrap()", 2)

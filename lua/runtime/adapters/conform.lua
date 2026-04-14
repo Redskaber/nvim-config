@@ -31,6 +31,14 @@ function M.build(ir)
               }
             elseif v.name then
               formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = v.name
+            else
+              -- strategy present but fn not injected: normalize pass didn't run or unknown strategy
+              -- emit a _ltos_warn marker so emitter can surface it; do not silently drop
+              formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = {
+                _ltos_warn = ("[ltos:conform] FormatterNode missing fn — strategy=%s not resolved"):format(
+                  tostring(v.strategy)
+                ),
+              }
             end
           end
         end

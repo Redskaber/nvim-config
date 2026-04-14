@@ -6,7 +6,7 @@
 local M = {}
 
 --- Register all built-in formatter strategies into the given registry.
----@param registry { register: fun(name: string, fn: fun(bufnr: integer): string[]) }
+---@param registry { register: fun(strategy_or_name: Strategy|string, fn?: fun(bufnr: integer): string[]) }
 function M.bootstrap(registry)
   -- ruff_or_black: prefer ruff_format; fall back to isort + black
   registry.register({

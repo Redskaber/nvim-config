@@ -10,9 +10,7 @@ return {
     asm = {},
   },
   linters = {
-    asm = {
-      "asm-lint",
-    },
+    asm = {}, -- no widely-available mason linter for asm
   },
   mason = {
     "asm-lsp",

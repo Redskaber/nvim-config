@@ -16,7 +16,7 @@ return {
   },
   formatters = {
     java = {
-      { kind = "formatter", exe = "google-java-format" },
+      { kind = "formatter", name = "google-java-format" },
     },
   },
   linters = {

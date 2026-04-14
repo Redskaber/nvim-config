@@ -8,7 +8,7 @@ return {
   },
   formatters = {
     kotlin = {
-      { kind = "formatter", exe = "ktfmt" },
+      { kind = "formatter", name = "ktfmt" },
     },
   },
   linters = {

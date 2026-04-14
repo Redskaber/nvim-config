@@ -46,13 +46,14 @@ nvim-config/
 │   │   ├── passes/                 # 编译阶段（纯 IR 变换，copy-on-write）
 │   │   │   ├── collect.lua         # Phase 1：IDLE→COLLECTING，DSL→AST
 │   │   │   ├── normalize.lua       # Phase 2：COLLECTING→NORMALIZING，AST→HIR
-│   │   │   ├── resolve.lua         # Phase 3：NORMALIZING→RESOLVING，HIR→MIR
+│   │   │   ├── canonicalize.lua    # Phase 2.5：NORMALIZING→CANONICALIZING，HIR→HIR+symbols
+│   │   │   ├── resolve.lua         # Phase 3：CANONICALIZING→RESOLVING，HIR+→MIR
 │   │   │   ├── optimize.lua        # Phase 4：RESOLVING→OPTIMIZING，MIR→LIR
 │   │   │   └── codegen.lua         # Phase 5：OPTIMIZING→CODEGEN→DONE，LIR→SPEC
 │   │   │
 │   │   └── adapters/               # 后端适配器（只读 IR，驱动 lazy.nvim 插件）
 │   │       ├── lsp.lua             # IR.merged_lsp → nvim-lspconfig + mason-lspconfig LazySpec
-│   │       ├── mason.lua           # IR.resolved → mason.nvim LazySpec
+│   │       ├── mason.lua           # IR.symbols + IR.resolved → mason.nvim LazySpec
 │   │       ├── treesitter.lua      # IR.all_parsers → nvim-treesitter LazySpec
 │   │       ├── conform.lua         # IR.caps.formatters → conform.nvim LazySpec
 │   │       └── lint.lua            # IR.caps.linters → nvim-lint LazySpec
@@ -164,22 +165,23 @@ Layer 0  kernel            core/kernel/bootstrap  core/kernel/env  core/kernel/u
 每次 `pipeline.run()` / `pipeline.debug_run()` 得到**独立状态机实例**（工厂函数 `new_sm()`）。
 
 ```
-IDLE → COLLECTING → NORMALIZING → RESOLVING → OPTIMIZING → CODEGEN → DONE
-                                                                    ↘ ERROR
+IDLE → COLLECTING → NORMALIZING → CANONICALIZING → RESOLVING → OPTIMIZING → CODEGEN → DONE
+                                                                                     ↘ ERROR
 ```
 
 **状态转换表（完整）：**
 
-| 当前状态    | 允许转换到              | 触发条件                        |
-| ----------- | ----------------------- | ------------------------------- |
-| idle        | collecting              | `pipeline.run()` 开始           |
-| collecting  | normalizing, error      | collect phase 完成 / 失败       |
-| normalizing | resolving, error        | normalize phase 完成 / 失败     |
-| resolving   | optimizing, error       | resolve phase 完成 / 失败       |
-| optimizing  | codegen, error          | optimize phase 完成 / 失败      |
-| codegen     | done, error             | codegen build 完成 / 失败       |
-| done        | —                       | 终态                            |
-| error       | —                       | 终态（非法 transition 也到此）  |
+| 当前状态       | 允许转换到                  | 触发条件                           |
+| -------------- | --------------------------- | ---------------------------------- |
+| idle           | collecting                  | `pipeline.run()` 开始              |
+| collecting     | normalizing, error          | collect phase 完成 / 失败          |
+| normalizing    | canonicalizing, error       | normalize phase 完成 / 失败        |
+| canonicalizing | resolving, error            | canonicalize phase 完成 / 失败     |
+| resolving      | optimizing, error           | resolve phase 完成 / 失败          |
+| optimizing     | codegen, error              | optimize phase 完成 / 失败         |
+| codegen        | done, error                 | codegen build 完成 / 失败          |
+| done           | —                           | 终态                               |
+| error          | —                           | 终态（非法 transition 也到此）     |
 
 ### 3.2 IR 子层（不可变，copy-on-write）
 
@@ -192,8 +194,11 @@ DSL 表（modules/lang/*.lua）
     ▼  Phase 2: normalize    COLLECTING → NORMALIZING
    HIR  FormatterNode.fn 已注入（策略已解析为闭包）
     │
-    ▼  Phase 3: resolve      NORMALIZING → RESOLVING
-   MIR  mason vs system 决策已完成（IR.resolved）
+    ▼  Phase 2.5: canonicalize  NORMALIZING → CANONICALIZING
+   HIR+ ir.symbols 已建立（lsp/tool → mason pkg 唯一真相源）
+    │
+    ▼  Phase 3: resolve      CANONICALIZING → RESOLVING
+   MIR  mason vs system 决策已完成（IR.resolved，读自 ir.symbols）
     │
     ▼  Phase 4: optimize     RESOLVING → OPTIMIZING
    LIR  treesitter 去重、LSP 深合并（IR.merged_lsp / IR.all_parsers）
@@ -204,17 +209,18 @@ DSL 表（modules/lang/*.lua）
 
 **IR schema 表（各阶段字段）：**
 
-| 字段           | 类型                        | 首次出现 | 说明                              |
-| -------------- | --------------------------- | -------- | --------------------------------- |
+| 字段           | 类型                        | 首次出现      | 说明                              |
+| -------------- | --------------------------- | ------------- | --------------------------------- |
 | `stage`        | `"AST"\|"HIR"\|"MIR"\|"LIR"\|"SPEC"` | AST | 当前 IR 子层标识         |
-| `caps`         | `table<string, Capability>` | AST      | 验证后的能力快照                  |
-| `diagnostics`  | `Diagnostic[]`              | AST      | 累积诊断（不中断流水线）          |
-| `meta`         | `IRMeta`                    | AST      | 构建元数据（模块列表、时间戳）    |
-| `profile`      | `string`                    | AST      | 构建 profile（full/minimal/nix）  |
-| `resolved`     | `IRResolved`                | MIR      | mason/system 决策结果             |
-| `merged_lsp`   | `table<string, table>`      | LIR      | 去重合并后的 LSP 配置             |
-| `all_parsers`  | `string[]`                  | LIR      | 去重后的 treesitter parser 列表   |
-| `_timings`     | `table<string, number>`     | debug    | debug_run 专用，phase 耗时        |
+| `caps`         | `table<string, Capability>` | AST           | 验证后的能力快照                  |
+| `diagnostics`  | `Diagnostic[]`              | AST           | 累积诊断（不中断流水线）          |
+| `meta`         | `IRMeta`                    | AST           | 构建元数据（模块列表、时间戳）    |
+| `profile`      | `string`                    | AST           | 构建 profile（full/minimal/nix）  |
+| `symbols`      | `IRSymbols`                 | HIR+          | lsp/tool → mason pkg 唯一真相源   |
+| `resolved`     | `IRResolved`                | MIR           | mason/system 决策结果             |
+| `merged_lsp`   | `table<string, table>`      | LIR           | 去重合并后的 LSP 配置             |
+| `all_parsers`  | `string[]`                  | LIR           | 去重后的 treesitter parser 列表   |
+| `_timings`     | `table<string, number>`     | debug         | debug_run 专用，phase 耗时        |
 
 ### 3.3 CompilerContext
 
@@ -241,22 +247,24 @@ DSL 表（modules/lang/*.lua）
 
 **Phase contract 表：**
 
-| Phase      | input_state | output_state | IR in  | IR out | 职责                                    |
-| ---------- | ----------- | ------------ | ------ | ------ | --------------------------------------- |
-| collect    | idle        | collecting   | —      | AST    | 加载 DSL → 验证 → CapabilitySet 快照    |
-| normalize  | collecting  | normalizing  | AST    | HIR    | FormatterNode.strategy → .fn 注入       |
-| resolve    | normalizing | resolving    | HIR    | MIR    | mason/system 决策 → IR.resolved         |
-| optimize   | resolving   | optimizing   | MIR    | LIR    | parser 去重 + LSP 深合并                |
-| codegen    | optimizing  | codegen      | LIR    | SPEC   | 驱动 adapters → LazySpec[]              |
+| Phase         | input_state    | output_state   | IR in  | IR out | 职责                                    |
+| ------------- | -------------- | -------------- | ------ | ------ | --------------------------------------- |
+| collect       | idle           | collecting     | —      | AST    | 加载 DSL → 验证 → CapabilitySet 快照    |
+| normalize     | collecting     | normalizing    | AST    | HIR    | FormatterNode.strategy → .fn 注入       |
+| canonicalize  | normalizing    | canonicalizing | HIR    | HIR+   | lsp/tool → ir.symbols（唯一真相源）     |
+| resolve       | canonicalizing | resolving      | HIR+   | MIR    | ir.symbols → IR.resolved 投影           |
+| optimize      | resolving      | optimizing     | MIR    | LIR    | parser 去重 + LSP 深合并                |
+| codegen       | optimizing     | codegen        | LIR    | SPEC   | 驱动 adapters → LazySpec[]              |
 
 ### 3.5 IR 阶段字段契约
 
-| 阶段进入前 | 必须存在的字段                                  |
-| ---------- | ----------------------------------------------- |
-| normalize  | `caps`, `meta`                                  |
-| resolve    | `caps`, `meta`                                  |
-| optimize   | `caps`, `resolved`                              |
-| codegen    | `caps`, `resolved`, `merged_lsp`, `all_parsers` |
+| 阶段进入前    | 必须存在的字段                                  |
+| ------------- | ----------------------------------------------- |
+| normalize     | `caps`, `meta`                                  |
+| canonicalize  | `caps`, `meta`                                  |
+| resolve       | `caps`, `meta`, `symbols`                       |
+| optimize      | `caps`, `resolved`                              |
+| codegen       | `caps`, `resolved`, `merged_lsp`, `all_parsers` |
 
 ---
 

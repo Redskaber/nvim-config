@@ -1,64 +1,55 @@
--- ~/.config/nvim/lua/runtime/passes/resolve.lua
+-- lua/runtime/passes/resolve.lua
 -- Compiler kernel: Phase 3 — resolve.
 --
--- Decides use_mason for every LSP server and tool; writes IR.resolved.
--- Produces MIR (Mid-level IR): toolchain decisions fully baked.
+-- Reads ir.symbols (set by canonicalize pass) to produce IR.resolved.
+-- IR.resolved is the authoritative use_mason decision table consumed by adapters.
 --
--- State contract: NORMALIZING → RESOLVING
--- IR input:  HIR layer (caps, meta)
+-- REFACTOR (TODO-0.2): no longer calls rules.use_mason() directly.
+-- All symbol→mason decisions are pre-computed in canonicalize pass.
+-- This pass is now a pure projection: ir.symbols → ir.resolved.
+--
+-- State contract: CANONICALIZING → RESOLVING
+-- IR input:  HIR + ir.symbols
 -- IR output: MIR layer (+ resolved)
 
 local ir_mod = require("core.compiler.ir")
-local rules = require("toolchain.rules")
 
 ---@type Phase
 local resolve_pass = {
   name = "resolve",
-  input_state = "normalizing",
+  input_state = "canonicalizing",
   output_state = "resolving",
 
   validate = function(ir)
+    -- ir_mod.validate(ir, "resolve") already checks caps, meta, symbols
+    -- (STAGE_REQUIRED.resolve = { "caps", "meta", "symbols" })
     return ir_mod.validate(ir, "resolve")
   end,
 
   ---@param ir IR
   ---@return IR
   run = function(ir)
+    local symbols = ir.symbols or { lsp = {}, tools = {} }
     local resolved = { lsp = {}, tools = {} }
 
-    -- Helper: mark a list of tool strings into resolved.tools
-    local function mark_tools(tbl)
-      if not tbl then
-        return
-      end
-      for _, list in pairs(tbl) do
-        if type(list) == "table" then
-          for _, item in ipairs(list) do
-            -- Only plain strings are concrete tool names; FormatterNodes have .kind
-            if type(item) == "string" then
-              resolved.tools[item] = rules.use_mason(item)
-            end
-          end
-        end
-      end
+    -- Project ir.symbols.lsp → resolved.lsp (use_mason = symbol.mason ~= nil)
+    for server, sym in pairs(symbols.lsp) do
+      resolved.lsp[server] = not sym.system and sym.mason ~= nil
     end
 
+    -- Project ir.symbols.tools → resolved.tools
+    for tool, sym in pairs(symbols.tools) do
+      resolved.tools[tool] = not sym.system and sym.mason ~= nil
+    end
+
+    -- Also cover FormatterNode.name entries not in symbols
+    -- (canonicalize should have caught them, but be defensive)
     for _, cap in pairs(ir.caps) do
-      -- LSP servers
-      if cap.lsp then
-        for server, cfg in pairs(cap.lsp) do
-          resolved.lsp[server] = rules.use_mason(server) and (cfg.mason ~= false)
-        end
-      end
-
-      -- Formatters / linters (plain-string entries only)
-      mark_tools(cap.formatters)
-      mark_tools(cap.linters)
-
-      -- Explicit mason[] list on the cap
-      if cap.mason then
-        for _, t in ipairs(cap.mason) do
-          resolved.tools[t] = rules.use_mason(t)
+      for _, fmts in pairs(cap.formatters or {}) do
+        for _, v in ipairs(fmts) do
+          if type(v) == "table" and v.name and resolved.tools[v.name] == nil then
+            resolved.tools[v.name] = true -- default: try mason
+          end
         end
       end
     end

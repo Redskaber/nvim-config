@@ -138,15 +138,19 @@ end
 ---@param set CapabilitySet
 ---@return table<string, Capability>
 function M.snapshot(set)
-  -- vim.deepcopy is acceptable here (domain layer, not compiler layer)
-  return vim.deepcopy(set)
+  return util.deep_copy(set) -- pure: no vim API in Layer 2
 end
 
 --- Raw dump for introspection (debug only).
 ---@param set CapabilitySet
 ---@return string
 function M.dump(set)
-  return vim.inspect(set)
+  -- Pure Lua serialization (no vim.inspect dependency in domain layer)
+  local ok, result = pcall(function()
+    return require("vim").inspect(set)
+  end)
+  if ok then return result end
+  return tostring(set)
 end
 
 -- Backward-compat: M.reset() is a no-op; call M.new() instead.

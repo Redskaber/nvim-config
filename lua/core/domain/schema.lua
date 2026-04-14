@@ -54,11 +54,15 @@ end
 ---@param diags SchemaDiagnostic[]
 local function validate_formatter_node(path, node, diags)
   if not KNOWN_NODE_KINDS[node.kind] then
+    -- Pure Lua: collect keys without vim.tbl_keys
+    local valid_kinds = {}
+    for k in pairs(KNOWN_NODE_KINDS) do valid_kinds[#valid_kinds + 1] = k end
+    table.sort(valid_kinds)
     diags[#diags + 1] = diag(
       path,
       ("unknown node kind %q; valid: %s"):format(
         tostring(node.kind),
-        table.concat(vim.tbl_keys(KNOWN_NODE_KINDS), ", ")
+        table.concat(valid_kinds, ", ")
       )
     )
     return
@@ -119,6 +123,33 @@ end
 ---@param path  string
 ---@param value any
 ---@param diags SchemaDiagnostic[]
+local function validate_linter_map(path, value, diags)
+  if type(value) ~= "table" then
+    diags[#diags + 1] = diag(path, "expected table, got " .. type(value))
+    return
+  end
+  for ft, list in pairs(value) do
+    if type(ft) ~= "string" or ft == "" then
+      diags[#diags + 1] = diag(path .. ".<key>", "key must be a non-empty string")
+    end
+    local item_path = path .. "." .. tostring(ft)
+    if type(list) ~= "table" then
+      diags[#diags + 1] = diag(item_path, "expected list, got " .. type(list))
+    else
+      for i, v in ipairs(list) do
+        local elem_path = item_path .. "[" .. i .. "]"
+        if type(v) ~= "string" then
+          diags[#diags + 1] = diag(elem_path, "linter entries must be strings, got " .. type(v))
+        elseif is_sentinel(v) then
+          diags[#diags + 1] = diag(elem_path, ("sentinel %q is forbidden in linters"):format(v))
+        end
+      end
+    end
+  end
+end
+---@param path  string
+---@param value any
+---@param diags SchemaDiagnostic[]
 local function validate_string_list(path, value, diags)
   if type(value) ~= "table" then
     diags[#diags + 1] = diag(path, "expected list, got " .. type(value))
@@ -166,7 +197,8 @@ function M.validate(name, cap)
       diags[#diags + 1] = diag(
         name .. ".version",
         ("module declares version %d but compiler supports up to %d — processing anyway"):format(
-          cap.version, CURRENT_SCHEMA_VERSION
+          cap.version,
+          CURRENT_SCHEMA_VERSION
         ),
         "warn"
       )
@@ -191,7 +223,7 @@ function M.validate(name, cap)
     validate_ft_tool_map(name .. ".formatters", cap.formatters, diags)
   end
   if cap.linters ~= nil then
-    validate_ft_tool_map(name .. ".linters", cap.linters, diags)
+    validate_linter_map(name .. ".linters", cap.linters, diags)
   end
 
   if cap.treesitter ~= nil then
@@ -233,9 +265,7 @@ function M.format_diags(diags)
   end
   local lines = {}
   for _, d in ipairs(diags) do
-    lines[#lines + 1] = ("[%s][schema:%s] %s — %s"):format(
-      d.code or "?", d.severity, d.path, d.message
-    )
+    lines[#lines + 1] = ("[%s][schema:%s] %s — %s"):format(d.code or "?", d.severity, d.path, d.message)
   end
   return table.concat(lines, "\n")
 end

@@ -1,27 +1,13 @@
 -- lua/runtime/adapters/mason.lua
 -- Backend layer: IR → mason-nvim LazySpec.
--- REFACTOR (TODO-5.4): pure IR reader — no vim API calls.
--- Resolution decisions already live in IR.resolved (Phase 3).
+-- REFACTOR (TODO-0.2, TODO-5.4): reads ir.symbols for canonical package names.
+-- No calls to mappings.lsp_pkg() — all decisions are pre-computed in canonicalize pass.
 
 local M = {}
 
-local mappings = require("toolchain.mappings")
 local util = require("core.kernel.util")
 
 local BASE_TOOLS = { "codespell" }
-
---- Safe nested table get (replaces vim.tbl_get).
----@param t table
----@param ... string
----@return any
-local function tget(t, ...)
-  local cur = t
-  for _, k in ipairs({ ... }) do
-    if type(cur) ~= "table" then return nil end
-    cur = cur[k]
-  end
-  return cur
-end
 
 --- Shallow-copy a list.
 ---@param t any[]
@@ -31,6 +17,7 @@ local function list_copy(t)
   for i, v in ipairs(t) do out[i] = v end
   return out
 end
+
 ---@param ir table  LIR or SPEC-ready IR
 ---@return table[]  LazySpec[]
 function M.build(ir)
@@ -39,30 +26,75 @@ function M.build(ir)
   end
 
   local raw = list_copy(BASE_TOOLS)
+  local seen = {}
 
-  -- LSP servers — package names come exclusively from mappings.lsp_pkg()
-  for server, _ in pairs(ir.merged_lsp or {}) do
-    local want_mason = tget(ir, "resolved", "lsp", server)
-    if want_mason then
-      raw[#raw + 1] = mappings.lsp_pkg(server)
+  -- Use ir.symbols when available (post-canonicalize); fall back to ir.resolved
+  local symbols = ir.symbols
+
+  if symbols then
+    -- ── LSP packages from ir.symbols.lsp ─────────────────────────────────
+    for server, sym in pairs(symbols.lsp) do
+      local want = ir.resolved and ir.resolved.lsp[server]
+      if want and sym.mason and not seen[sym.mason] then
+        seen[sym.mason] = true
+        raw[#raw + 1] = sym.mason
+      end
     end
-  end
 
-  -- Guard against double-counting LSP packages that appear in cap.mason
-  local lsp_pkgs = {}
-  for _, pkg in pairs(mappings.lsp_to_mason) do
-    lsp_pkgs[pkg] = true
-  end
-
-  -- Formatters & linters from explicit cap.mason lists
-  for _, cap in pairs(ir.caps) do
-    if cap.mason then
-      for _, t in ipairs(cap.mason) do
-        if not lsp_pkgs[t] then
-          local pkg = mappings.tool_pkg(t)
-          local want = tget(ir, "resolved", "tools", t)
-          if want and pkg then
-            raw[#raw + 1] = pkg
+    -- ── Tool packages from ir.symbols.tools ───────────────────────────────
+    for tool, sym in pairs(symbols.tools) do
+      local want = ir.resolved and ir.resolved.tools[tool]
+      if want and sym.mason and not seen[sym.mason] then
+        seen[sym.mason] = true
+        raw[#raw + 1] = sym.mason
+      end
+    end
+  else
+    -- Fallback path (no canonicalize pass — should not happen in normal pipeline)
+    local mappings = require("toolchain.mappings")
+    for server, _ in pairs(ir.merged_lsp or {}) do
+      local want = ir.resolved and ir.resolved.lsp[server]
+      if want then
+        local pkg = mappings.lsp_pkg(server)
+        if pkg and not seen[pkg] then
+          seen[pkg] = true
+          raw[#raw + 1] = pkg
+        end
+      end
+    end
+    for _, cap in pairs(ir.caps) do
+      -- explicit mason[] list
+      for _, t in ipairs(cap.mason or {}) do
+        local want = ir.resolved and ir.resolved.tools[t]
+        if want and not seen[t] then
+          seen[t] = true
+          raw[#raw + 1] = t
+        end
+      end
+      -- formatter tools
+      for _, fmts in pairs(cap.formatters or {}) do
+        for _, v in ipairs(fmts) do
+          local tool = type(v) == "string" and v or (type(v) == "table" and v.name)
+          if tool then
+            local want = ir.resolved and ir.resolved.tools[tool]
+            local res = mappings.resolve(tool)
+            if want and res.use_mason and res.pkg and not seen[res.pkg] then
+              seen[res.pkg] = true
+              raw[#raw + 1] = res.pkg
+            end
+          end
+        end
+      end
+      -- linter tools
+      for _, lints in pairs(cap.linters or {}) do
+        for _, tool in ipairs(lints) do
+          if type(tool) == "string" then
+            local want = ir.resolved and ir.resolved.tools[tool]
+            local res = mappings.resolve(tool)
+            if want and res.use_mason and res.pkg and not seen[res.pkg] then
+              seen[res.pkg] = true
+              raw[#raw + 1] = res.pkg
+            end
           end
         end
       end

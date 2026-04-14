@@ -103,19 +103,20 @@ init.lua
 Each `run()` / `debug_run()` gets its own independent state machine instance. Illegal transitions abort to `ERROR`; non-fatal diagnostics accumulate in the IR and do not halt the pipeline.
 
 ```
-idle → collecting → normalizing → resolving → optimizing → codegen → done
-                                                                    ↘ error
+idle → collecting → normalizing → canonicalizing → resolving → optimizing → codegen → done
+                                                                                    ↘ error
 ```
 
 #### Five phases
 
-| Phase         | SM transition            | IR layer in | IR layer out | Responsibility                                                            |
-| ------------- | ------------------------ | ----------- | ------------ | ------------------------------------------------------------------------- |
-| **collect**   | idle → collecting        | —           | AST          | Load & validate lang module DSL into `IR.caps`                            |
-| **normalize** | collecting → normalizing | AST         | HIR          | Inject `FormatterNode.fn`; deep-copy; registry untouched                  |
-| **resolve**   | normalizing → resolving  | HIR         | MIR          | Per-tool mason-vs-system decision → `IR.resolved`                         |
-| **optimize**  | resolving → optimizing   | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers` |
-| **codegen**   | optimizing → codegen     | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                     |
+| Phase             | SM transition                      | IR layer in | IR layer out | Responsibility                                                            |
+| ----------------- | ---------------------------------- | ----------- | ------------ | ------------------------------------------------------------------------- |
+| **collect**       | idle → collecting                  | —           | AST          | Load & validate lang module DSL into `IR.caps`                            |
+| **normalize**     | collecting → normalizing           | AST         | HIR          | Inject `FormatterNode.fn`; deep-copy; registry untouched                  |
+| **canonicalize**  | normalizing → canonicalizing       | HIR         | HIR+         | Build `IR.symbols`: lsp/tool → canonical mason pkg (single source of truth) |
+| **resolve**       | canonicalizing → resolving         | HIR+        | MIR          | Project `IR.symbols` → `IR.resolved` (mason/system decisions)             |
+| **optimize**      | resolving → optimizing             | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers` |
+| **codegen**       | optimizing → codegen               | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                     |
 
 #### IR sub-layers (immutable, copy-on-write)
 
@@ -236,6 +237,7 @@ vim.g.ltos_profile = "minimal"  -- "full" (default) | "minimal" | "nix"
 | `:LtosIR`            | full LIR dump (post-optimize) in a scratch buffer                        |
 | `:LtosTrace`         | per-phase execution timeline with ASCII bar chart                        |
 | `:LtosGraph`         | module → capability dependency graph                                     |
+| `:LtosDiff [a] [b]`  | structural IR diff between two stages (default: `collect` → `optimize`)  |
 
 ---
 
@@ -518,11 +520,20 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 ## Tests
 
 ```bash
+nvim --headless -l spec/core/util_spec.lua
 nvim --headless -l spec/core/schema_spec.lua
 nvim --headless -l spec/core/ir_spec.lua
 nvim --headless -l spec/core/pass_spec.lua
+nvim --headless -l spec/core/capability_spec.lua
+nvim --headless -l spec/core/cache_spec.lua
 nvim --headless -l spec/toolchain/mappings_spec.lua
+nvim --headless -l spec/toolchain/rules_spec.lua
 nvim --headless -l spec/toolchain/strategies_spec.lua
+nvim --headless -l spec/runtime/canonicalize_spec.lua
+nvim --headless -l spec/runtime/normalize_spec.lua
+nvim --headless -l spec/runtime/resolve_spec.lua
+nvim --headless -l spec/runtime/optimize_spec.lua
+nvim --headless -l spec/runtime/codegen_spec.lua
 nvim --headless -l spec/runtime/pipeline_spec.lua
 nvim --headless -l spec/runtime/commands_spec.lua
 ```

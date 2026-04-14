@@ -12,6 +12,7 @@ local pass_mod = require("core.compiler.pass")
 local PHASES = {
   require("runtime.passes.collect"),
   require("runtime.passes.normalize"),
+  require("runtime.passes.canonicalize"), -- TODO-0.2: symbol canonicalization
   require("runtime.passes.resolve"),
   require("runtime.passes.optimize"),
 }
@@ -20,6 +21,7 @@ local CODEGEN = require("runtime.passes.codegen")
 for _, p in ipairs(PHASES) do
   pass_mod.assert_valid(p)
 end
+pass_mod.assert_valid(CODEGEN) -- codegen satisfies Phase interface (has run + validate)
 
 -- ── State machine ─────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ local STATES = {
   IDLE = "idle",
   COLLECTING = "collecting",
   NORMALIZING = "normalizing",
+  CANONICALIZING = "canonicalizing",
   RESOLVING = "resolving",
   OPTIMIZING = "optimizing",
   CODEGEN = "codegen",
@@ -37,7 +40,8 @@ local STATES = {
 local TRANSITIONS = {
   idle = { collecting = true },
   collecting = { normalizing = true, error = true },
-  normalizing = { resolving = true, error = true },
+  normalizing = { canonicalizing = true, error = true },
+  canonicalizing = { resolving = true, error = true },
   resolving = { optimizing = true, error = true },
   optimizing = { codegen = true, error = true },
   codegen = { done = true, error = true },
@@ -66,9 +70,10 @@ local function new_sm()
 end
 
 local PHASE_NEXT_SM = {
-  collect = STATES.NORMALIZING,
-  normalize = STATES.RESOLVING,
-  resolve = STATES.OPTIMIZING,
+  collect      = STATES.NORMALIZING,
+  normalize    = STATES.CANONICALIZING,
+  canonicalize = STATES.RESOLVING,
+  resolve      = STATES.OPTIMIZING,
 }
 
 local last_run_sm = new_sm()
@@ -95,6 +100,10 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps)
     timings["collect"] = 0
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
       vim.notify("[pipeline] AST cache hit — collect phase skipped", vim.log.levels.DEBUG)
+    end
+    -- Honor stop_after="collect" even when skipping the phase
+    if stop_after == "collect" then
+      return ir, nil, timings
     end
     -- Advance SM past collecting state
     if not sm.transition(STATES.NORMALIZING) then
@@ -226,7 +235,7 @@ function M.run(lang_modules, profile, cached_caps)
 end
 
 ---@param lang_modules string[]
----@param stop_after?  "collect"|"normalize"|"resolve"|"optimize"
+---@param stop_after?  "collect"|"normalize"|"canonicalize"|"resolve"|"optimize"
 ---@param profile?     string
 ---@return IR
 function M.debug_run(lang_modules, stop_after, profile)

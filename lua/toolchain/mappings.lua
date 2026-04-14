@@ -28,12 +28,40 @@ M.lsp_to_mason = {
   vtsls = "vtsls",
   taplo = "taplo",
   pyright = "pyright",
+  -- JVM
+  jdtls = "jdtls",
+  kotlin_language_server = "kotlin-language-server",
+  -- Lisp / Clojure
+  clojure_lsp = "clojure-lsp",
+  -- Assembly
+  asm_lsp = "asm-lsp",
 }
 
 -- ── Formatter / linter tool → mason package ──────────────────────────────────
 
 M.tool_to_mason = {
   ruff_format = "ruff",
+  -- JVM formatters
+  ["google-java-format"] = "google-java-format",
+  ktfmt = "ktfmt",
+  ktlint = "ktlint",
+  -- Lisp / Clojure
+  cljfmt = "cljfmt",
+  ["clj-kondo"] = "clj-kondo",
+  -- C/C++
+  ["clang-format"] = "clang-format",
+  -- clangtidy (clang-tidy) ships with the system LLVM/clang toolchain; not via mason
+  -- Java
+  checkstyle = "checkstyle",
+  -- JS/TS
+  eslint_d = "eslint_d",
+  prettierd = "prettierd",
+  prettier = "prettier",
+  -- Go
+  goimports = "goimports",
+  -- Shell
+  shfmt = "shfmt",
+  shellcheck = "shellcheck",
 }
 
 -- ── System-only tools (never via mason) ──────────────────────────────────────
@@ -45,7 +73,7 @@ M.system_tools = {
   git = true,
   make = true,
   cc = true,
-  -- Language-toolchain formatters / linters
+  -- Language-toolchain formatters / linters (never via mason)
   rustfmt = true,
   clippy = true,
   gofmt = true,
@@ -53,9 +81,7 @@ M.system_tools = {
   fish_indent = true,
   fish = true,
   nixpkgs_fmt = true,
-  -- System shell tools
-  shfmt = false, -- can be mason-managed
-  shellcheck = false,
+  clangtidy = true, -- ships with system LLVM/clang toolchain
 }
 
 -- ── User-defined overrides ─────────────────────────────────────────────────────
@@ -84,9 +110,12 @@ end
 ---@param tool string
 ---@return { use_mason: boolean, pkg: string|nil }
 function M.resolve(tool)
-  -- 1. User overrides
-  local user_overrides = vim.g.ltos_tool_overrides or {}
-  local override = M.overrides[tool] or user_overrides[tool]
+  -- 1. User overrides (vim.g takes priority over mappings.overrides)
+  local g_overrides = vim.g.ltos_tool_overrides
+  if type(g_overrides) == "table" and g_overrides[tool] then
+    return g_overrides[tool]
+  end
+  local override = M.overrides[tool]
   if override ~= nil then
     return override
   end

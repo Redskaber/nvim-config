@@ -80,14 +80,14 @@ end
 
 -- ── :LtosDebug ───────────────────────────────────────────────────────────────
 
-local VALID_DEBUG_STAGES = { collect = true, normalize = true, resolve = true, optimize = true }
+local VALID_DEBUG_STAGES = { collect = true, normalize = true, canonicalize = true, resolve = true, optimize = true }
 
 local function cmd_debug(opts)
   local stage = (opts.args ~= "") and opts.args or nil
 
   if stage and not VALID_DEBUG_STAGES[stage] then
     vim.notify(
-      ("[LtosDebug] unknown stage %q; valid: collect, normalize, resolve, optimize"):format(stage),
+      ("[LtosDebug] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(stage),
       vim.log.levels.ERROR
     )
     return
@@ -134,7 +134,7 @@ local function cmd_ir(opts)
 
   if not VALID_DEBUG_STAGES[stage] and stage ~= "optimize" then
     vim.notify(
-      ("[LtosIR] unknown stage %q; valid: collect, normalize, resolve, optimize"):format(stage),
+      ("[LtosIR] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(stage),
       vim.log.levels.ERROR
     )
     return
@@ -165,7 +165,7 @@ local function cmd_trace()
     return
   end
 
-  local PHASE_ORDER = { "collect", "normalize", "resolve", "optimize", "codegen" }
+  local PHASE_ORDER = { "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }
   local lines = {
     "LTOS Phase Execution Trace",
     "==========================",
@@ -212,22 +212,23 @@ local function cmd_graph(opts)
       "LTOS Pipeline DAG",
       "=================",
       "",
-      "  [modules/lang/*]  ──►  collect  ──►  normalize  ──►  resolve  ──►  optimize  ──►  codegen  ──►  LazySpec[]",
+      "  [modules/lang/*]  ──►  collect  ──►  normalize  ──►  canonicalize  ──►  resolve  ──►  optimize  ──►  codegen  ──►  LazySpec[]",
       "",
       "State machine transitions:",
-      "  idle → collecting → normalizing → resolving → optimizing → codegen → done",
-      "                                                                       ↘ error",
+      "  idle → collecting → normalizing → canonicalizing → resolving → optimizing → codegen → done",
+      "                                                                                        ↘ error",
       "",
       "IR sub-layers:",
-      "  AST  (collect output)    — raw validated capability snapshot",
-      "  HIR  (normalize output)  — FormatterNode.fn resolved",
-      "  MIR  (resolve output)    — mason/system decisions baked",
-      "  LIR  (optimize output)   — deduped parsers, merged LSP",
-      "  SPEC (codegen input)     — all fields present, drives adapters",
+      "  AST  (collect output)       — raw validated capability snapshot",
+      "  HIR  (normalize output)     — FormatterNode.fn resolved",
+      "  HIR+ (canonicalize output)  — ir.symbols: canonical lsp/tool→mason pkg table",
+      "  MIR  (resolve output)       — mason/system decisions baked from ir.symbols",
+      "  LIR  (optimize output)      — deduped parsers, merged LSP",
+      "  SPEC (codegen input)        — all fields present, drives adapters",
       "",
       "Adapters (codegen → LazySpec[]):",
       "  LIR.merged_lsp   → lsp.lua    → nvim-lspconfig + mason-lspconfig",
-      "  LIR.resolved     → mason.lua  → mason.nvim",
+      "  LIR.symbols      → mason.lua  → mason.nvim  (canonical pkg names)",
       "  LIR.all_parsers  → treesitter.lua → nvim-treesitter",
       "  LIR.caps.fmt     → conform.lua → conform.nvim",
       "  LIR.caps.lint    → lint.lua   → nvim-lint",
@@ -298,7 +299,54 @@ local function cmd_graph(opts)
   open_scratch(lines, "LtosGraph:caps", nil)
 end
 
--- ── :LtosInfo ────────────────────────────────────────────────────────────────
+-- ── :LtosDiff ────────────────────────────────────────────────────────────────
+
+local function cmd_diff(opts)
+  local args = vim.split(opts.args or "", "%s+")
+  local stage_a = args[1] ~= "" and args[1] or "collect"
+  local stage_b = args[2] ~= "" and args[2] or "optimize"
+
+  if not VALID_DEBUG_STAGES[stage_a] then
+    vim.notify(("[LtosDiff] unknown stage_a %q"):format(stage_a), vim.log.levels.ERROR)
+    return
+  end
+  if not VALID_DEBUG_STAGES[stage_b] then
+    vim.notify(("[LtosDiff] unknown stage_b %q"):format(stage_b), vim.log.levels.ERROR)
+    return
+  end
+
+  local runtime = require("runtime")
+  local pipeline = require("runtime.pipeline")
+  local ir_a = pipeline.debug_run(runtime.LANG_MODULES, stage_a)
+  local ir_b = pipeline.debug_run(runtime.LANG_MODULES, stage_b)
+
+  local changes = ir_mod.diff(ir_a, ir_b)
+  -- Filter out timing noise
+  local filtered = {}
+  for _, c in ipairs(changes) do
+    if not c.path:find("started_at") and not c.path:find("_timings") then
+      filtered[#filtered + 1] = c
+    end
+  end
+
+  local lines = {
+    ("LTOS IR Diff  %s → %s  (%d changes)"):format(stage_a, stage_b, #filtered),
+    string.rep("─", 60),
+    "",
+  }
+  if #filtered == 0 then
+    lines[#lines + 1] = "(no structural changes)"
+  else
+    for _, c in ipairs(filtered) do
+      lines[#lines + 1] = ("  %s"):format(c.path)
+      lines[#lines + 1] = ("    - %s"):format(tostring(c.old):sub(1, 80))
+      lines[#lines + 1] = ("    + %s"):format(tostring(c.new):sub(1, 80))
+      lines[#lines + 1] = ""
+    end
+  end
+
+  open_scratch(lines, ("LtosDiff:%s:%s"):format(stage_a, stage_b), nil)
+end
 
 local function cmd_info()
   local runtime = require("runtime")
@@ -364,7 +412,7 @@ local function cmd_info()
   if timings then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "Last build timings:"
-    for _, s in ipairs({ "collect", "normalize", "resolve", "optimize", "codegen" }) do
+    for _, s in ipairs({ "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }) do
       if timings[s] then
         lines[#lines + 1] = ("  %-10s  %.3f ms"):format(s, timings[s] * 1000)
       end
@@ -392,9 +440,9 @@ end
 function M.setup()
   vim.api.nvim_create_user_command("LtosDebug", cmd_debug, {
     nargs = "?",
-    desc = "Dump LTOS pipeline IR at a given stage (collect|normalize|resolve|optimize)",
+    desc = "Dump LTOS pipeline IR at a given stage (collect|normalize|canonicalize|resolve|optimize)",
     complete = function()
-      return { "collect", "normalize", "resolve", "optimize" }
+      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
     end,
   })
 
@@ -405,9 +453,9 @@ function M.setup()
 
   vim.api.nvim_create_user_command("LtosIR", cmd_ir, {
     nargs = "?",
-    desc = "Dump LTOS IR at a given stage (collect|normalize|resolve|optimize, default: optimize)",
+    desc = "Dump LTOS IR at a given stage (collect|normalize|canonicalize|resolve|optimize, default: optimize)",
     complete = function()
-      return { "collect", "normalize", "resolve", "optimize" }
+      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
     end,
   })
 
@@ -421,6 +469,13 @@ function M.setup()
     desc = "Show module capability graph (caps) or pipeline DAG (dag)",
     complete = function()
       return { "caps", "dag" }
+    end,
+  })
+  vim.api.nvim_create_user_command("LtosDiff", cmd_diff, {
+    nargs = "*",
+    desc = "Diff IR between two pipeline stages: LtosDiff [stage_a] [stage_b] (default: collect optimize)",
+    complete = function()
+      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
     end,
   })
 end

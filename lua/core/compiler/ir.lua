@@ -84,17 +84,26 @@ M.error = M.diag
 ---@field lsp   table<string, boolean>
 ---@field tools table<string, boolean>
 
+---@class IRSymbols
+---@field lsp   table<string, CanonicalSymbol>
+---@field tools table<string, CanonicalSymbol>
+
+---@class CanonicalSymbol
+---@field mason  string|nil
+---@field system boolean
 ---@class IR
 ---@field stage       string                 current sub-layer (AST/HIR/MIR/LIR/SPEC)
 ---@field caps        table<string, table>   [AST]  validated capability snapshot
 ---@field diagnostics Diagnostic[]           [all]  accumulated diagnostics
 ---@field meta        IRMeta                 [AST]  build metadata
 ---@field profile     string                 [AST]  build profile
+---@field symbols?    IRSymbols              [HIR]  canonical symbol table (post-canonicalize)
 ---@field resolved    IRResolved             [MIR]  toolchain decisions
 ---@field merged_lsp  table<string, table>   [LIR]  deduped LSP configs
 ---@field all_parsers string[]               [LIR]  deduped TS parsers
 ---@field snapshots?  table<string, table>   [debug] per-stage IR snapshots
 ---@field _timings?   table<string, number>  [debug] per-phase timings (debug_run only)
+---@field _specs?     table[]                [debug] codegen output embedded by codegen.run()
 
 -- ── CompilerContext ───────────────────────────────────────────────────────────
 
@@ -120,7 +129,7 @@ function M.ctx(ir, stage, cache_key)
   return {
     ir = ir,
     stage = stage,
-    diagnostics = vim.deepcopy(ir.diagnostics or {}),
+    diagnostics = util.deep_copy(ir.diagnostics or {}), -- pure: no vim API in Layer 1
     cache_key = cache_key or "",
     timings = {},
     run_id = next_run_id(),
@@ -130,10 +139,11 @@ end
 -- ── Stage field contracts ─────────────────────────────────────────────────────
 
 local STAGE_REQUIRED = {
-  normalize = { "caps", "meta" },
-  resolve = { "caps", "meta" },
-  optimize = { "caps", "resolved" },
-  codegen = { "caps", "resolved", "merged_lsp", "all_parsers" },
+  normalize    = { "caps", "meta" },
+  canonicalize = { "caps", "meta" },            -- HIR in: requires caps + meta
+  resolve      = { "caps", "meta", "symbols" }, -- HIR+ in: symbols set by canonicalize pass
+  optimize     = { "caps", "resolved" },
+  codegen      = { "caps", "resolved", "merged_lsp", "all_parsers" },
 }
 
 -- ── Constructor ───────────────────────────────────────────────────────────────
@@ -184,7 +194,7 @@ end
 ---@param ir IR
 ---@return IR
 function M.clone(ir)
-  return vim.deepcopy(ir)
+  return util.deep_copy(ir) -- pure: no vim API in Layer 1
 end
 
 --- Shallow-copy an IR, replacing selected top-level fields (copy-on-write).
@@ -212,7 +222,7 @@ end
 ---@param d  Diagnostic
 ---@return IR
 function M.append_diag(ir, d)
-  local new_diags = vim.deepcopy(ir.diagnostics or {})
+  local new_diags = util.deep_copy(ir.diagnostics or {}) -- pure: no vim API in Layer 1
   new_diags[#new_diags + 1] = d
   return M.with(ir, { diagnostics = new_diags })
 end
