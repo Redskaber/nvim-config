@@ -12,7 +12,9 @@ local M = {}
 local function tget(t, ...)
   local cur = t
   for _, k in ipairs({ ... }) do
-    if type(cur) ~= "table" then return nil end
+    if type(cur) ~= "table" then
+      return nil
+    end
     cur = cur[k]
   end
   return cur

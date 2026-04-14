@@ -25,7 +25,6 @@ return {
     },
   },
   mason = {
-    "jdtls",
     "google-java-format",
     "checkstyle",
   },

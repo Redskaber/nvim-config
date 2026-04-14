@@ -1,8 +1,11 @@
--- ~/.config/nvim/lua/modules/lang/shell.lua
+-- lua/modules/lang/shell.lua
 -- DSL: Shell toolchain declaration.
 return {
   version = 1,
-  treesitter = { "bash", "fish", "zsh" },
+  treesitter = { "bash", "fish" },
+  lsp = {
+    bashls = {},
+  },
   formatters = {
     sh = { "shfmt" },
     bash = { "shfmt" },

@@ -17,7 +17,6 @@ return {
     },
   },
   mason = {
-    "kotlin-language-server",
     "ktlint",
     "ktfmt",
   },

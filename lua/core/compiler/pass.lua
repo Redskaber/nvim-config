@@ -5,7 +5,7 @@
 -- TODO-2.2: run_with_ctx() provides the ctx-based execution path (forward-compat).
 
 local ir_mod = require("core.compiler.ir")
-local util            = require("core.kernel.util")
+local util = require("core.kernel.util")
 
 local M = {}
 
@@ -87,21 +87,27 @@ function M.run_with_ctx(phase, ctx)
 
   -- Merge diagnostics into ctx
   local new_diags = {}
-  for _, d in ipairs(ctx.diagnostics) do new_diags[#new_diags + 1] = d end
-  for _, d in ipairs(diags) do new_diags[#new_diags + 1] = d end
+  for _, d in ipairs(ctx.diagnostics) do
+    new_diags[#new_diags + 1] = d
+  end
+  for _, d in ipairs(diags) do
+    new_diags[#new_diags + 1] = d
+  end
 
   -- Update timings
   local new_timings = {}
-  for k, v in pairs(ctx.timings) do new_timings[k] = v end
+  for k, v in pairs(ctx.timings) do
+    new_timings[k] = v
+  end
   new_timings[phase.name] = elapsed
 
   return {
-    ir          = next_ir,
-    stage       = next_ir.stage,
+    ir = next_ir,
+    stage = next_ir.stage,
     diagnostics = new_diags,
-    cache_key   = ctx.cache_key,
-    timings     = new_timings,
-    run_id      = ctx.run_id,
+    cache_key = ctx.cache_key,
+    timings = new_timings,
+    run_id = ctx.run_id,
   }
 end
 M.run_pass = M.run_phase

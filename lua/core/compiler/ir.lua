@@ -139,11 +139,11 @@ end
 -- ── Stage field contracts ─────────────────────────────────────────────────────
 
 local STAGE_REQUIRED = {
-  normalize    = { "caps", "meta" },
-  canonicalize = { "caps", "meta" },            -- HIR in: requires caps + meta
-  resolve      = { "caps", "meta", "symbols" }, -- HIR+ in: symbols set by canonicalize pass
-  optimize     = { "caps", "resolved" },
-  codegen      = { "caps", "resolved", "merged_lsp", "all_parsers" },
+  normalize = { "caps", "meta" },
+  canonicalize = { "caps", "meta" }, -- HIR in: requires caps + meta
+  resolve = { "caps", "meta", "symbols" }, -- HIR+ in: symbols set by canonicalize pass
+  optimize = { "caps", "resolved" },
+  codegen = { "caps", "resolved", "merged_lsp", "all_parsers" },
 }
 
 -- ── Constructor ───────────────────────────────────────────────────────────────

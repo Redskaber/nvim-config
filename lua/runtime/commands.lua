@@ -427,9 +427,7 @@ local function cmd_info()
     for tier, s in pairs(cache_stats) do
       local total = (s.hits or 0) + (s.misses or 0)
       local ratio = total > 0 and math.floor(100 * (s.hits or 0) / total) or 0
-      lines[#lines + 1] = ("  %-6s  hits=%d  misses=%d  ratio=%d%%"):format(
-        tier, s.hits or 0, s.misses or 0, ratio
-      )
+      lines[#lines + 1] = ("  %-6s  hits=%d  misses=%d  ratio=%d%%"):format(tier, s.hits or 0, s.misses or 0, ratio)
     end
   end
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)

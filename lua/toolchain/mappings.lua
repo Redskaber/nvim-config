@@ -35,6 +35,8 @@ M.lsp_to_mason = {
   clojure_lsp = "clojure-lsp",
   -- Assembly
   asm_lsp = "asm-lsp",
+  -- Shell
+  bashls = "bash-language-server",
 }
 
 -- ── Formatter / linter tool → mason package ──────────────────────────────────

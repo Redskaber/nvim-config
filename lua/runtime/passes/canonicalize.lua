@@ -23,7 +23,7 @@ local mappings = require("toolchain.mappings")
 ---@type Phase
 local canonicalize_pass = {
   name = "canonicalize",
-  input_state = "normalizing",     -- SM is in 'normalizing' after normalize pass
+  input_state = "normalizing", -- SM is in 'normalizing' after normalize pass
   output_state = "canonicalizing", -- SM advances to 'canonicalizing'
 
   validate = function(ir)

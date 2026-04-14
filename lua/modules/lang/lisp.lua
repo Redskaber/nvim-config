@@ -18,7 +18,7 @@ return {
     },
   },
   mason = {
-    "clojure-lsp",
+    "cljfmt",
     "clj-kondo",
   },
 }

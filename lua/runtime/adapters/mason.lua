@@ -14,7 +14,9 @@ local BASE_TOOLS = { "codespell" }
 ---@return any[]
 local function list_copy(t)
   local out = {}
-  for i, v in ipairs(t) do out[i] = v end
+  for i, v in ipairs(t) do
+    out[i] = v
+  end
   return out
 end
 

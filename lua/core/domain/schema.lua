@@ -56,15 +56,12 @@ local function validate_formatter_node(path, node, diags)
   if not KNOWN_NODE_KINDS[node.kind] then
     -- Pure Lua: collect keys without vim.tbl_keys
     local valid_kinds = {}
-    for k in pairs(KNOWN_NODE_KINDS) do valid_kinds[#valid_kinds + 1] = k end
+    for k in pairs(KNOWN_NODE_KINDS) do
+      valid_kinds[#valid_kinds + 1] = k
+    end
     table.sort(valid_kinds)
-    diags[#diags + 1] = diag(
-      path,
-      ("unknown node kind %q; valid: %s"):format(
-        tostring(node.kind),
-        table.concat(valid_kinds, ", ")
-      )
-    )
+    diags[#diags + 1] =
+      diag(path, ("unknown node kind %q; valid: %s"):format(tostring(node.kind), table.concat(valid_kinds, ", ")))
     return
   end
   if node.name ~= nil and type(node.name) ~= "string" then

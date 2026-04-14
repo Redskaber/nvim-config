@@ -21,5 +21,5 @@ return {
     jsonc = { "prettierd" },
     yaml = { "prettierd" },
   },
-  mason = { "taplo", "prettierd" },
+  mason = { "prettierd" },
 }

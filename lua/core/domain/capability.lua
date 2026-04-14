@@ -149,7 +149,9 @@ function M.dump(set)
   local ok, result = pcall(function()
     return require("vim").inspect(set)
   end)
-  if ok then return result end
+  if ok then
+    return result
+  end
   return tostring(set)
 end
 
