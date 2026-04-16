@@ -8,6 +8,8 @@ return {
   {
     "3rd/image.nvim",
     build = false, -- 如果使用 magick_cli
+    ft = { "markdown", "vimwiki", "norg", "adoc", "asciidoc", "typst", "rst" },
+    event = "BufReadPost",
     opts = {
       backend = "kitty", -- or "ueberzug" or "sixel"
       processor = "magick_cli", -- or "magick_rock"
@@ -59,5 +61,12 @@ return {
       tmux_show_only_in_active_window = false, -- auto show/hide images in the correct Tmux window (needs visual-activity off)
       hijack_file_patterns = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif" }, -- render image files as images when opened
     },
+    config = function(_, opts)
+      local img = require("image")
+      img.setup(opts)
+      vim.defer_fn(function()
+        img.enable()
+      end, 50)
+    end,
   },
 }
