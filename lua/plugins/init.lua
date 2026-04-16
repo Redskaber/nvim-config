@@ -34,6 +34,7 @@ local SUB_MODULES = {
   "plugins.lsp.lsp",
   "plugins.treesitter.treesitter",
   "plugins.sys.git",
+  "plugins.sys.img",
   "plugins.sys.terminal",
   "plugins.theme.theme",
   "plugins.ui.ui",
