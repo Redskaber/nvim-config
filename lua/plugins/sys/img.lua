@@ -8,7 +8,15 @@ return {
   {
     "3rd/image.nvim",
     build = false, -- 如果使用 magick_cli
-    ft = { "markdown", "vimwiki", "norg", "adoc", "asciidoc", "typst", "rst" },
+    ft = {
+      "markdown",
+      "vimwiki",
+      "norg",
+      "adoc",
+      "asciidoc",
+      "typst",
+      "rst",
+    },
     event = "BufReadPost",
     opts = {
       backend = "kitty", -- or "ueberzug" or "sixel"
@@ -56,10 +64,23 @@ return {
       max_height_window_percentage = 50,
       scale_factor = 1.0,
       window_overlap_clear_enabled = false, -- toggles images when windows are overlapped
-      window_overlap_clear_ft_ignore = { "cmp_menu", "cmp_docs", "snacks_notif", "scrollview", "scrollview_sign" },
+      window_overlap_clear_ft_ignore = {
+        "cmp_menu",
+        "cmp_docs",
+        "snacks_notif",
+        "scrollview",
+        "scrollview_sign",
+      },
       editor_only_render_when_focused = false, -- auto show/hide images when the editor gains/looses focus
       tmux_show_only_in_active_window = false, -- auto show/hide images in the correct Tmux window (needs visual-activity off)
-      hijack_file_patterns = { "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif" }, -- render image files as images when opened
+      hijack_file_patterns = {
+        "*.png",
+        "*.jpg",
+        "*.jpeg",
+        "*.gif",
+        "*.webp",
+        "*.avif",
+      }, -- render image files as images when opened
     },
     config = function(_, opts)
       local img = require("image")
