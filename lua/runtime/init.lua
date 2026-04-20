@@ -17,7 +17,6 @@ M.LANG_MODULES = {
   "modules.lang.asm",
   "modules.lang.c_cpp",
   "modules.lang.csharp",
-  "modules.lang.dart",
   "modules.lang.go",
   "modules.lang.java",
   "modules.lang.kotlin",
