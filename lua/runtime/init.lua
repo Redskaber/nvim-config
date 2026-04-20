@@ -16,6 +16,8 @@ local CORE_MODULES = {
 M.LANG_MODULES = {
   "modules.lang.asm",
   "modules.lang.c_cpp",
+  "modules.lang.csharp",
+  "modules.lang.dart",
   "modules.lang.go",
   "modules.lang.java",
   "modules.lang.kotlin",
@@ -24,6 +26,7 @@ M.LANG_MODULES = {
   "modules.lang.markup",
   "modules.lang.nix",
   "modules.lang.python",
+  "modules.lang.ruby",
   "modules.lang.rust",
   "modules.lang.shell",
   "modules.lang.typescript",
