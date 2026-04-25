@@ -28,14 +28,10 @@ M.lsp_to_mason = {
   vtsls = "vtsls",
   taplo = "taplo",
   pyright = "pyright",
-  -- JVM
   jdtls = "jdtls",
   kotlin_language_server = "kotlin-language-server",
-  -- Lisp / Clojure
   clojure_lsp = "clojure-lsp",
-  -- Assembly
   asm_lsp = "asm-lsp",
-  -- Shell
   bashls = "bash-language-server",
 }
 
@@ -43,25 +39,17 @@ M.lsp_to_mason = {
 
 M.tool_to_mason = {
   ruff_format = "ruff",
-  -- JVM formatters
   ["google-java-format"] = "google-java-format",
   ktfmt = "ktfmt",
   ktlint = "ktlint",
-  -- Lisp / Clojure
   cljfmt = "cljfmt",
   ["clj-kondo"] = "clj-kondo",
-  -- C/C++
   ["clang-format"] = "clang-format",
-  -- clangtidy (clang-tidy) ships with the system LLVM/clang toolchain; not via mason
-  -- Java
   checkstyle = "checkstyle",
-  -- JS/TS
   eslint = "eslint_d", -- eslint tool name → eslint_d mason package (eslint_d is identity)
   prettierd = "prettierd",
   prettier = "prettier",
-  -- Go
   goimports = "goimports",
-  -- Shell
   shfmt = "shfmt",
   shellcheck = "shellcheck",
 }

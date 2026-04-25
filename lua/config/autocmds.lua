@@ -82,7 +82,7 @@ local keep = {
 }
 
 if env.is_nvim012() then
-  vim.api.nvim_create_autocmd({ "ColorScheme", "UIEnter" }, {
+  autocmd({ "ColorScheme", "UIEnter" }, {
     callback = function()
       for _, group in ipairs(vim.fn.getcompletion("", "highlight")) do
         if not keep[group] then
