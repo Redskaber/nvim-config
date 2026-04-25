@@ -17,8 +17,10 @@ function M.has(cmd)
   return vim.fn.executable(cmd) == 1
 end
 
--- NOTE: prefer_system() intentionally removed.
--- Decision "should this be system-managed?" belongs in toolchain/rules.lua.
--- Call: env.is_nix and env.has(cmd) at the rules layer.
+--- Returns true if nvim version >= 0.12
+function M.is_nvim012()
+  local v = vim.version()
+  return v and v.major == 0 and v.minor >= 12
+end
 
 return M

@@ -2,6 +2,8 @@
 -- Custom autocmds only. LazyVim's own autocmds are prefixed "lazyvim_".
 -- To remove a LazyVim autocmd: vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
+local env = require("core.kernel.env")
+
 local augroup = vim.api.nvim_create_augroup
 local autocmd = vim.api.nvim_create_autocmd
 
@@ -71,3 +73,25 @@ autocmd("VimResized", {
     vim.cmd("tabnext " .. current_tab)
   end,
 })
+
+-- ── ColorScheme and dym UIEnter to blur transparent ────────────────────────
+local keep = {
+  PmenuSel = true, -- 选中菜单项
+  Visual = true, -- 可视模式
+  -- CursorLine = true, -- 光标行
+}
+
+if env.is_nvim012() then
+  vim.api.nvim_create_autocmd({ "ColorScheme", "UIEnter" }, {
+    callback = function()
+      for _, group in ipairs(vim.fn.getcompletion("", "highlight")) do
+        if not keep[group] then
+          local ok, hl = pcall(vim.api.nvim_get_hl, 0, { name = group })
+          if ok and hl.bg then
+            vim.api.nvim_set_hl(0, group, vim.tbl_extend("force", hl, { bg = "none" }))
+          end
+        end
+      end
+    end,
+  })
+end
