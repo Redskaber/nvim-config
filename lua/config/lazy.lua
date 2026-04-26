@@ -62,6 +62,7 @@ require("lazy").setup({
       },
     },
   },
+  rocks = { enabled = false },
   -- nix + flake + home-manager
   lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
 })

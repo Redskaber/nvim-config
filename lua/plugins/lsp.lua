@@ -104,31 +104,86 @@ return {
                 desc = "Prev Reference", enabled = function() return Snacks.words.is_enabled() end },
             },
           },
-          -- zig
-          zls = {},
-          -- nix
-          nil_ls = {},
+          -- asm
+          asm_lsp = {},
+          -- c/c++
+          clangd = {
+            mason = false,
+            cmd = {
+              "clangd",
+              "--background-index",
+              "--compile-commands-dir=build", -- 自动查找 build/compile_commands.json
+              "--fallback-style=llvm",
+              "--all-scopes-completion",
+            },
+          },
+          -- go
+          gopls = {
+            settings = {
+              gopls = {
+                gofumpt = true,
+                codelenses = {
+                  gc_details = false,
+                  generate = true,
+                  regenerate_cgo = true,
+                  run_govulncheck = true,
+                  test = true,
+                  tidy = true,
+                  upgrade_dependency = true,
+                  vendor = true,
+                },
+                hints = {
+                  assignVariableTypes = true,
+                  compositeLiteralFields = true,
+                  compositeLiteralTypes = true,
+                  constantValues = true,
+                  functionTypeParameters = true,
+                  parameterNames = true,
+                  rangeVariableTypes = true,
+                },
+                analyses = {
+                  fieldalignment = true,
+                  nilness = true,
+                  unusedparams = true,
+                  unusedwrite = true,
+                  useany = true,
+                },
+                usePlaceholders = true,
+                completeUnimported = true,
+                staticcheck = true,
+                directoryFilters = {
+                  "-.git",
+                  "-.vscode",
+                  "-.idea",
+                  "-.venv",
+                  "-node_modules",
+                },
+                semanticTokens = true,
+              },
+            },
+          },
+          -- java
+          jdtls = {
+            settings = {
+              java = {
+                format = {
+                  enabled = false, -- 交给 formatter
+                },
+              },
+            },
+          },
+          -- kotlin
+          kotlin_language_server = {},
+          -- clojure
+          clojure_lsp = {},
           -- lua
           lua_ls = {
-            -- mason = false, -- set to false if you don't want this server to be installed with mason
-            -- Use this to add any additional keymaps
-            -- for specific lsp servers
-            -- ---@type LazyKeysSpec[]
-            -- keys = {},
             settings = {
               Lua = {
-                workspace = {
-                  checkThirdParty = false,
-                },
-                codeLens = {
-                  enable = true,
-                },
-                completion = {
-                  callSnippet = "Replace",
-                },
-                doc = {
-                  privateName = { "^_" },
-                },
+                workspace = { checkThirdParty = false },
+                codeLens = { enable = true },
+                completion = { callSnippet = "Replace" },
+                doc = { privateName = { "^_" } },
                 hint = {
                   enable = true,
                   setType = false,
@@ -140,12 +195,16 @@ return {
               },
             },
           },
+          -- nix
+          nil_ls = {},
           -- python
           pyright = {
             settings = {
               python = {
+                pyright = { disableOrganizeImports = true },
                 analysis = {
                   typeCheckingMode = "strict", -- or "off", "strict"
+                  diagnosticMode = "workspace",
                   autoSearchPaths = true,
                   useLibraryCodeForTypes = true,
                 },
@@ -159,12 +218,20 @@ return {
                 cargo = {
                   allFeatures = true,
                   loadOutDirsFromCheck = true,
+                  runBuildScripts = true,
+                },
+                checkOnSave = {
+                  allFeatures = true,
+                  command = "clippy",
+                  extraArgs = { "--no-deps" },
                 },
                 procMacro = {
                   enable = true,
-                },
-                checkOnSave = {
-                  command = "check",
+                  ignored = {
+                    ["async-trait"] = { "async_trait" },
+                    ["napi-derive"] = { "napi" },
+                    ["async-recursion"] = { "async_recursion" },
+                  },
                 },
                 inlayHints = {
                   enable = true,
@@ -174,43 +241,50 @@ return {
               },
             },
           },
-          -- c/c++
-          clangd = {
-            mason = false,
-            cmd = {
-              "clangd",
-              "--background-index",
-              "--compile-commands-dir=build", -- 自动查找 build/compile_commands.json
-              "--fallback-style=llvm",
-              "--all-scopes-completion",
-            },
-          },
           -- js/ts
-          tsserver = {
+          vtsls = {
             settings = {
+              complete_function_calls = true,
+              vtsls = {
+                enableMoveToFileCodeAction = true,
+                autoUseWorkspaceTsdk = true,
+                experimental = {
+                  maxInlayHintLength = 30,
+                  completion = {
+                    enableServerSideFuzzyMatch = true,
+                  },
+                },
+              },
               typescript = {
+                updateImportsOnFileMove = { enabled = "always" },
+                suggest = { completeFunctionCalls = true },
                 inlayHints = {
-                  includeInlayParameterNameHints = "literal",
-                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
-                  includeInlayFunctionParameterTypeHints = true,
-                  includeInlayVariableTypeHints = true,
-                  includeInlayPropertyDeclarationTypeHints = true,
-                  includeInlayFunctionLikeReturnTypeHints = true,
-                  includeInlayEnumMemberValueHints = true,
+                  enumMemberValues = { enabled = true },
+                  functionLikeReturnTypes = { enabled = true },
+                  parameterNames = { enabled = "literals" },
+                  parameterTypes = { enabled = true },
+                  propertyDeclarationTypes = { enabled = true },
+                  variableTypes = { enabled = false },
                 },
               },
               javascript = {
+                updateImportsOnFileMove = { enabled = "always" },
+                suggest = { completeFunctionCalls = true },
                 inlayHints = {
-                  includeInlayParameterNameHints = "literal",
-                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
-                  includeInlayFunctionParameterTypeHints = true,
-                  includeInlayVariableTypeTypeHints = true,
-                  includeInlayPropertyDeclarationTypeHints = true,
-                  includeInlayFunctionLikeReturnTypeHints = true,
+                  enumMemberValues = { enabled = true },
+                  functionLikeReturnTypes = { enabled = true },
+                  parameterNames = { enabled = "literals" },
+                  parameterTypes = { enabled = true },
+                  propertyDeclarationTypes = { enabled = true },
+                  variableTypes = { enabled = false },
                 },
               },
             },
           },
+          -- zig
+          zls = {},
+          -- shell
+          bashls = {},
           -- Optional: Deno (if you use Deno instead of Node.js)
           -- denols = {},
 
@@ -240,29 +314,23 @@ return {
     opts_extend = { "ensure_installed" },
     opts = {
       ensure_installed = {
-        -- 🔧 Formatters (for conform.nvim)
-        "stylua", -- Lua
-        "ruff", -- Python (includes ruff-format)
-        "black", -- Python (alternative)
-        "prettierd", -- JS/TS/JSON/YAML/Markdown/etc.
-        "rustup", -- Rust
-        "clang-format", -- C/C++
-        "shfmt", -- Shell
-
-        -- 🧠 LSP Servers
-        -- "clangd",  -- used local
-        "lua-language-server",
-        "pyright",
-        "rust-analyzer",
-        "typescript-language-server", -- or "deno" if using Deno
-        "json-lsp",
-        "yaml-language-server",
-        "taplo", -- toml
-
-        -- 🧪 Optional: linters (if you use them via null-ls or trouble.nvim)
-        -- "eslint-lsp",
-        -- "shellcheck",
-        -- "cpplint",
+        "clang-format",
+        "goimports",
+        "google-java-format",
+        "checkstyle",
+        "ktlint",
+        "ktfmt",
+        "cljfmt",
+        "clj-kondo",
+        "stylua",
+        "prettierd",
+        "ruff",
+        "black",
+        "isort",
+        "shfmt",
+        "shellcheck",
+        "prettierd",
+        "eslint_d",
       },
     },
   },

@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding.lua
+-- ~/.config/nvim/lua/plugins/linting.lua
 -- author: redskaber
 -- datetime: 2025-12-12
 
@@ -9,25 +9,24 @@ return {
       -- Event to trigger linters
       events = { "BufWritePost", "BufReadPost", "InsertLeave" },
       linters_by_ft = {
-        -- C / C++
+        -- lang
         c = { "clangtidy" },
         cpp = { "clangtidy" },
-        -- Rust
-        rust = { "clippy" },
-        -- JavaScript / TypeScript
+        java = { "checkstyle" },
         javascript = { "eslint" },
         javascriptreact = { "eslint" },
+        kotlin = { "ktlint" },
+        lisp = { "clj-kondo" },
+        python = { "ruff" },
         typescript = { "eslint" },
         typescriptreact = { "eslint" },
-        -- Python
-        python = { "ruff" },
-        -- lua
-        -- lua = { "luacheck" },
-        -- Shell / Fish
+        rust = { "clippy" },
+
+        -- shell
         sh = { "shellcheck" },
+        bash = { "shellcheck" },
         fish = { "fish" },
-        -- Markdown / Text
-        -- markdown = { "markdownlint" },
+        markdown = { "markdownlint" },
         text = { "typos" },
         -- Use the "*" filetype to run linters on all filetypes.
         -- ['*'] = { 'global linter' },

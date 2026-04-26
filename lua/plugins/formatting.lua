@@ -11,33 +11,37 @@ return {
       ---@type conform.setupOpts
       local opts = {
         formatters_by_ft = {
-          lua = { "stylua" },
-          javascript = { "prettierd" }, -- or "prettier"
-          typescript = { "prettierd" },
-          tsx = { "prettierd" },
-          rust = { "rustfmt", lsp_format = "fallback" },
-          zig = { "zigfmt" },
-          go = { "gofmt" }, -- or "goimports",
+          -- lang
           c = { "clang-format" },
           cpp = { "clang-format" },
-          json = { "prettierd" },
-          yaml = { "prettierd" },
-          toml = { "stylua" },
+          go = { "gofmt" },
+          java = { "google-java-format" },
+          javascript = { "prettierd" },
+          kotlin = { "ktfmt" },
+          lisp = { "cljfmt" },
+          lua = { "stylua" },
+          nix = { "nixpkgs_fmt" },
+          python = { "ruff" },
+          rust = { "rustfmt", lsp_format = "fallback" },
+          typescript = { "prettierd" },
+          tsx = { "prettierd" },
+          zig = { "zigfmt" },
+
+          -- markup
+          toml = { "taplo" },
           markdown = { "prettierd" },
           html = { "prettierd" },
           css = { "prettierd" },
           scss = { "prettierd" },
-          fish = { "fish_indent" },
+          json = { "prettierd" },
+          jsonc = { "prettierd" },
+          yaml = { "prettierd" },
+
+          -- shell
           sh = { "shfmt" },
-          python = function(bufnr)
-            if
-              require("conform").get_formatter_info("ruff_format", bufnr).available
-            then
-              return { "ruff_format" }
-            else
-              return { "isort", "black" }
-            end
-          end,
+          bash = { "shfmt" },
+          fish = { "fish_indent" },
+
           -- Use the "*" filetype to run formatters on all filetypes.
           ["*"] = { "codespell" },
           -- Use the "_" filetype to run formatters on filetypes that don't
