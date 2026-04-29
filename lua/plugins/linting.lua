@@ -26,7 +26,6 @@ return {
         sh = { "shellcheck" },
         bash = { "shellcheck" },
         fish = { "fish" },
-        markdown = { "markdownlint" },
         text = { "typos" },
         -- Use the "*" filetype to run linters on all filetypes.
         -- ['*'] = { 'global linter' },
