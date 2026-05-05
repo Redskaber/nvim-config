@@ -75,6 +75,33 @@ return {
         topdelete = { text = "" },
         changedelete = { text = "▎" },
       },
+      signcolumn = true,
+      numhl = false,
+      linehl = false,
+      word_diff = false,
+      watch_gitdir = { follow_files = true },
+      auto_attach = true,
+      attach_to_untracked = false,
+      current_line_blame = true,
+      current_line_blame_opts = {
+        virt_text = true,
+        virt_text_pos = "eol", -- 显示在行尾
+        delay = 500, -- 悬停延迟（毫秒）
+        ignore_whitespace = false,
+        virt_text_priority = 100,
+        use_focus = true,
+      },
+      current_line_blame_formatter = "<author>, <author_time:%Y-%m-%d %H:%M> · <summary>",
+      sign_priority = 6,
+      update_debounce = 100,
+      max_file_length = 4000,
+      status_formatter = nil,
+      preview_config = {
+        style = "minimal",
+        relative = "cursor",
+        row = 0,
+        col = 1,
+      },
       on_attach = function(buffer)
         local gs = package.loaded.gitsigns
 
@@ -82,7 +109,7 @@ return {
           vim.keymap.set(mode, l, r, { buffer = buffer, desc = desc, silent = true })
         end
 
-        -- stylua: ignore start
+        -- 导航
         map("n", "]h", function()
           if vim.wo.diff then
             vim.cmd.normal({ "]c", bang = true })
@@ -97,21 +124,56 @@ return {
             gs.nav_hunk("prev")
           end
         end, "Prev Hunk")
-        map("n", "]H", function() gs.nav_hunk("last") end, "Last Hunk")
-        map("n", "[H", function() gs.nav_hunk("first") end, "First Hunk")
-        map({ "n", "x" }, "<leader>ghs", ":Gitsigns stage_hunk<cr>", "Stage Hunk")
-        map({ "n", "x" }, "<leader>ghr", ":Gitsigns reset_hunk<cr>", "Reset Hunk")
+        map("n", "]H", function()
+          gs.nav_hunk("last")
+        end, "Last Hunk")
+        map("n", "[H", function()
+          gs.nav_hunk("first")
+        end, "First Hunk")
+
+        -- 操作
+        map({ "n", "x" }, "<leader>ghs", ":Gitsigns stage_hunk<CR>", "Stage Hunk")
+        map({ "n", "x" }, "<leader>ghr", ":Gitsigns reset_hunk<CR>", "Reset Hunk")
         map("n", "<leader>ghS", gs.stage_buffer, "Stage Buffer")
         map("n", "<leader>ghu", gs.undo_stage_hunk, "Undo Stage Hunk")
         map("n", "<leader>ghR", gs.reset_buffer, "Reset Buffer")
         map("n", "<leader>ghp", gs.preview_hunk_inline, "Preview Hunk Inline")
-        map("n", "<leader>ghb", function() gs.blame_line({ full = true }) end, "Blame Line")
-        map("n", "<leader>ghB", function() gs.blame() end, "Blame Buffer")
+        map("n", "<leader>ghb", function()
+          gs.blame_line({ full = true })
+        end, "Blame Line (full)")
+        map("n", "<leader>ghB", function()
+          gs.blame()
+        end, "Blame Buffer")
         map("n", "<leader>ghd", gs.diffthis, "Diff This")
-        map("n", "<leader>ghD", function() gs.diffthis("~") end, "Diff This ~")
-        map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<cr>", "GitSigns Select Hunk")
+        map("n", "<leader>ghD", function()
+          gs.diffthis("~")
+        end, "Diff This (~)")
+        map("n", "<leader>gtb", gs.toggle_current_line_blame, "Toggle Current Line Blame")
+        map("n", "<leader>gtw", gs.toggle_word_diff, "Toggle Word Diff")
+        map("n", "<leader>gts", gs.toggle_signs, "Toggle Signs")
+        map("n", "<leader>gtl", gs.toggle_linehl, "Toggle Line Highlight")
+        map("n", "<leader>gtn", gs.toggle_numhl, "Toggle Number Highlight")
+        map("n", "<leader>ghQ", function()
+          gs.setqflist("all")
+        end, "Quickfix all changes")
+        map("n", "<leader>ghq", gs.setqflist, "Quickfix buffer changes")
+        map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "GitSigns Select Hunk")
       end,
     },
+  },
+  {
+    "gitsigns.nvim",
+    opts = function()
+      Snacks.toggle({
+        name = "Git Signs",
+        get = function()
+          return require("gitsigns.config").config.signcolumn
+        end,
+        set = function(state)
+          require("gitsigns").toggle_signs(state)
+        end,
+      }):map("<leader>uG")
+    end,
   },
   {
     "folke/trouble.nvim",
@@ -127,15 +189,15 @@ return {
     "folke/todo-comments.nvim",
     dependencies = { "nvim-lua/plenary.nvim" },
     opts = {
-      signs = true, -- show icons in the signs column
-      sign_priority = 8, -- sign priority
+      signs = true,
+      sign_priority = 8,
       -- keywords recognized as todo comments
       keywords = {
         FIX = {
-          icon = " ", -- icon used for the sign, and in search results
-          color = "error", -- can be a hex color, or a named color (see below)
-          alt = { "FIXME", "BUG", "FIXIT", "ISSUE" }, -- a set of other keywords that all map to this FIX keywords
-          -- signs = false, -- configure signs for some keywords individually
+          icon = " ",
+          color = "error",
+          alt = { "FIXME", "BUG", "FIXIT", "ISSUE" },
+          -- signs = false,
         },
         TODO = { icon = " ", color = "info" },
         HACK = { icon = " ", color = "warning" },
@@ -149,28 +211,22 @@ return {
         },
       },
       gui_style = {
-        fg = "NONE", -- The gui style to use for the fg highlight group.
-        bg = "BOLD", -- The gui style to use for the bg highlight group.
+        fg = "NONE",
+        bg = "BOLD",
       },
-      merge_keywords = true, -- when true, custom keywords will be merged with the defaults
-      -- highlighting of the line containing the todo comment
-      -- * before: highlights before the keyword (typically comment characters)
-      -- * keyword: highlights of the keyword
-      -- * after: highlights after the keyword (todo text)
+      merge_keywords = true,
       highlight = {
-        multiline = true, -- enable multine todo comments
-        multiline_pattern = "^.", -- lua pattern to match the next multiline from the start of the matched keyword
-        multiline_context = 10, -- extra lines that will be re-evaluated when changing a line
-        before = "", -- "fg" or "bg" or empty
-        keyword = "wide", -- "fg", "bg", "wide", "wide_bg", "wide_fg" or empty. (wide and wide_bg is the same as bg, but will also highlight surrounding characters, wide_fg acts accordingly but with fg)
-        after = "fg", -- "fg" or "bg" or empty
-        pattern = [[.*<(KEYWORDS)\s*:]], -- pattern or table of patterns, used for highlighting (vim regex)
-        comments_only = true, -- uses treesitter to match keywords in comments only
-        max_line_len = 400, -- ignore lines longer than this
-        exclude = {}, -- list of file types to exclude highlighting
+        multiline = true,
+        multiline_pattern = "^.",
+        multiline_context = 10,
+        before = "",
+        keyword = "wide",
+        after = "fg",
+        pattern = [[.*<(KEYWORDS)\s*:]],
+        comments_only = true,
+        max_line_len = 400,
+        exclude = {},
       },
-      -- list of named colors where we try to extract the guifg from the
-      -- list of highlight groups or use the hex color if hl not found as a fallback
       colors = {
         error = { "DiagnosticError", "ErrorMsg", "#DC2626" },
         warning = { "DiagnosticWarn", "WarningMsg", "#FBBF24" },
@@ -188,10 +244,8 @@ return {
           "--line-number",
           "--column",
         },
-        -- regex that will be used to match keywords.
-        -- don't replace the (KEYWORDS) placeholder
-        pattern = [[\b(KEYWORDS):]], -- ripgrep regex
-        -- pattern = [[\b(KEYWORDS)\b]], -- match without the extra colon. You'll likely get false positives
+        pattern = [[\b(KEYWORDS):]],
+        -- pattern = [[\b(KEYWORDS)\b]],
       },
     },
   },

@@ -19,6 +19,11 @@ return {
               ["async-recursion"] = { "async_recursion" },
             },
           },
+          inlayHints = {
+            enable = true,
+            chainingHints = true,
+            maxLength = 25,
+          },
         },
       },
     },
