@@ -524,6 +524,8 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | `gr`              | references                |
 | `K`               | hover                     |
 
+> [more keymaps](./KEYMAPS.md)
+
 ---
 
 ## Options (highlights)
