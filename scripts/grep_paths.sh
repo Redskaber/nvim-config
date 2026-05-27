@@ -57,16 +57,22 @@ usage() {
 # ── 参数解析 ──────────────────────────────────────────────────────────────────
 while getopts ":ie:x:nlso:h" opt; do
   case $opt in
-    i) CASE_FLAG="-i" ;;
-    e) INCLUDE_GLOBS+=("$OPTARG") ;;
-    x) EXCLUDE_GLOBS+=("$OPTARG") ;;
-    n) NAME_MODE=true ;;
-    l) LIST_MODE=true ;;
-    s) SORT_OUTPUT=true ;;
-    o) OUTPUT_FILE="$OPTARG" ;;
-    h) usage ;;
-    :) echo "错误: 选项 -$OPTARG 需要参数" >&2; exit 1 ;;
-    \?) echo "错误: 未知选项 -$OPTARG" >&2; exit 1 ;;
+  i) CASE_FLAG="-i" ;;
+  e) INCLUDE_GLOBS+=("$OPTARG") ;;
+  x) EXCLUDE_GLOBS+=("$OPTARG") ;;
+  n) NAME_MODE=true ;;
+  l) LIST_MODE=true ;;
+  s) SORT_OUTPUT=true ;;
+  o) OUTPUT_FILE="$OPTARG" ;;
+  h) usage ;;
+  :)
+    echo "错误: 选项 -$OPTARG 需要参数" >&2
+    exit 1
+    ;;
+  \?)
+    echo "错误: 未知选项 -$OPTARG" >&2
+    exit 1
+    ;;
   esac
 done
 shift $((OPTIND - 1))
@@ -158,8 +164,8 @@ emit() {
 }
 
 if [ -n "$OUTPUT_FILE" ]; then
-  emit > "$OUTPUT_FILE"
-  count=$(wc -l < "$OUTPUT_FILE")
+  emit >"$OUTPUT_FILE"
+  count=$(wc -l <"$OUTPUT_FILE")
   echo "[grep_paths] $count 条路径 → $OUTPUT_FILE" >&2
 else
   emit

@@ -15,6 +15,7 @@ return {
       { "]b", "<cmd>BufferLineCycleNext<cr>", desc = "Next buffer" },
       { "[B", "<cmd>BufferLineMovePrev<cr>", desc = "Move buffer prev" },
       { "]B", "<cmd>BufferLineMoveNext<cr>", desc = "Move buffer next" },
+      { "<leader>bj", "<cmd>BufferLinePick<cr>", desc = "Pick Buffer" },
     },
     opts = {
       options = {
@@ -86,7 +87,7 @@ return {
             -- stylua: ignore
             { function() return require("noice").api.status.mode.get() end,    cond = function() return package.loaded["noice"] and require("noice").api.status.mode.has()    end, color = function() return { fg = Snacks.util.color("Constant")  } end },
             -- stylua: ignore
-            { function() return "  " .. require("dap").status() end,           cond = function() return package.loaded["dap"]   and require("dap").status() ~= ""             end, color = function() return { fg = Snacks.util.color("Debug")     } end },
+            { function() return "  " .. require("dap").status() end,           cond = function() return package.loaded["dap"]   and require("dap").status() ~= ""             end, color = function() return { fg = Snacks.util.color("Debug")     } end },
             -- stylua: ignore
             { require("lazy.status").updates, cond = require("lazy.status").has_updates, color = function() return { fg = Snacks.util.color("Special") } end },
             {
@@ -106,7 +107,7 @@ return {
           },
           lualine_z = {
             function()
-              return " " .. os.date("%R")
+              return " " .. os.date("%R")
             end,
           },
         },
@@ -181,7 +182,7 @@ return {
     },
     -- stylua: ignore
     keys = {
-      { "<leader>sn",  "",                                                                              desc = "+noice" },
+      { "<leader>sn",  "",                                                                             desc = "+noice" },
       { "<S-Enter>",   function() require("noice").redirect(vim.fn.getcmdline()) end,                  mode = "c",                        desc = "Redirect cmdline" },
       { "<leader>snl", function() require("noice").cmd("last")    end,                                 desc = "Noice last message" },
       { "<leader>snh", function() require("noice").cmd("history")  end,                                desc = "Noice history" },
@@ -196,13 +197,14 @@ return {
   -- ── Mini icons ────────────────────────────────────────────────────────
   {
     "nvim-mini/mini.icons",
+    lazy = true,
     opts = {
       file = {
         [".keep"] = { glyph = "󰊢", hl = "MiniIconsGrey" },
-        ["devcontainer.json"] = { glyph = "", hl = "MiniIconsAzure" },
+        ["devcontainer.json"] = { glyph = "", hl = "MiniIconsAzure" },
       },
       filetype = {
-        dotenv = { glyph = "", hl = "MiniIconsYellow" },
+        dotenv = { glyph = "", hl = "MiniIconsYellow" },
       },
     },
   },
@@ -314,20 +316,21 @@ return {
       { "<leader>su",      function() Snacks.picker.undo()            end, desc = "Undo history" },
       { "<leader>uC",      function() Snacks.picker.colorschemes()    end, desc = "Colorschemes" },
       -- LSP via picker
-      { "gd",  function() Snacks.picker.lsp_definitions()      end, desc = "Goto definition" },
-      { "gD",  function() Snacks.picker.lsp_declarations()     end, desc = "Goto declaration" },
-      { "gr",  function() Snacks.picker.lsp_references()       end, nowait = true, desc = "References" },
-      { "gI",  function() Snacks.picker.lsp_implementations()  end, desc = "Goto implementation" },
-      { "gy",  function() Snacks.picker.lsp_type_definitions() end, desc = "Goto type definition" },
-      { "gai", function() Snacks.picker.lsp_incoming_calls()   end, desc = "Calls incoming" },
-      { "gao", function() Snacks.picker.lsp_outgoing_calls()   end, desc = "Calls outgoing" },
-      { "<leader>ss", function() Snacks.picker.lsp_symbols()           end, desc = "LSP symbols" },
-      { "<leader>sS", function() Snacks.picker.lsp_workspace_symbols() end, desc = "LSP workspace symbols" },
+      { "gd",         function() Snacks.picker.lsp_definitions()      end, desc = "Goto definition" },
+      { "gD",         function() Snacks.picker.lsp_declarations()     end, desc = "Goto declaration" },
+      { "gr",         function() Snacks.picker.lsp_references()       end, nowait = true, desc = "References" },
+      { "gI",         function() Snacks.picker.lsp_implementations()  end, desc = "Goto implementation" },
+      { "gy",         function() Snacks.picker.lsp_type_definitions() end, desc = "Goto type definition" },
+      { "gai",        function() Snacks.picker.lsp_incoming_calls()   end, desc = "Calls incoming" },
+      { "gao",        function() Snacks.picker.lsp_outgoing_calls()   end, desc = "Calls outgoing" },
+      { "<leader>ss", function() Snacks.picker.lsp_symbols()          end, desc = "LSP symbols" },
+      { "<leader>sS", function() Snacks.picker.lsp_workspace_symbols()end, desc = "LSP workspace symbols" },
       -- Misc
-      { "<leader>z",  function() Snacks.zen()                      end, desc = "Toggle zen mode" },
-      { "<leader>Z",  function() Snacks.zen.zoom()                 end, desc = "Toggle zoom" },
-      { "<leader>.",  function() Snacks.scratch()                  end, desc = "Toggle scratch buffer" },
-      { "<leader>S",  function() Snacks.scratch.select()           end, desc = "Select scratch buffer" },
+      { "<leader>z",  function() Snacks.zen()                         end, desc = "Toggle zen mode" },
+      { "<leader>Z",  function() Snacks.zen.zoom()                    end, desc = "Toggle zoom" },
+      { "<leader>.",  function() Snacks.scratch()                     end, desc = "Toggle scratch buffer" },
+      { "<leader>S",  function() Snacks.scratch.select()              end, desc = "Select scratch buffer" },
+      { "<leader>dps",function() Snacks.profiler.scratch()            end, desc = "Profiler Scratch Buffer" },
       { "<leader>n",  function()
           if Snacks.config.picker and Snacks.config.picker.supports_live then
             Snacks.picker.notifications()
@@ -335,11 +338,11 @@ return {
             Snacks.notifier.show_history()
           end
         end, desc = "Notification history" },
-      { "<leader>bd", function() Snacks.bufdelete()               end, desc = "Delete buffer" },
-      { "<leader>cR", function() Snacks.rename.rename_file()      end, desc = "Rename file" },
-      { "<leader>gB", function() Snacks.gitbrowse()               end, desc = "Git browse", mode = { "n", "v" } },
-      { "<leader>un", function() Snacks.notifier.hide()           end, desc = "Dismiss all notifications" },
-      { "<leader>N",  function()
+      { "<leader>bd",   function() Snacks.bufdelete()               end, desc = "Delete buffer" },
+      { "<leader>cR",   function() Snacks.rename.rename_file()      end, desc = "Rename file" },
+      { "<leader>gB",   function() Snacks.gitbrowse()               end, desc = "Git browse", mode = { "n", "v" } },
+      { "<leader>un",   function() Snacks.notifier.hide()           end, desc = "Dismiss all notifications" },
+      { "<leader>N",    function()
           Snacks.win({
             file = vim.api.nvim_get_runtime_file("doc/news.txt", false)[1],
             width = 0.6, height = 0.6,
@@ -386,4 +389,21 @@ return {
       })
     end,
   },
+
+  {
+    "folke/persistence.nvim",
+    event = "BufReadPre",
+    opts = {},
+    -- stylua: ignore
+    keys = {
+      { "<leader>qs", function() require("persistence").load() end, desc = "Restore Session" },
+      { "<leader>qS", function() require("persistence").select() end,desc = "Select Session" },
+      { "<leader>ql", function() require("persistence").load({ last = true }) end, desc = "Restore Last Session" },
+      { "<leader>qd", function() require("persistence").stop() end, desc = "Don't Save Current Session" },
+    },
+  },
+
+  { "nvim-lua/plenary.nvim", lazy = true },
+
+  { "MunifTanjim/nui.nvim", lazy = true },
 }

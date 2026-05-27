@@ -41,6 +41,7 @@ A Phase's `run(ir) -> IR` must have **no observable side-effects** on shared sta
 `runtime/emitter/init.lua` is the **only** file that calls `vim.notify` during codegen.
 
 Adapters must:
+
 - Only **read** the IR — never write it
 - Return pure Lua tables (`LazySpec[]`)
 - Never call `vim.*` API directly
@@ -96,6 +97,7 @@ Cache keys are derived from **file content hashes** (FNV-1a), not mtimes. This g
 ## Invariant 8 — DSL Modules are Pure Declarations
 
 `modules/lang/*.lua` files must:
+
 - Return a plain Lua table
 - Contain no `require()` calls
 - Contain no `vim.*` calls

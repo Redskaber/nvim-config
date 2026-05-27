@@ -9,7 +9,10 @@ return {
     nil_ls = {},
   },
   formatters = {
-    nix = { "nixpkgs_fmt" },
+    nix = { "alejandra" }, --- nixfmt
+  },
+  linters = {
+    nix = { "statix" },
   },
   -- nixpkgs_fmt is in system_tools → rules.resolve() returns use_mason=false
   -- nil_ls mason package name resolved via lsp_to_mason mapping

@@ -2,7 +2,7 @@
 -- DSL: Shell toolchain declaration.
 return {
   version = 1,
-  treesitter = { "bash", "fish" },
+  treesitter = { "bash", "zsh", "fish" },
   lsp = {
     bashls = {},
   },

@@ -6,6 +6,17 @@ return {
   {
     "stevearc/conform.nvim",
     dependencies = { "mason-org/mason.nvim" },
+    cmd = "ConformInfo",
+    keys = {
+      {
+        "<leader>cF",
+        function()
+          require("conform").format({ formatters = { "injected" }, timeout_ms = 3000 })
+        end,
+        mode = { "n", "x" },
+        desc = "Format Injected Langs",
+      },
+    },
     -- No opts here: all opts injected by runtime adapter spec
   },
 }

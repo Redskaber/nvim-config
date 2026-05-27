@@ -27,4 +27,149 @@ return {
       log_level = "ERROR",
     },
   },
+
+  -- {
+  --   "yetone/avante.nvim",
+  --   build = vim.fn.has("win32") ~= 0 and "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false"
+  --     or "make",
+  --   event = "VeryLazy",
+  --   opts = {
+  --     provider = "copilot",
+  --     selection = {
+  --       hint_display = "none",
+  --     },
+  --     behaviour = {
+  --       auto_set_keymaps = false,
+  --     },
+  --   },
+  --   cmd = {
+  --     "AvanteAsk",
+  --     "AvanteBuild",
+  --     "AvanteChat",
+  --     "AvanteClear",
+  --     "AvanteEdit",
+  --     "AvanteFocus",
+  --     "AvanteHistory",
+  --     "AvanteModels",
+  --     "AvanteRefresh",
+  --     "AvanteShowRepoMap",
+  --     "AvanteStop",
+  --     "AvanteSwitchProvider",
+  --     "AvanteToggle",
+  --   },
+  --   keys = {
+  --     { "<leader>aa", "<cmd>AvanteAsk<CR>", desc = "Ask Avante" },
+  --     { "<leader>ac", "<cmd>AvanteChat<CR>", desc = "Chat with Avante" },
+  --     { "<leader>ae", "<cmd>AvanteEdit<CR>", desc = "Edit Avante" },
+  --     { "<leader>af", "<cmd>AvanteFocus<CR>", desc = "Focus Avante" },
+  --     { "<leader>ah", "<cmd>AvanteHistory<CR>", desc = "Avante History" },
+  --     { "<leader>am", "<cmd>AvanteModels<CR>", desc = "Select Avante Model" },
+  --     { "<leader>an", "<cmd>AvanteChatNew<CR>", desc = "New Avante Chat" },
+  --     { "<leader>ap", "<cmd>AvanteSwitchProvider<CR>", desc = "Switch Avante Provider" },
+  --     { "<leader>ar", "<cmd>AvanteRefresh<CR>", desc = "Refresh Avante" },
+  --     { "<leader>as", "<cmd>AvanteStop<CR>", desc = "Stop Avante" },
+  --     { "<leader>at", "<cmd>AvanteToggle<CR>", desc = "Toggle Avante" },
+  --   },
+  -- },
+  --
+
+  -- {
+  --   "coder/claudecode.nvim",
+  --   opts = {},
+  --   keys = {
+  --     { "<leader>a", "", desc = "+ai", mode = { "n", "v" } },
+  --     { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
+  --     { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
+  --     { "<leader>ar", "<cmd>ClaudeCode --resume<cr>", desc = "Resume Claude" },
+  --     { "<leader>aC", "<cmd>ClaudeCode --continue<cr>", desc = "Continue Claude" },
+  --     { "<leader>ab", "<cmd>ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
+  --     { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send to Claude" },
+  --     {
+  --       "<leader>as",
+  --       "<cmd>ClaudeCodeTreeAdd<cr>",
+  --       desc = "Add file",
+  --       ft = { "NvimTree", "neo-tree", "oil" },
+  --     },
+  --     -- Diff management
+  --     { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
+  --     { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
+  --   },
+  -- },
+  --
+
+  -- {
+  --   "CopilotC-Nvim/CopilotChat.nvim",
+  --   branch = "main",
+  --   cmd = "CopilotChat",
+  --   opts = function()
+  --     local user = vim.env.USER or "User"
+  --     user = user:sub(1, 1):upper() .. user:sub(2)
+  --     return {
+  --       auto_insert_mode = true,
+  --       headers = {
+  --         user = "  " .. user .. " ",
+  --         assistant = "  Copilot ",
+  --         tool = "󰊳  Tool ",
+  --       },
+  --       window = {
+  --         width = 0.4,
+  --       },
+  --     }
+  --   end,
+  --   keys = {
+  --     { "<c-s>", "<CR>", ft = "copilot-chat", desc = "Submit Prompt", remap = true },
+  --     { "<leader>a", "", desc = "+ai", mode = { "n", "x" } },
+  --     {
+  --       "<leader>aa",
+  --       function()
+  --         return require("CopilotChat").toggle()
+  --       end,
+  --       desc = "Toggle (CopilotChat)",
+  --       mode = { "n", "x" },
+  --     },
+  --     {
+  --       "<leader>ax",
+  --       function()
+  --         return require("CopilotChat").reset()
+  --       end,
+  --       desc = "Clear (CopilotChat)",
+  --       mode = { "n", "x" },
+  --     },
+  --     {
+  --       "<leader>aq",
+  --       function()
+  --         vim.ui.input({
+  --           prompt = "Quick Chat: ",
+  --         }, function(input)
+  --           if input ~= "" then
+  --             require("CopilotChat").ask(input)
+  --           end
+  --         end)
+  --       end,
+  --       desc = "Quick Chat (CopilotChat)",
+  --       mode = { "n", "x" },
+  --     },
+  --     {
+  --       "<leader>ap",
+  --       function()
+  --         require("CopilotChat").select_prompt()
+  --       end,
+  --       desc = "Prompt Actions (CopilotChat)",
+  --       mode = { "n", "x" },
+  --     },
+  --   },
+  --   config = function(_, opts)
+  --     local chat = require("CopilotChat")
+  --
+  --     vim.api.nvim_create_autocmd("BufEnter", {
+  --       pattern = "copilot-chat",
+  --       callback = function()
+  --         vim.opt_local.relativenumber = false
+  --         vim.opt_local.number = false
+  --       end,
+  --     })
+  --
+  --     chat.setup(opts)
+  --   end,
+  -- },
 }

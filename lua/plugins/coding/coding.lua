@@ -29,6 +29,14 @@ return {
         },
       }
     end,
+    config = function(_, opts)
+      require("mini.ai").setup(opts)
+      LazyVim.on_load("which-key.nvim", function()
+        vim.schedule(function()
+          LazyVim.mini.ai_whichkey(opts)
+        end)
+      end)
+    end,
   },
 
   -- ── nvim-cmp: emoji source add-on ────────────────────────────────────
@@ -40,6 +48,53 @@ return {
       table.insert(opts.sources, { name = "emoji" })
     end,
   },
+
+  { "Kaiser-Yang/blink-cmp-avante" },
+
+  -- img-clip
+  {
+    "HakonHarnes/img-clip.nvim",
+    event = "VeryLazy",
+    optional = true,
+    opts = {
+      -- recommended settings
+      default = {
+        embed_image_as_base64 = false,
+        prompt_for_file_name = false,
+        drag_and_drop = {
+          insert_mode = true,
+        },
+        -- required for Windows users
+        use_absolute_path = true,
+      },
+    },
+  },
+
+  -- render-markdown
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    optional = true,
+    opts = {
+      file_types = { "markdown", "Avante" },
+    },
+    ft = { "markdown", "Avante" },
+  },
+
+  -- blink
+  {
+    "saghen/blink.cmp",
+    optional = true,
+    specs = { "Kaiser-Yang/blink-cmp-avante" },
+    opts = {
+      sources = {
+        default = { "avante" },
+        providers = { avante = { module = "blink-cmp-avante", name = "Avante" } },
+      },
+    },
+  },
+
+  -- friendly-snippets
+  { "rafamadriz/friendly-snippets" },
 
   -- ── DAP (debug adapter protocol) ─────────────────────────────────────
   {
@@ -59,6 +114,7 @@ return {
       "cpp",
       "java",
       "zig",
+      "nix",
     },
   },
 }

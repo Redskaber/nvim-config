@@ -27,5 +27,8 @@ return {
   formatters = {
     lua = { "stylua" },
   },
+  linters = {
+    lua = { "luacheck" },
+  },
   mason = { "stylua" },
 }

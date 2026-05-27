@@ -9,15 +9,26 @@ local BASE_PARSERS = {
   "bash",
   "c",
   "diff",
+  "html",
+  "javascript",
+  "jsdoc",
+  "json",
   "lua",
   "luadoc",
-  "markdown",
+  "luap",
+  "markdownwn",
   "markdown_inline",
   "printf",
+  "python",
   "query",
   "regex",
+  "toml",
+  "tsx",
+  "typescript",
   "vim",
   "vimdoc",
+  "xml",
+  "yaml",
 }
 
 ---@param ir table
@@ -33,11 +44,16 @@ function M.build(ir)
     {
       "nvim-treesitter/nvim-treesitter",
       _source = "ltos:treesitter",
+      event = { "LazyFile", "VeryLazy" },
+      cmd = { "TSUpdate", "TSInstall", "TSLog", "TSUninstall" },
+      opts_extend = { "ensure_installed" },
+      ---@alias lazyvim.TSFeat { enable?: boolean, disable?: string[] }
+      ---@class lazyvim.TSConfig: TSConfig
       opts = {
         ensure_installed = parsers,
-        indent = { enable = true },
-        highlight = { enable = true },
-        folds = { enable = true },
+        indent = { enable = true }, ---@type lazyvim.TSFeat
+        highlight = { enable = true }, ---@type lazyvim.TSFeat
+        folds = { enable = true }, ---@type lazyvim.TSFeat
         textobjects = {
           select = {
             enable = true,

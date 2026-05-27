@@ -18,21 +18,21 @@ check() {
 }
 
 # ── Layer dependency direction ────────────────────────────────────────────────
-check "$LUA/core/kernel"   'require.*core\.compiler'    "kernel→compiler"
-check "$LUA/core/compiler" 'require.*core\.domain'      "compiler→domain"
-check "$LUA/core/domain"   'require.*toolchain'         "domain→toolchain"
-check "$LUA/toolchain"     'require.*runtime\.adapters' "strategy→adapters"
-check "$LUA/modules"       'require.*runtime\.pipeline' "app→pipeline"
-check "$LUA/modules"       'require.*runtime\.adapters' "app→adapters"
-check "$LUA/config"        'require.*runtime\.adapters' "config→adapters"
-check "$LUA/config"        'require.*runtime\.pipeline' "config→pipeline"
+check "$LUA/core/kernel" 'require.*core\.compiler' "kernel→compiler"
+check "$LUA/core/compiler" 'require.*core\.domain' "compiler→domain"
+check "$LUA/core/domain" 'require.*toolchain' "domain→toolchain"
+check "$LUA/toolchain" 'require.*runtime\.adapters' "strategy→adapters"
+check "$LUA/modules" 'require.*runtime\.pipeline' "app→pipeline"
+check "$LUA/modules" 'require.*runtime\.adapters' "app→adapters"
+check "$LUA/config" 'require.*runtime\.adapters' "config→adapters"
+check "$LUA/config" 'require.*runtime\.pipeline' "config→pipeline"
 # TODO-8.2: modules/* and config/* must not require runtime/adapters (belt-and-suspenders)
-check "$LUA/plugins"       'require.*runtime\.adapters' "plugins→adapters"
-check "$LUA/plugins"       'require.*runtime\.pipeline' "plugins→pipeline"
+check "$LUA/plugins" 'require.*runtime\.adapters' "plugins→adapters"
+check "$LUA/plugins" 'require.*runtime\.pipeline' "plugins→pipeline"
 
 # ── env.lua must not contain prefer_system ────────────────────────────────────
-if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null \
-    | grep -v "^.*--.*prefer_system" | grep -q .; then
+if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null |
+  grep -v "^.*--.*prefer_system" | grep -q .; then
   echo "FAIL [env.lua]: prefer_system must not exist — move to rules.lua"
   fail=1
 fi
@@ -62,8 +62,8 @@ done
 
 # ── Phase.run must not call vim.tbl_extend / vim.deepcopy (use util.*) ───────
 for f in "$LUA/runtime/passes/"*.lua; do
-  if grep -n "vim\.tbl_extend\|vim\.deepcopy\|vim\.tbl_deep_extend\|vim\.list_extend" "$f" 2>/dev/null \
-      | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  if grep -n "vim\.tbl_extend\|vim\.deepcopy\|vim\.tbl_deep_extend\|vim\.list_extend" "$f" 2>/dev/null |
+    grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [phase purity]: $f uses vim table API — use util.merge/deep_merge/deep_copy"
     fail=1
   fi

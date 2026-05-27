@@ -7,19 +7,23 @@ return {
   version = 1,
   treesitter = { "json", "jsonc", "yaml", "toml", "markdown", "markdown_inline", "html", "xml" },
   lsp = {
+    marksman = {},
     jsonls = {},
     yamlls = {},
     taplo = {},
   },
   formatters = {
-    toml = { "taplo" },
-    markdown = { "prettierd" },
+    markdown = { "markdownlint" },
     html = { "prettierd" },
     css = { "prettierd" },
     scss = { "prettierd" },
     json = { "prettierd" },
     jsonc = { "prettierd" },
     yaml = { "prettierd" },
+    toml = { "taplo" },
+  },
+  linters = {
+    markdown = { "markdownlint" },
   },
   mason = { "prettierd" },
 }
