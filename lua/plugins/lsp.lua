@@ -313,6 +313,7 @@ return {
     "mason-org/mason.nvim",
     opts_extend = { "ensure_installed" },
     opts = {
+      --- auto installer
       ensure_installed = {
         "clang-format",
         "goimports",
@@ -331,6 +332,8 @@ return {
         "shellcheck",
         "prettierd",
         "eslint_d",
+        "statix",
+        "alejandra",
       },
     },
   },

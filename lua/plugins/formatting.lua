@@ -20,7 +20,7 @@ return {
           kotlin = { "ktfmt" },
           lisp = { "cljfmt" },
           lua = { "stylua" },
-          nix = { "nixpkgs_fmt" },
+          -- nix = { "alejandra" }, -- nixfmt
           python = { "ruff" },
           rust = { "rustfmt", lsp_format = "fallback" },
           typescript = { "prettierd" },

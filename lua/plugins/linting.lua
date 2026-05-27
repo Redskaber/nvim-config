@@ -17,6 +17,7 @@ return {
         javascriptreact = { "eslint" },
         kotlin = { "ktlint" },
         lisp = { "clj-kondo" },
+        nix = { "statix" },
         python = { "ruff" },
         typescript = { "eslint" },
         typescriptreact = { "eslint" },
