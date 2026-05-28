@@ -200,11 +200,17 @@ return {
     lazy = true,
     opts = {
       file = {
-        [".keep"] = { glyph = "󰊢", hl = "MiniIconsGrey" },
-        ["devcontainer.json"] = { glyph = "", hl = "MiniIconsAzure" },
+        [".keep"] = { glyph = "󰊢 ", hl = "MiniIconsGrey" },
+        [".envrc"] = { glyph = " ", hl = "MiniIconsYellow" },
+        ["devcontainer.json"] = { glyph = " ", hl = "MiniIconsAzure" },
       },
       filetype = {
-        dotenv = { glyph = "", hl = "MiniIconsYellow" },
+        dotenv = { glyph = " ", hl = "MiniIconsYellow" },
+      },
+      extension = {
+        img = { glyph = " ", hl = "MiniIconsGrey" },
+        iso = { glyph = " ", hl = "MiniIconsGrey" },
+        lock = { glyph = "", hl = "MiniIconsGrey" },
       },
     },
   },
