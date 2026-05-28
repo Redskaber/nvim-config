@@ -9,7 +9,7 @@ return {
     nil_ls = {},
   },
   formatters = {
-    nix = { "alejandra" }, --- nixfmt
+    --- nix = { "alejandra" }, --- nixfmt
   },
   linters = {
     nix = { "statix" },
