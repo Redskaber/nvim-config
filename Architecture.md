@@ -38,10 +38,15 @@ nvim-config/
 │   │   └── rules.lua               # 工具链解析引擎（override→system→nix→mapping→identity）
 │   │
 │   ├── runtime/                    # Layer 4：编译器驱动 + 后端适配器
-│   │   ├── init.lua                # 编排器：模块注册、profile 解析、三层缓存协调
-│   │   ├── pipeline.lua            # 五阶段流水线 + 状态机（独立实例/次运行）
+│   │   ├── init.lua                # 编排器：ProviderRegistry、profile、三层缓存协调
+│   │   ├── pipeline.lua            # 五阶段流水线 + 状态机（PHASE_ORDER 导出）
 │   │   ├── api.lua                 # 编辑器门面（picker / lsp / diagnostics / terminal）
 │   │   ├── commands.lua            # LTOS 用户命令（LtosDebug/Info/IR/Trace/Graph）
+│   │   │
+│   │   ├── providers/              # 模块发现 + lazy 配置组合（依赖倒置）
+│   │   │   ├── interface.lua       # ModuleProvider.discover()
+│   │   │   ├── registry.lua        # ProviderRegistry（profile 过滤）
+│   │   │   └── config.lua          # ConfigProvider（lazy.setup opts）
 │   │   │
 │   │   ├── passes/                 # 编译阶段（纯 IR 变换，copy-on-write）
 │   │   │   ├── collect.lua         # Phase 1：IDLE→COLLECTING，DSL→AST
@@ -52,6 +57,7 @@ nvim-config/
 │   │   │   └── codegen.lua         # Phase 5：OPTIMIZING→CODEGEN→DONE，LIR→SPEC
 │   │   │
 │   │   └── adapters/               # 后端适配器（只读 IR，驱动 lazy.nvim 插件）
+│   │       ├── registry.lua        # AdapterRegistry（注册即插拔）
 │   │       ├── lsp.lua             # IR.merged_lsp → nvim-lspconfig + mason-lspconfig LazySpec
 │   │       ├── mason.lua           # IR.symbols + IR.resolved → mason.nvim LazySpec
 │   │       ├── treesitter.lua      # IR.all_parsers → nvim-treesitter LazySpec
@@ -104,7 +110,9 @@ nvim-config/
 │       └── commands_spec.lua
 │
 ├── scripts/
-│   └── check_layer_boundaries.sh  # 层边界违规检测脚本（CI 集成）
+│   ├── check_layer_boundaries.sh  # 层边界违规检测（含 toolchain vim.g）
+│   ├── ltos_tests.lua           # headless 架构回归测试
+│   └── run_ltos_tests.sh        # check + test 入口
 │
 └── README.md
 ```

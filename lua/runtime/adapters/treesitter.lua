@@ -5,7 +5,7 @@ local M = {}
 
 local util = require("core.kernel.util")
 
-local BASE_PARSERS = {
+local DEFAULT_BASE_PARSERS = {
   "bash",
   "c",
   "diff",
@@ -16,7 +16,7 @@ local BASE_PARSERS = {
   "lua",
   "luadoc",
   "luap",
-  "markdownwn",
+  "markdown",
   "markdown_inline",
   "printf",
   "python",
@@ -31,6 +31,14 @@ local BASE_PARSERS = {
   "yaml",
 }
 
+local function base_parsers()
+  local g = vim.g.ltos_base_parsers
+  if type(g) == "table" then
+    return g
+  end
+  return DEFAULT_BASE_PARSERS
+end
+
 ---@param ir table
 ---@return table[]
 function M.build(ir)
@@ -38,7 +46,7 @@ function M.build(ir)
     return { { _ltos_error = "[ltos:treesitter] IR missing required field: all_parsers" } }
   end
 
-  local parsers = util.dedup(vim.list_extend(vim.deepcopy(BASE_PARSERS), ir.all_parsers))
+  local parsers = util.dedup(vim.list_extend(vim.deepcopy(base_parsers()), ir.all_parsers))
 
   return {
     {

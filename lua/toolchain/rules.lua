@@ -5,6 +5,7 @@
 --   • Added nix_rule consuming env facts (env.is_nix + env.has) — removed from env.lua
 --   • Rules are now a pipeline (apply-chain), not if/else
 --   • Each rule: apply(ctx, tool) -> { use_mason, pkg } | nil (nil = pass to next rule)
+--   • Overrides are injected by Layer 4/5 callers — no vim.g access here.
 
 local env = require("core.kernel.env")
 local mappings = require("toolchain.mappings")
@@ -15,12 +16,11 @@ local M = {}
 
 --- Rule 1: user override (highest priority)
 ---@param tool string
+---@param overrides table<string, { use_mason: boolean, pkg: string|nil }>
 ---@return table|nil
-local function override_rule(tool)
-  -- Check vim.g.ltos_tool_overrides first, then mappings.overrides
-  local g_overrides = vim.g.ltos_tool_overrides
-  if type(g_overrides) == "table" and g_overrides[tool] then
-    return g_overrides[tool]
+local function override_rule(tool, overrides)
+  if overrides[tool] then
+    return overrides[tool]
   end
   if mappings.overrides[tool] then
     return mappings.overrides[tool]
@@ -39,7 +39,6 @@ local function system_tool_rule(tool)
 end
 
 --- Rule 3: Nix host — if binary present on PATH, use system
---- REFACTOR: this logic was previously in env.prefer_system(); moved here.
 ---@param tool string
 ---@return table|nil
 local function nix_rule(tool)
@@ -79,23 +78,25 @@ local RULES = {
 
 --- Resolve a tool name → { use_mason: boolean, pkg: string|nil }
 ---@param tool string
+---@param overrides? table<string, { use_mason: boolean, pkg: string|nil }>
 ---@return { use_mason: boolean, pkg: string|nil }
-function M.resolve(tool)
+function M.resolve(tool, overrides)
+  overrides = overrides or {}
   for _, rule in ipairs(RULES) do
-    local result = rule(tool)
+    local result = rule(tool, overrides)
     if result ~= nil then
       return result
     end
   end
-  -- Should never reach here (identity_rule always fires)
   return { use_mason = true, pkg = tool }
 end
 
 --- Convenience: returns true if tool should be mason-managed.
 ---@param tool string
+---@param overrides? table
 ---@return boolean
-function M.use_mason(tool)
-  return M.resolve(tool).use_mason
+function M.use_mason(tool, overrides)
+  return M.resolve(tool, overrides).use_mason
 end
 
 return M

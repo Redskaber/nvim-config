@@ -3,18 +3,6 @@
 --
 -- All config/, keymaps.lua, and plugin files import ONLY this module.
 -- No direct requires of telescope/snacks/conform/etc from consumer code.
---
--- API namespaces:
---   M.format          — buffer formatting
---   M.find_files      — picker: files
---   M.live_grep       — picker: grep
---   M.buffers         — picker: buffers
---   M.recent_files    — picker: recent
---   M.help_tags       — picker: help
---   M.diagnostics     — diagnostic navigation
---   M.lsp             — LSP actions
---   M.terminal        — pluggable terminal backend
---   M.ui              — UI helpers
 
 local M = {}
 
@@ -30,22 +18,60 @@ function M.format(opts)
   end
 end
 
--- ── Picker (snacks.picker preferred, telescope fallback) ──────────────────────
+-- ── Picker (pluggable backend) ────────────────────────────────────────────────
 
-local function picker()
-  local ok, snacks = pcall(require, "snacks")
-  if ok and snacks.picker then
-    return snacks.picker
+local _picker_backends = {}
+local _default_picker = nil
+
+--- Register a named picker backend.
+--- backend = { files: fn, grep: fn, buffers: fn, recent: fn, help: fn, diagnostics?: fn }
+---@param name    string
+---@param backend table
+function M.picker_register(name, backend)
+  assert(type(name) == "string" and name ~= "", "backend name must be non-empty string")
+  assert(type(backend) == "table", "backend must be a table")
+  _picker_backends[name] = backend
+end
+
+--- Set the default picker backend name (used when vim.g.ltos_picker_backend is unset).
+---@param name string
+function M.picker_set_default(name)
+  _default_picker = name
+end
+
+local function bootstrap_picker_backends()
+  if _picker_backends["snacks"] == nil then
+    local ok, snacks = pcall(require, "snacks")
+    if ok and snacks.picker then
+      _picker_backends["snacks"] = snacks.picker
+    end
   end
-  local ok2, tel = pcall(require, "telescope.builtin")
-  if ok2 then
-    return tel
+  if _picker_backends["telescope"] == nil then
+    local ok, tel = pcall(require, "telescope.builtin")
+    if ok then
+      _picker_backends["telescope"] = tel
+    end
+  end
+end
+
+local function get_picker()
+  bootstrap_picker_backends()
+  local name = vim.g.ltos_picker_backend or _default_picker
+  if name and _picker_backends[name] then
+    return _picker_backends[name]
+  end
+  -- Auto-select first available registered backend
+  if _picker_backends["snacks"] then
+    return _picker_backends["snacks"]
+  end
+  if _picker_backends["telescope"] then
+    return _picker_backends["telescope"]
   end
   return nil
 end
 
 local function pick(method, ...)
-  local p = picker()
+  local p = get_picker()
   if p and type(p[method]) == "function" then
     p[method](...)
   else
@@ -82,9 +108,9 @@ M.diagnostics = {
     vim.diagnostic.open_float()
   end,
   list = function()
-    local ok, snacks = pcall(require, "snacks")
-    if ok and snacks.picker then
-      snacks.picker.diagnostics()
+    local p = get_picker()
+    if p and type(p.diagnostics) == "function" then
+      p.diagnostics()
     else
       vim.diagnostic.setloclist()
     end
@@ -113,7 +139,6 @@ M.lsp = {
 local _terminal_backends = {}
 
 --- Register a named terminal backend.
---- backend = { float: fn, horizontal: fn, vertical?: fn }
 ---@param name    string
 ---@param backend table
 function M.terminal_register(name, backend)
@@ -126,7 +151,6 @@ local function get_terminal()
   local name = vim.g.ltos_terminal_backend or "toggleterm"
   local backend = _terminal_backends[name]
   if not backend then
-    -- Auto-register toggleterm if available
     local ok, tt = pcall(require, "toggleterm.terminal")
     if ok then
       _terminal_backends["toggleterm"] = {
@@ -159,6 +183,11 @@ M.terminal = {
       b.horizontal()
     end
   end,
+}
+
+M.picker = {
+  register = M.picker_register,
+  set_default = M.picker_set_default,
 }
 
 -- ── UI helpers ────────────────────────────────────────────────────────────────

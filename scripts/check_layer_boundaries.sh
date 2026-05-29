@@ -69,6 +69,14 @@ for f in "$LUA/runtime/passes/"*.lua; do
   fi
 done
 
+# ── toolchain must not call vim.g (Layer 3 boundary) ─────────────────────────
+if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null |
+  grep -v "^.*--.*vim\.g" | grep -q .; then
+  echo "FAIL [toolchain vim.g]: toolchain/* must not read vim.g — inject via Layer 4/5"
+  grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" | grep -v "^.*--" | head -5
+  fail=1
+fi
+
 if [ $fail -eq 0 ]; then
   echo "Layer boundary check: PASSED"
 else

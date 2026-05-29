@@ -394,9 +394,12 @@ return {
 }
 ```
 
-Add `"modules.lang.mylang"` to `LANG_MODULES` in `lua/runtime/init.lua`.
-If the LSP server name differs from its mason package name, add an entry to `lsp_to_mason` in `lua/toolchain/mappings.lua`.
-If a formatter/linter tool name differs from its mason package name, add an entry to `tool_to_mason`.
+Add `lua/modules/lang/mylang.lua` — **no manual registration required**. `ModuleProvider.discover()` auto-detects new files under `modules/lang/`.
+
+Optional: `require("runtime.providers.registry").register("modules.lang.mylang")` for out-of-tree modules.
+
+If the LSP server name differs from its mason package name, add an entry to `lsp_to_mason` in `lua/toolchain/mappings.lua` (or `mappings.register_lsp(server, pkg)`).
+If a formatter/linter tool name differs from its mason package name, add an entry to `tool_to_mason` (or `mappings.register_tool(tool, pkg)`).
 
 ---
 
@@ -546,20 +549,8 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 ## Tests
 
 ```bash
-nvim --headless -l spec/core/util_spec.lua
-nvim --headless -l spec/core/schema_spec.lua
-nvim --headless -l spec/core/ir_spec.lua
-nvim --headless -l spec/core/pass_spec.lua
-nvim --headless -l spec/core/capability_spec.lua
-nvim --headless -l spec/core/cache_spec.lua
-nvim --headless -l spec/toolchain/mappings_spec.lua
-nvim --headless -l spec/toolchain/rules_spec.lua
-nvim --headless -l spec/toolchain/strategies_spec.lua
-nvim --headless -l spec/runtime/canonicalize_spec.lua
-nvim --headless -l spec/runtime/normalize_spec.lua
-nvim --headless -l spec/runtime/resolve_spec.lua
-nvim --headless -l spec/runtime/optimize_spec.lua
-nvim --headless -l spec/runtime/codegen_spec.lua
-nvim --headless -l spec/runtime/pipeline_spec.lua
-nvim --headless -l spec/runtime/commands_spec.lua
+just check   # layer boundary violations (scripts/check_layer_boundaries.sh)
+just test    # 12 headless LTOS regression tests (scripts/run_ltos_tests.sh)
 ```
+
+Coverage includes: cache version unification, schema idempotency, rules layer boundary, mappings/env extension APIs, module discovery, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, and `ConfigProvider`.

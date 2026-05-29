@@ -6,13 +6,11 @@
 --   • tool_to_mason: only entries whose mason pkg DIFFERS from tool name.
 --   • system_tools: NEVER install via mason.
 --   • resolve() priority: user overrides → system_tools → Nix → mappings → identity.
+--   • Tool resolution: use toolchain.rules.resolve() — not here (avoids circular require).
 
 local M = {}
 
 -- ── LSP server → mason package ────────────────────────────────────────────────
--- Used ONLY by runtime/adapters/mason.lua to look up mason package names.
--- mason-lspconfig.nvim's ensure_installed takes lspconfig server names directly
--- and does its own server→package resolution internally.
 
 M.lsp_to_mason = {
   lua_ls = "lua-language-server",
@@ -46,7 +44,7 @@ M.tool_to_mason = {
   ["clj-kondo"] = "clj-kondo",
   ["clang-format"] = "clang-format",
   checkstyle = "checkstyle",
-  eslint = "eslint_d", -- eslint tool name → eslint_d mason package (eslint_d is identity)
+  eslint = "eslint_d",
   prettierd = "prettierd",
   prettier = "prettier",
   goimports = "goimports",
@@ -57,13 +55,11 @@ M.tool_to_mason = {
 -- ── System-only tools (never via mason) ──────────────────────────────────────
 
 M.system_tools = {
-  -- Shell / system utilities
   rustup = true,
   nix = true,
   git = true,
   make = true,
   cc = true,
-  -- Language-toolchain formatters / linters (never via mason)
   rustfmt = true,
   clippy = true,
   gofmt = true,
@@ -71,13 +67,32 @@ M.system_tools = {
   fish_indent = true,
   fish = true,
   nixpkgs_fmt = true,
-  clangtidy = true, -- ships with system LLVM/clang toolchain
+  clangtidy = true,
 }
 
--- ── User-defined overrides ─────────────────────────────────────────────────────
--- Set via toolchain/mappings.lua or vim.g.ltos_tool_overrides at runtime.
--- Each entry: tool_name → { use_mason: boolean, pkg: string|nil }
+-- ── User-defined overrides (runtime-injected via register_override) ──────────
+
 M.overrides = {}
+
+-- ── Extension API ─────────────────────────────────────────────────────────────
+
+---@param server string
+---@param pkg string
+function M.register_lsp(server, pkg)
+  M.lsp_to_mason[server] = pkg
+end
+
+---@param tool string
+---@param pkg string
+function M.register_tool(tool, pkg)
+  M.tool_to_mason[tool] = pkg
+end
+
+---@param tool string
+---@param override { use_mason: boolean, pkg: string|nil }
+function M.register_override(tool, override)
+  M.overrides[tool] = override
+end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
@@ -94,38 +109,6 @@ function M.tool_pkg(tool)
     return nil
   end
   return M.tool_to_mason[tool] or tool
-end
-
---- Unified resolution: priority = user overrides → system_tools → tool_to_mason → identity.
----@param tool string
----@return { use_mason: boolean, pkg: string|nil }
-function M.resolve(tool)
-  -- 1. User overrides (vim.g takes priority over mappings.overrides)
-  local g_overrides = vim.g.ltos_tool_overrides
-  if type(g_overrides) == "table" and g_overrides[tool] then
-    return g_overrides[tool]
-  end
-  local override = M.overrides[tool]
-  if override ~= nil then
-    return override
-  end
-
-  -- 2. System-only
-  if M.system_tools[tool] == true then
-    return { use_mason = false, pkg = nil }
-  end
-
-  -- 3. Explicit mapping
-  local mapped = M.tool_to_mason[tool]
-  if mapped then
-    return { use_mason = true, pkg = mapped }
-  end
-
-  -- 4. Identity fallback
-  if vim.g.ltos_debug then
-    vim.notify("[ltos:mappings] identity mapping: " .. tool, vim.log.levels.DEBUG)
-  end
-  return { use_mason = true, pkg = tool }
 end
 
 return M

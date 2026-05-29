@@ -30,17 +30,20 @@ local KNOWN_NODE_KINDS = { formatter = true }
 ---@field message  string
 ---@field severity "error"|"warn"
 
-local _code_seq = 0
-local function schema_code()
-  _code_seq = _code_seq + 1
-  return string.format("S%03d", _code_seq)
+--- Deterministic diagnostic code from path (pure, idempotent across runs).
+---@param path string
+---@return string
+local function schema_code(path)
+  local util = require("core.kernel.util")
+  return "S" .. string.sub(util.hash(path), 1, 3):upper()
 end
+
 ---@param path     string
 ---@param message  string
 ---@param severity? "error"|"warn"
 ---@return SchemaDiagnostic
 local function diag(path, message, severity)
-  return { code = schema_code(), path = path, message = message, severity = severity or "error" }
+  return { code = schema_code(path), path = path, message = message, severity = severity or "error" }
 end
 
 -- ── Internal validators ───────────────────────────────────────────────────────

@@ -7,7 +7,15 @@ local M = {}
 
 local util = require("core.kernel.util")
 
-local BASE_TOOLS = { "codespell" }
+local DEFAULT_BASE_TOOLS = { "codespell" }
+
+local function base_tools()
+  local g = vim.g.ltos_base_mason_tools
+  if type(g) == "table" then
+    return g
+  end
+  return DEFAULT_BASE_TOOLS
+end
 
 --- Shallow-copy a list.
 ---@param t any[]
@@ -27,7 +35,7 @@ function M.build(ir)
     return { { _ltos_error = "[ltos:mason] IR missing required field: caps" } }
   end
 
-  local raw = list_copy(BASE_TOOLS)
+  local raw = list_copy(base_tools())
   local seen = {}
 
   -- Use ir.symbols when available (post-canonicalize); fall back to ir.resolved
@@ -54,6 +62,11 @@ function M.build(ir)
   else
     -- Fallback path (no canonicalize pass — should not happen in normal pipeline)
     local mappings = require("toolchain.mappings")
+    local rules = require("toolchain.rules")
+    local overrides = vim.g.ltos_tool_overrides
+    if type(overrides) ~= "table" then
+      overrides = {}
+    end
     for server, _ in pairs(ir.merged_lsp or {}) do
       local want = ir.resolved and ir.resolved.lsp[server]
       if want then
@@ -79,7 +92,7 @@ function M.build(ir)
           local tool = type(v) == "string" and v or (type(v) == "table" and v.name)
           if tool then
             local want = ir.resolved and ir.resolved.tools[tool]
-            local res = mappings.resolve(tool)
+            local res = rules.resolve(tool, overrides)
             if want and res.use_mason and res.pkg and not seen[res.pkg] then
               seen[res.pkg] = true
               raw[#raw + 1] = res.pkg
@@ -92,7 +105,7 @@ function M.build(ir)
         for _, tool in ipairs(lints) do
           if type(tool) == "string" then
             local want = ir.resolved and ir.resolved.tools[tool]
-            local res = mappings.resolve(tool)
+            local res = rules.resolve(tool, overrides)
             if want and res.use_mason and res.pkg and not seen[res.pkg] then
               seen[res.pkg] = true
               raw[#raw + 1] = res.pkg

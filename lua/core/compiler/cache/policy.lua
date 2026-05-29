@@ -6,10 +6,9 @@
 
 local store = require("core.compiler.cache.store")
 local key_mod = require("core.compiler.cache.key")
+local version = require("core.compiler.cache.version")
 
 local M = {}
-
-local CACHE_VERSION = 4
 local TIER_ORDER = { "ast", "ir", "spec" }
 
 -- ── Serializability ───────────────────────────────────────────────────────────
@@ -77,7 +76,7 @@ function M.load(tier, key)
     return nil
   end
 
-  if data.version ~= CACHE_VERSION or data.key ~= key then
+  if data.version ~= version.CACHE_VERSION or data.key ~= key then
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
       vim.notify(("[cache:%s] miss (version/key mismatch)"):format(tier), vim.log.levels.DEBUG)
     end
@@ -113,7 +112,7 @@ function M.save(tier, key, payload)
   end
 
   local ok, err = store.write(store.TIER_FILES[tier], {
-    version = CACHE_VERSION,
+    version = version.CACHE_VERSION,
     key = key,
     payload = payload,
   })

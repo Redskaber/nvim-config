@@ -24,10 +24,9 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- Run the five-stage pipeline; returns flat list of lazy plugin specs.
 local runtime = require("runtime")
 local lang_specs = runtime.build()
--- Defer LTOS user commands to VeryLazy — keeps startup critical path clean.
+
 vim.api.nvim_create_autocmd("User", {
   pattern = "VeryLazy",
   once = true,
@@ -36,37 +35,5 @@ vim.api.nvim_create_autocmd("User", {
   end,
 })
 
-require("lazy").setup({
-  spec = vim.list_extend(
-    {
-      -- LazyVim core
-      { "LazyVim/LazyVim", import = "lazyvim.plugins" },
-      -- Plugin layer (UI/editor/ai/git — no lang logic here)
-      { import = "plugins" },
-    },
-    -- Capability-derived specs (lsp, mason, treesitter, conform, lint)
-    lang_specs
-  ),
-
-  defaults = { lazy = true, version = false },
-  install = { colorscheme = { "catppuccin", "tokyonight", "habamax" } },
-  checker = { enabled = true, notify = true },
-
-  performance = {
-    rtp = {
-      disabled_plugins = {
-        "gzip",
-        "matchit",
-        "matchparen",
-        "netrwPlugin",
-        "tarPlugin",
-        "tohtml",
-        "tutor",
-        "zipPlugin",
-      },
-    },
-  },
-
-  rocks = { enabled = false },
-  lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json",
-})
+local config_provider = require("runtime.providers.config")
+require("lazy").setup(config_provider.build_setup_opts(lang_specs))

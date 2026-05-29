@@ -23,6 +23,9 @@ vim.g.markdown_recommended_style = 0
 -- vim.g.ltos_debug            = false      -- enable debug-level notify
 -- vim.g.ltos_tool_overrides   = {}         -- per-tool { use_mason, pkg } overrides
 -- vim.g.ltos_terminal_backend = "toggleterm"
+-- vim.g.ltos_base_mason_tools = { "codespell" }
+-- vim.g.ltos_base_parsers     = { "bash", "c", ... }
+-- vim.g.ltos_disabled_plugins = { "gzip", "matchit", ... }
 
 -- LTOS_DEBUG environment variable support
 -- Set LTOS_DEBUG=trace,ir,cache,perf before launching nvim

@@ -11,6 +11,7 @@
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
+local pipeline = require("runtime.pipeline")
 
 -- ── Scratch buffer helper ─────────────────────────────────────────────────────
 -- Idempotent: reuses an existing buffer with the same label rather than
@@ -94,8 +95,8 @@ local function cmd_debug(opts)
   end
 
   local runtime = require("runtime")
-  local pipeline = require("runtime.pipeline")
-  local ir = pipeline.debug_run(runtime.LANG_MODULES, stage)
+  local modules = runtime.lang_modules()
+  local ir = pipeline.debug_run(modules, stage)
 
   -- Diagnostic section
   local diag_lines = {}
@@ -117,7 +118,7 @@ local function cmd_debug(opts)
   local header = ("LTOS IR snapshot  stage=%s  sub-layer=%s  modules=%d  %s"):format(
     stage or "optimize",
     ir.stage or "?",
-    #(runtime.LANG_MODULES or {}),
+    #(modules),
     format_timings(ir._timings)
   )
 
@@ -140,13 +141,13 @@ local function cmd_ir(opts)
     return
   end
   local runtime = require("runtime")
-  local pipeline = require("runtime.pipeline")
-  local ir = pipeline.debug_run(runtime.LANG_MODULES, stage)
+  local modules = runtime.lang_modules()
+  local ir = pipeline.debug_run(modules, stage)
 
   local header = ("LTOS IR  stage=%s  sub-layer=%s  modules=%d  %s"):format(
     stage,
     ir.stage or "?",
-    #(runtime.LANG_MODULES or {}),
+    #(modules),
     format_timings(ir._timings)
   )
 
@@ -165,7 +166,7 @@ local function cmd_trace()
     return
   end
 
-  local PHASE_ORDER = { "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }
+  local PHASE_ORDER = pipeline.PHASE_ORDER
   local lines = {
     "LTOS Phase Execution Trace",
     "==========================",
@@ -205,8 +206,7 @@ end
 local function cmd_graph(opts)
   local mode = (opts.args ~= "") and opts.args or "caps"
   local runtime = require("runtime")
-  local pipeline = require("runtime.pipeline")
-  -- Pipeline DAG mode
+  local modules = runtime.lang_modules()
   if mode == "dag" then
     local lines = {
       "LTOS Pipeline DAG",
@@ -238,7 +238,7 @@ local function cmd_graph(opts)
   end
 
   -- Default: module capability graph
-  local ir = pipeline.debug_run(runtime.LANG_MODULES, "collect")
+  local ir = pipeline.debug_run(modules, "collect")
 
   local lines = {
     "LTOS Module Capability Graph",
@@ -316,9 +316,9 @@ local function cmd_diff(opts)
   end
 
   local runtime = require("runtime")
-  local pipeline = require("runtime.pipeline")
-  local ir_a = pipeline.debug_run(runtime.LANG_MODULES, stage_a)
-  local ir_b = pipeline.debug_run(runtime.LANG_MODULES, stage_b)
+  local modules = runtime.lang_modules()
+  local ir_a = pipeline.debug_run(modules, stage_a)
+  local ir_b = pipeline.debug_run(modules, stage_b)
 
   local changes = ir_mod.diff(ir_a, ir_b)
   -- Filter out timing noise
@@ -350,9 +350,8 @@ end
 
 local function cmd_info()
   local runtime = require("runtime")
-  local pipeline = require("runtime.pipeline")
-  -- Obtain caps from a fresh debug_run (collect only) to avoid stale state
-  local ir = pipeline.debug_run(runtime.LANG_MODULES, "collect")
+  local modules = runtime.lang_modules()
+  local ir = pipeline.debug_run(modules, "collect")
   local caps = ir.caps or {}
 
   local profile = vim.g.ltos_profile or "full"
@@ -412,7 +411,7 @@ local function cmd_info()
   if timings then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "Last build timings:"
-    for _, s in ipairs({ "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }) do
+    for _, s in ipairs(pipeline.PHASE_ORDER) do
       if timings[s] then
         lines[#lines + 1] = ("  %-10s  %.3f ms"):format(s, timings[s] * 1000)
       end

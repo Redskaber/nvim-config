@@ -19,7 +19,7 @@ return {
     },
   },
   formatters = {
-    python = { { kind = "formatter", strategy = "ruff_or_black" } },
+    python = { "ruff" },
   },
   linters = {
     python = { "ruff" },

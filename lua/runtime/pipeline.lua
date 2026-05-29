@@ -8,6 +8,7 @@ local M = {}
 
 local ir_mod = require("core.compiler.ir")
 local pass_mod = require("core.compiler.pass")
+local util = require("core.kernel.util")
 
 local PHASES = {
   require("runtime.passes.collect"),
@@ -17,6 +18,8 @@ local PHASES = {
   require("runtime.passes.optimize"),
 }
 local CODEGEN = require("runtime.passes.codegen")
+
+M.PHASE_ORDER = { "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }
 
 for _, p in ipairs(PHASES) do
   pass_mod.assert_valid(p)
@@ -84,10 +87,18 @@ local last_run_sm = new_sm()
 ---@param profile      string
 ---@param stop_after?  string
 ---@param sm           table
----@param cached_caps? table   pre-validated caps from AST tier (skips collect)
+---@param cached_caps? table        full AST skip — inject caps, skip collect
+---@param ast_seed?    table        partial AST — { caps, module_hashes, current_hashes }
 ---@return IR, table[]|nil, table<string, number>
-local function execute(lang_modules, profile, stop_after, sm, cached_caps)
+local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_seed)
   local ir = ir_mod.new(lang_modules, profile)
+  if ast_seed then
+    ir = ir_mod.with(ir, {
+      meta = util.merge(ir.meta or {}, {
+        ast_seed = ast_seed,
+      }),
+    })
+  end
   local timings = {}
 
   if not sm.transition(STATES.COLLECTING) then
@@ -191,14 +202,15 @@ function M.run_sub(phases, ir)
 end
 ---@param lang_modules string[]
 ---@param profile?     string
----@param cached_caps? table   AST-tier cached caps for incremental rebuild
+---@param cached_caps? table
+---@param ast_seed?    table
 ---@return table[]   specs
 ---@return IR        final IR (for AST cache persistence)
-function M.run(lang_modules, profile, cached_caps)
+function M.run(lang_modules, profile, cached_caps, ast_seed)
   local sm = new_sm()
   last_run_sm = sm
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps)
+  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps, ast_seed)
 
   if sm.state ~= STATES.ERROR then
     sm.transition(STATES.DONE)
@@ -238,18 +250,21 @@ end
 ---@param stop_after?  "collect"|"normalize"|"canonicalize"|"resolve"|"optimize"
 ---@param profile?     string
 ---@return IR
+---@return table[]|nil specs (nil when stop_after is set before codegen)
 function M.debug_run(lang_modules, stop_after, profile)
   local sm = new_sm()
 
-  -- Enable freeze mode for mutation detection
   _G._ltos_debug_freeze = true
 
-  local ir, _, timings = execute(lang_modules, profile or "full", stop_after, sm, nil)
+  local ir, specs, timings = execute(lang_modules, profile or "full", stop_after, sm, nil, nil)
 
   _G._ltos_debug_freeze = false
 
   ir._timings = timings
-  return ir
+  if specs then
+    ir._specs = specs
+  end
+  return ir, specs
 end
 
 ---@return string

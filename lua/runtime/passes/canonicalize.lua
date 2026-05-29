@@ -19,20 +19,26 @@
 
 local ir_mod = require("core.compiler.ir")
 local mappings = require("toolchain.mappings")
+local rules = require("toolchain.rules")
 
 ---@type Phase
 local canonicalize_pass = {
   name = "canonicalize",
-  input_state = "normalizing", -- SM is in 'normalizing' after normalize pass
-  output_state = "canonicalizing", -- SM advances to 'canonicalizing'
+  input_state = "normalizing",
+  output_state = "canonicalizing",
 
   validate = function(ir)
-    return ir_mod.validate(ir, "canonicalize") -- requires caps + meta
+    return ir_mod.validate(ir, "canonicalize")
   end,
 
   ---@param ir IR
   ---@return IR
   run = function(ir)
+    local overrides = vim.g.ltos_tool_overrides
+    if type(overrides) ~= "table" then
+      overrides = {}
+    end
+
     local symbols = { lsp = {}, tools = {} }
     local diags = {}
 
@@ -66,13 +72,13 @@ local canonicalize_pass = {
         for _, v in ipairs(fmts) do
           if type(v) == "string" then
             if not symbols.tools[v] then
-              local res = mappings.resolve(v)
+              local res = rules.resolve(v, overrides)
               symbols.tools[v] = { mason = res.pkg, system = not res.use_mason }
             end
           elseif type(v) == "table" and v.name then
             local tool = v.name
             if not symbols.tools[tool] then
-              local res = mappings.resolve(tool)
+              local res = rules.resolve(tool, overrides)
               symbols.tools[tool] = { mason = res.pkg, system = not res.use_mason }
             end
           end
@@ -83,7 +89,7 @@ local canonicalize_pass = {
       for _, lints in pairs(cap.linters or {}) do
         for _, tool in ipairs(lints) do
           if type(tool) == "string" and not symbols.tools[tool] then
-            local res = mappings.resolve(tool)
+            local res = rules.resolve(tool, overrides)
             symbols.tools[tool] = { mason = res.pkg, system = not res.use_mason }
           end
         end
@@ -92,7 +98,7 @@ local canonicalize_pass = {
       -- ── Explicit mason[] list ─────────────────────────────────────────────
       for _, t in ipairs(cap.mason or {}) do
         if not symbols.tools[t] then
-          local res = mappings.resolve(t)
+          local res = rules.resolve(t, overrides)
           symbols.tools[t] = { mason = res.pkg, system = not res.use_mason }
         end
       end

@@ -25,14 +25,41 @@ local collect_pass = {
   ---@return IR
   run = function(ir)
     local lang_modules = ir.meta.lang_modules or {}
+    local ast_seed = ir.meta and ir.meta.ast_seed
 
-    -- Start with an empty, immutable set (no global state)
     local cap_set = cap_mod.new()
     local diags = {}
-    -- Per-module content hash for incremental cache (TODO-7.1)
     local module_hashes = {}
 
+    -- Pre-seed from partial AST cache
+    if ast_seed and ast_seed.caps and ast_seed.module_hashes and ast_seed.current_hashes then
+      for _, mod in ipairs(lang_modules) do
+        local name = mod:match("([^.]+)$") or mod
+        local current_hash = ast_seed.current_hashes[mod]
+        module_hashes[mod] = current_hash
+        if ast_seed.module_hashes[mod] == current_hash and ast_seed.caps[name] then
+          local new_set, add_result = cap_mod.add(cap_set, name, ast_seed.caps[name])
+          cap_set = new_set
+          for _, schema_d in ipairs(add_result.diags or {}) do
+            diags[#diags + 1] = ir_mod.diag(
+              "collect",
+              mod,
+              ("[schema:%s] %s — %s"):format(schema_d.code or "?", schema_d.path, schema_d.message),
+              schema_d.severity or "error"
+            )
+          end
+        end
+      end
+    end
+
     for _, mod in ipairs(lang_modules) do
+      -- Skip modules already seeded from partial cache
+      if ast_seed and ast_seed.module_hashes and ast_seed.current_hashes then
+        if ast_seed.module_hashes[mod] == ast_seed.current_hashes[mod] and ast_seed.caps[mod:match("([^.]+)$") or mod] then
+          goto continue
+        end
+      end
+
       local ok, result = pcall(require, mod)
       if not ok then
         diags[#diags + 1] = ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
@@ -59,9 +86,10 @@ local collect_pass = {
           )
         end
       end
+      ::continue::
     end
 
-    -- Embed snapshot into new IR (copy-on-write via ir_mod.with, never direct mutation)
+    -- Embed snapshot into new IR
     local next_ir = ir_mod.with(ir, {
       stage = "AST",
       meta = util.merge(ir.meta or {}, { module_hashes = module_hashes }),

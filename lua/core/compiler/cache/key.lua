@@ -6,10 +6,9 @@
 -- Content hash is more reliable than mtime (survives touch, rsync, git checkout).
 
 local util = require("core.kernel.util")
+local version = require("core.compiler.cache.version")
 
 local M = {}
-
-local SCHEMA_VERSION = 4 -- bump when IR schema changes
 
 --- Read file contents (returns "" on failure — pure for caching purposes).
 ---@param path string
@@ -55,7 +54,7 @@ function M.compute(lang_modules, profile)
 
   table.sort(parts)
   local composite = table.concat(parts, "|")
-  return string.format("%s:%s:v%d", util.hash(composite), profile, SCHEMA_VERSION)
+  return string.format("%s:%s:v%d", util.hash(composite), profile, version.SCHEMA_VERSION)
 end
 
 return M

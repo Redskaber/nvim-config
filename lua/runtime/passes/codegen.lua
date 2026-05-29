@@ -9,13 +9,7 @@
 
 local ir_mod = require("core.compiler.ir")
 
-local ADAPTERS = {
-  "runtime.adapters.lsp",
-  "runtime.adapters.mason",
-  "runtime.adapters.treesitter",
-  "runtime.adapters.conform",
-  "runtime.adapters.lint",
-}
+local adapter_registry = require("runtime.adapters.registry")
 
 local codegen_pass = {
   name = "codegen",
@@ -32,8 +26,7 @@ local codegen_pass = {
   ---@param ir IR
   ---@return IR
   run = function(ir)
-    local emitter = require("runtime.emitter")
-    local specs = emitter.emit(ir, ADAPTERS)
+    local specs = adapter_registry.emit_all(ir)
     return ir_mod.with(ir, { stage = "SPEC", _specs = specs })
   end,
 
@@ -41,8 +34,7 @@ local codegen_pass = {
   ---@param ir IR
   ---@return table[]  LazySpec[]
   build = function(ir)
-    local emitter = require("runtime.emitter")
-    return emitter.emit(ir, ADAPTERS)
+    return adapter_registry.emit_all(ir)
   end,
 }
 
