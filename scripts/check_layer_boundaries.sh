@@ -69,6 +69,23 @@ for f in "$LUA/runtime/passes/"*.lua; do
   fi
 done
 
+# ── passes must not read vim.g (use ir.meta.build_request) ───────────────────
+for f in "$LUA/runtime/passes/"*.lua; do
+  if grep -n "vim\.g" "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+    echo "FAIL [phase vim.g]: $f reads vim.g — inject via BuildRequest"
+    fail=1
+  fi
+done
+
+# ── compiler must not call vim API directly (use core/compiler/ports.lua) ─────
+for f in $(find "$LUA/core/compiler" -name '*.lua' ! -name 'ports.lua'); do
+  if grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+    echo "FAIL [compiler vim]: $f uses vim API — inject via ports"
+    grep -n "vim\." "$f" | grep -v "^[0-9]*:[ \t]*--" | head -3
+    fail=1
+  fi
+done
+
 # ── toolchain must not call vim.g (Layer 3 boundary) ─────────────────────────
 if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null |
   grep -v "^.*--.*vim\.g" | grep -q .; then

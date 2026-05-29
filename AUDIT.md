@@ -11,7 +11,7 @@
 |------|------|------|
 | v4 初版修复 | V-01~V-08, S-01~S-05, M-01~M-05, O-01~O-03 | ✅ 已完成 |
 | P0 契约对齐 | BuildRequest、两级缓存、nix profile、文档同步 | ✅ 已完成 |
-| P1 确定性与 L1 纯化 | ir.diag、cache port、边界检查扩展 | ⏳ 待做 |
+| P1 确定性与 L1 纯化 | ir.diag、cache ports、terminal API、边界检查 | ✅ 已完成 |
 | P2 可扩展性 | PhaseRegistry、defaults 外置、icons M-04 | ⏳ 待做 |
 | P3 深度优化 | 可序列化 HIR、ir.diff 接入、细粒度 spec/ | ⏳ 待做 |
 
@@ -147,18 +147,28 @@ AST Tier  (ast_cache.json)   ← 命中 → skip/partial/full collect
 | P0-3 | nix profile 语义 | `register_filter("nix")` + `prefer_system` rules |
 | P0-4 | 文档同步 | 本文件 · Architecture.md · Invariants · README |
 
+### P1 确定性与 L1 纯化（2026-05-29）
+
+| 编号 | 任务 | 实现 |
+|------|------|------|
+| P1-1 | `ir.diag` 确定性编码 | `stage:node:message` FNV-hash（对齐 schema） |
+| P1-2 | cache IO 端口注入 | `core/compiler/ports.lua` + `runtime/ports_bootstrap.lua` |
+| P1-3 | `api.terminal_set_default` | 对称 `picker.set_default` |
+| P1-4 | 扩展层边界检查 | passes `vim.g`、compiler `vim.*`（除 ports.lua） |
+
 ---
 
-## 四、剩余差距（待 P1–P3）
+## 四、剩余差距（待 P2–P3）
 
 ### 4.1 不变量与实现偏差
 
 | 项 | 文档 | 实际 | 优先级 |
 |----|------|------|--------|
-| L1 cache IO 用 vim | "no vim API" | `store.lua` 用 `vim.fn.stdpath` | P1 |
-| `ir.diag` 计数器 | Inv 2 纯函数 | `_diag_seq` 仍可变 | P1 |
-| Adapter 不调 vim | Inv 3 | adapters 仅读 `ir.meta`，已去除 `vim.g` | ✅ P0 |
-| Phase 读 vim.g | Inv 2 | canonicalize 已改读 BuildRequest | ✅ P0 |
+| L1 cache IO 用 vim | "no vim API" | 经 `ports.lua` 注入，L1 无直接 vim 调用 | ✅ P1 |
+| `ir.diag` 计数器 | Inv 2 纯函数 | path-hash 确定性编码 | ✅ P1 |
+| Adapter 不调 vim | Inv 3 | adapters 仅读 `ir.meta` | ✅ P0 |
+| Phase 读 vim.g | Inv 2 | canonicalize 读 BuildRequest | ✅ P0 |
+| `ir.ctx` run_id 计数器 | Inv 2 | `_run_seq` 仍递增 | P3 |
 | M-04 icons | ft/file 表 | 仍分散在 plugins/ui | P2 |
 
 ### 4.2 仍集中写死的默认值
@@ -169,7 +179,7 @@ AST Tier  (ast_cache.json)   ← 命中 → skip/partial/full collect
 | `adapters/registry.lua` | 5 adapter + priority | `runtime/defaults/adapters.lua` |
 | `providers/registry.lua:12-14` | CORE_MODULES | module 元数据 `core=true` |
 | `mappings.lua` | LSP/tool 映射表 | `toolchain/defaults/*.lua` |
-| `api.lua` | terminal `"toggleterm"` 默认 | `terminal_set_default` |
+| `api.lua` | terminal 默认 | `terminal_set_default` + `ltos_terminal_backend` | ✅ P1 |
 
 ### 4.3 未接入能力
 
@@ -208,25 +218,25 @@ AST Tier  (ast_cache.json)   ← 命中 → skip/partial/full collect
 
 ## 七、优化路线图
 
-### P1 — 确定性与 L1 纯化
+### P1 — 确定性与 L1 纯化 ✅
 
-1. `ir.diag` 改为 path-hash 确定性编码
-2. cache IO 端口注入（`core/compiler/ports.lua`）
-3. `api.terminal_set_default` 对称 picker API
-4. 扩展 `check_layer_boundaries.sh`：pass `vim.g`、compiler `vim.fn`
+1. ~~`ir.diag` 改为 path-hash 确定性编码~~
+2. ~~cache IO 端口注入（`core/compiler/ports.lua`）~~
+3. ~~`api.terminal_set_default` 对称 picker API~~
+4. ~~扩展 `check_layer_boundaries.sh`：pass `vim.g`、compiler `vim.*`~~
 
 ### P2 — 可扩展性
 
-5. `PhaseRegistry` 替代 pipeline 硬编码 phase 列表
-6. `runtime/defaults/*.lua` 外置大表
-7. M-04：`icons.lua` ft/file/extension 表
-8. module `core=true` 元数据替代 CORE_MODULES
+1. `PhaseRegistry` 替代 pipeline 硬编码 phase 列表
+2. `runtime/defaults/*.lua` 外置大表
+3. M-04：`icons.lua` ft/file/extension 表
+4. module `core=true` 元数据替代 CORE_MODULES
 
 ### P3 — 深度优化
 
-9. normalize 输出可序列化策略引用 → 未来可解锁 IR cache
-10. `ir.diff` 接入 debug 缓存校验
-11. 拆分细粒度 `spec/` 测试套件
+1. normalize 输出可序列化策略引用 → 未来可解锁 IR cache
+2. `ir.diff` 接入 debug 缓存校验
+3. 拆分细粒度 `spec/` 测试套件
 
 ---
 
@@ -234,12 +244,14 @@ AST Tier  (ast_cache.json)   ← 命中 → skip/partial/full collect
 
 ```bash
 just check   # 层边界（含 toolchain vim.g）
-just test    # headless 回归（BuildRequest · nix · 两级缓存）
+just test    # 19 项 headless 回归测试
 ```
 
 关键文件：
 
 - `lua/runtime/build_request.lua` — P0 编排契约
+- `lua/core/compiler/ports.lua` — L1 宿主端口（P1）
+- `lua/runtime/ports_bootstrap.lua` — vim API 注入（P1）
 - `lua/runtime/providers/{interface,registry,config}.lua`
 - `lua/runtime/adapters/registry.lua`
 - `lua/core/compiler/cache/version.lua`

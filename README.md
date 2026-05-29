@@ -253,9 +253,10 @@ lua/
 │   │   ├── env.lua                Nix / SSH / GUI environment detection
 │   │   └── util.lua               dedup, pure helpers
 │   │
-│   ├── compiler/                  [L1] compiler kernel; cache IO uses vim at store boundary
-│   │   ├── ir.lua                 IR struct, CompilerContext, clone/with, diagnostics
+│   ├── compiler/                  [L1] compiler kernel; host IO via ports.lua
+│   │   ├── ir.lua                 IR struct, CompilerContext, deterministic diagnostics
 │   │   ├── pass.lua               Phase interface + protected run_phase()
+│   │   ├── ports.lua              injectable host ports (cache/json/runtime-file)
 │   │   └── cache.lua              two-tier FNV-1a content-keyed cache (ast / spec)
 │   │
 │   └── domain/                    [L2] domain IR, immutable value objects
@@ -274,6 +275,7 @@ lua/
 ├── runtime/                       Layer 1 (orchestration) + Layer 4 (backend)
 │   ├── init.lua                   orchestrator: BuildRequest, profile, two-tier cache
 │   ├── build_request.lua          sole vim.g entry for compilation config
+│   ├── ports_bootstrap.lua        injects vim APIs into core/compiler/ports
 │   ├── pipeline.lua               state machine + 5-phase compiler kernel
 │   ├── commands.lua               observability commands: LtosInfo/Debug/IR/Trace/Graph
 │   ├── api.lua                    editor façade: api.editor / api.lsp / api.diagnostics / api.find
@@ -551,7 +553,7 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 
 ```bash
 just check   # layer boundary violations (scripts/check_layer_boundaries.sh)
-just test    # 12 headless LTOS regression tests (scripts/run_ltos_tests.sh)
+just test    # 19 headless LTOS regression tests (scripts/run_ltos_tests.sh)
 ```
 
-Coverage includes: cache version, schema idempotency, rules layer boundary, BuildRequest, nix profile prefer_system, mappings/env APIs, module discovery, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, ConfigProvider.
+Coverage includes: cache ports, ir/schema deterministic diagnostics, BuildRequest, nix profile, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, ConfigProvider, terminal API.

@@ -95,8 +95,6 @@ Cache keys are derived from **file content hashes** (FNV-1a), not mtimes. This g
 
 ---
 
----
-
 ## Invariant 8 — DSL Modules are Pure Declarations
 
 `modules/lang/*.lua` files must:
@@ -114,3 +112,11 @@ Cache keys are derived from **file content hashes** (FNV-1a), not mtimes. This g
 `runtime/build_request.lua` is the **only** module that reads `vim.g.ltos_*` build knobs.  
 Passes read `ir.meta.build_request`; adapters read the same field from IR.  
 Layer 3 (`toolchain/*`) receives overrides and context as function parameters only.
+
+---
+
+## Invariant 10 — Compiler Host IO via Ports
+
+`core/compiler/ports.lua` is the **only** injection point for vim-dependent cache I/O.  
+`runtime/ports_bootstrap.lua` configures ports at startup.  
+No other `core/compiler/*` file may call `vim.*` directly.

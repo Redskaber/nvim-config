@@ -1,6 +1,8 @@
 -- scripts/ltos_tests.lua
 -- Targeted tests for AUDIT remediation (run via nvim --headless).
 
+require("runtime.ports_bootstrap").setup()
+
 local function assert_eq(a, b, msg)
   if a ~= b then
     error(("%s: expected %s, got %s"):format(msg or "assert_eq", tostring(b), tostring(a)))
@@ -117,6 +119,30 @@ local function test_debug_run_signature()
   assert_true(specs == nil or type(specs) == "table", "debug_run second return is table or nil")
 end
 
+local function test_ir_diag_idempotent()
+  local ir = require("core.compiler.ir")
+  local d1 = ir.diag("collect", "mod.a", "same message", "error")
+  local d2 = ir.diag("collect", "mod.a", "same message", "error")
+  assert_eq(d1.code, d2.code, "ir diag codes deterministic")
+  assert_true(d1.code:match("^E%x+") ~= nil, "ir diag code format")
+end
+
+local function test_compiler_ports()
+  local ports = require("core.compiler.ports")
+  local dir = ports.cache_dir()
+  assert_true(type(dir) == "string" and #dir > 0, "ports cache_dir configured")
+  local store = require("core.compiler.cache.store")
+  assert_true(store.tier_files().ast:find("ast_cache"), "tier paths from ports")
+end
+
+local function test_terminal_set_default()
+  local api = require("runtime.api")
+  api.terminal_set_default("test_terminal_xyz")
+  api.terminal_register("test_terminal_xyz", { float = function() end })
+  -- get_terminal is internal; verify register + set_default exist
+  assert_true(type(api.terminal.set_default) == "function", "terminal set_default API")
+end
+
 local function test_build_request()
   local br = require("runtime.build_request")
   vim.g.ltos_profile = "nix"
@@ -139,11 +165,11 @@ local function test_nix_profile_rules()
 end
 
 local function test_two_tier_cache()
-  local policy = require("core.compiler.cache.policy")
   local store = require("core.compiler.cache.store")
-  assert_true(store.TIER_FILES.ast ~= nil, "ast tier exists")
-  assert_true(store.TIER_FILES.spec ~= nil, "spec tier exists")
-  assert_true(store.TIER_FILES.ir == nil, "ir tier removed")
+  local files = store.tier_files()
+  assert_true(files.ast ~= nil, "ast tier exists")
+  assert_true(files.spec ~= nil, "spec tier exists")
+  assert_true(files.ir == nil, "ir tier removed from tier_files")
 end
 
 local function test_nix_profile_modules()
@@ -156,6 +182,7 @@ end
 local tests = {
   test_cache_version_unified,
   test_schema_diag_idempotent,
+  test_ir_diag_idempotent,
   test_rules_no_vimg,
   test_mappings_register,
   test_env_lazy_facts,
@@ -163,6 +190,8 @@ local tests = {
   test_provider_registry_minimal,
   test_adapter_registry,
   test_pipeline_phase_order,
+  test_compiler_ports,
+  test_terminal_set_default,
   test_build_request,
   test_nix_profile_rules,
   test_two_tier_cache,

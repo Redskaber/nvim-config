@@ -18,9 +18,10 @@ nvim-config/
 │   │   │   ├── env.lua             # 运行时环境检测（is_nix / is_ssh / has()）
 │   │   │   └── util.lua            # 纯函数工具（dedup / merge / basename）
 │   │   │
-│   │   ├── compiler/               # Layer 1 — 编译器内核，无 vim API，无插件知识
+│   │   ├── compiler/               # Layer 1 — 编译器内核，宿主 IO 经 ports 注入
 │   │   │   ├── ir.lua              # IR 值类型 + CompilerContext + Diagnostic
 │   │   │   ├── pass.lua            # Phase 接口 + run_phase() 受保护执行
+│   │   │   ├── ports.lua           # 可注入宿主端口（cache/json/runtime-file）
 │   │   │   └── cache.lua           # 两级缓存（ast / spec），部分失效
 │   │   │
 │   │   └── domain/                 # Layer 2 — 领域 IR，不可变值对象，纯函数验证
@@ -40,6 +41,7 @@ nvim-config/
 │   ├── runtime/                    # Layer 4：编译器驱动 + 后端适配器
 │   │   ├── init.lua                # 编排器：ProviderRegistry、BuildRequest、两级缓存
 │   │   ├── build_request.lua       # 唯一 vim.g 读取点 → ir.meta.build_request
+│   │   ├── ports_bootstrap.lua     # 将 vim API 注入 core/compiler/ports
 │   │   ├── pipeline.lua            # 五阶段流水线 + 状态机（PHASE_ORDER 导出）
 │   │   ├── api.lua                 # 编辑器门面（picker / lsp / diagnostics / terminal）
 │   │   ├── commands.lua            # LTOS 用户命令（LtosDebug/Info/IR/Trace/Graph）
@@ -284,7 +286,7 @@ AST Tier  (ast_cache.json)    ← 命中则 skip / partial / full collect
 | 模块                        | 职责                                    |
 | --------------------------- | --------------------------------------- |
 | `cache/key.lua`             | 键计算（FNV-1a 内容 hash，纯函数）      |
-| `cache/store.lua`           | JSON I/O（唯一 IO 层）                  |
+| `cache/store.lua`           | JSON I/O via `ports`（无直接 vim API）      |
 | `cache/policy.lua`          | 失效传播 + 命中统计 + 可序列化检查      |
 | `cache.lua`                 | 门面（facade），向后兼容 API            |
 

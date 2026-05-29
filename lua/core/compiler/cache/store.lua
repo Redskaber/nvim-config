@@ -1,29 +1,41 @@
 -- lua/core/compiler/cache/store.lua
--- Layer 1 compiler: JSON persistence (the ONLY IO layer in the cache subsystem).
---
--- REFACTOR (TODO-2.3): extracted from cache.lua.
+-- Layer 1 compiler: JSON persistence via injectable ports.
 -- Responsibilities: read, write, remove, ensure_dir.
--- All functions return (value, err_string|nil) — no vim.notify here.
+
+local ports = require("core.compiler.ports")
 
 local M = {}
 
-local CACHE_DIR = vim.fn.stdpath("cache") .. "/ltos"
-
-M.TIER_FILES = {
-  ast = CACHE_DIR .. "/ast_cache.json",
-  spec = CACHE_DIR .. "/spec_cache.json",
-}
-
-local function ensure_dir()
-  if vim.fn.isdirectory(CACHE_DIR) == 0 then
-    vim.fn.mkdir(CACHE_DIR, "p")
-  end
+local function cache_dir()
+  return ports.cache_dir()
 end
 
---- Read and JSON-decode a file.
+function M.tier_path(tier)
+  return cache_dir() .. "/" .. tier .. "_cache.json"
+end
+
+---@return table<string, string>
+function M.tier_files()
+  return {
+    ast = M.tier_path("ast"),
+    spec = M.tier_path("spec"),
+  }
+end
+
+-- Backward-compat alias
+M.TIER_FILES = setmetatable({}, {
+  __index = function(_, tier)
+    return M.tier_path(tier)
+  end,
+})
+
+local function ensure_dir()
+  ports.ensure_cache_dir(cache_dir())
+end
+
 ---@param path string
----@return table|nil  data
----@return string|nil err
+---@return table|nil
+---@return string|nil
 function M.read(path)
   local f = io.open(path, "r")
   if not f then
@@ -34,21 +46,20 @@ function M.read(path)
   if not raw or raw == "" then
     return nil, "empty file"
   end
-  local ok, data = pcall(vim.json.decode, raw)
+  local ok, data = pcall(ports.json_decode, raw)
   if not ok then
     return nil, "JSON decode error: " .. tostring(data)
   end
   return data, nil
 end
 
---- JSON-encode and write data to a file.
 ---@param path string
 ---@param data table
----@return boolean  success
----@return string|nil err
+---@return boolean
+---@return string|nil
 function M.write(path, data)
   ensure_dir()
-  local ok, encoded = pcall(vim.json.encode, data)
+  local ok, encoded = pcall(ports.json_encode, data)
   if not ok then
     return false, "JSON encode error: " .. tostring(encoded)
   end
@@ -61,7 +72,6 @@ function M.write(path, data)
   return true, nil
 end
 
---- Remove a file (no-op if missing).
 ---@param path string
 function M.remove(path)
   os.remove(path)

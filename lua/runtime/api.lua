@@ -137,6 +137,7 @@ M.lsp = {
 -- ── Terminal (pluggable backend) ──────────────────────────────────────────────
 
 local _terminal_backends = {}
+local _default_terminal = nil
 
 --- Register a named terminal backend.
 ---@param name    string
@@ -147,8 +148,14 @@ function M.terminal_register(name, backend)
   _terminal_backends[name] = backend
 end
 
+--- Set the default terminal backend name (used when vim.g.ltos_terminal_backend is unset).
+---@param name string
+function M.terminal_set_default(name)
+  _default_terminal = name
+end
+
 local function get_terminal()
-  local name = vim.g.ltos_terminal_backend or "toggleterm"
+  local name = vim.g.ltos_terminal_backend or _default_terminal or "toggleterm"
   local backend = _terminal_backends[name]
   if not backend then
     local ok, tt = pcall(require, "toggleterm.terminal")
@@ -171,6 +178,7 @@ end
 
 M.terminal = {
   register = M.terminal_register,
+  set_default = M.terminal_set_default,
   float = function()
     local b = get_terminal()
     if b and b.float then

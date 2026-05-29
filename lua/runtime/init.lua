@@ -6,6 +6,8 @@
 
 local M = {}
 
+require("runtime.ports_bootstrap").setup()
+
 local provider_registry = require("runtime.providers.registry")
 local build_request_mod = require("runtime.build_request")
 

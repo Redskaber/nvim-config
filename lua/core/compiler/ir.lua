@@ -45,11 +45,16 @@ local STAGE_TRANSITIONS = {
 ---@field message  string
 ---@field severity "error"|"warn"|"info"
 
-local _diag_seq = 0
-local function next_code(severity)
-  _diag_seq = _diag_seq + 1
+--- Deterministic diagnostic code (pure, idempotent across runs).
+---@param stage    string
+---@param node     string
+---@param message  string
+---@param severity string
+---@return string
+local function diag_code(stage, node, message, severity)
   local prefix = (severity == "error") and "E" or (severity == "warn") and "W" or "I"
-  return string.format("%s%04d", prefix, _diag_seq)
+  local h = util.hash(("%s:%s:%s"):format(stage, node, message))
+  return prefix .. string.format("%04x", h % 0x10000)
 end
 
 ---@param stage    string
@@ -60,7 +65,7 @@ end
 function M.diag(stage, node, message, severity)
   severity = severity or "error"
   return {
-    code = next_code(severity),
+    code = diag_code(stage, node, message, severity),
     stage = stage,
     node = node,
     message = message,
