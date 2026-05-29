@@ -215,15 +215,7 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
   local sm = new_sm()
   last_run_sm = sm
 
-  local ir, specs, timings = execute(
-    lang_modules,
-    profile or "full",
-    nil,
-    sm,
-    cached_caps,
-    ast_seed,
-    build_request
-  )
+  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps, ast_seed, build_request)
 
   if sm.state ~= STATES.ERROR then
     sm.transition(STATES.DONE)
@@ -270,15 +262,7 @@ function M.debug_run(lang_modules, stop_after, profile, build_request)
 
   _G._ltos_debug_freeze = true
 
-  local ir, specs, timings = execute(
-    lang_modules,
-    profile or "full",
-    stop_after,
-    sm,
-    nil,
-    nil,
-    build_request
-  )
+  local ir, specs, timings = execute(lang_modules, profile or "full", stop_after, sm, nil, nil, build_request)
 
   _G._ltos_debug_freeze = false
 
