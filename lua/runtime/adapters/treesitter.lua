@@ -31,10 +31,10 @@ local DEFAULT_BASE_PARSERS = {
   "yaml",
 }
 
-local function base_parsers()
-  local g = vim.g.ltos_base_parsers
-  if type(g) == "table" then
-    return g
+local function base_parsers_from_ir(ir)
+  local req = ir.meta and ir.meta.build_request
+  if req and type(req.base_parsers) == "table" then
+    return req.base_parsers
   end
   return DEFAULT_BASE_PARSERS
 end
@@ -46,7 +46,11 @@ function M.build(ir)
     return { { _ltos_error = "[ltos:treesitter] IR missing required field: all_parsers" } }
   end
 
-  local parsers = util.dedup(vim.list_extend(vim.deepcopy(base_parsers()), ir.all_parsers))
+  local parsers = util.deep_copy(base_parsers_from_ir(ir))
+  for _, p in ipairs(ir.all_parsers) do
+    parsers[#parsers + 1] = p
+  end
+  parsers = util.dedup(parsers)
 
   return {
     {

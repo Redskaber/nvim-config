@@ -11,7 +11,6 @@ local CACHE_DIR = vim.fn.stdpath("cache") .. "/ltos"
 
 M.TIER_FILES = {
   ast = CACHE_DIR .. "/ast_cache.json",
-  ir = CACHE_DIR .. "/ir_cache.json",
   spec = CACHE_DIR .. "/spec_cache.json",
 }
 

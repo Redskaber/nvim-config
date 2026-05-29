@@ -41,6 +41,11 @@ local function dedup_sorted(modules)
   return out
 end
 
+--- nix profile: same module set as full; tool strategy differs via BuildRequest.prefer_system.
+M.register_filter("nix", function(modules, _)
+  return modules
+end)
+
 --- Built-in minimal profile filter: keep CORE_MODULES only.
 M.register_filter("minimal", function(modules, _)
   local core_set = {}
@@ -55,6 +60,16 @@ M.register_filter("minimal", function(modules, _)
   end
   return out
 end)
+
+---@return string[]
+function M.list_profiles()
+  local names = { "full" }
+  for name in pairs(_filters) do
+    names[#names + 1] = name
+  end
+  table.sort(names)
+  return names
+end
 
 --- Resolve the final module list for a profile.
 ---@param profile string

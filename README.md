@@ -22,7 +22,7 @@ A Neovim configuration built on **LazyVim** with a custom compiler-inspired tool
 | `shfmt`                                          | shell formatter (system)          |
 | `shellcheck`                                     | shell linter (system)             |
 
-On **NixOS / nix-darwin**: tools detected via `core/env.lua` (`M.is_nix`). System-managed binaries are never installed via mason.
+On **NixOS / nix-darwin**: set `vim.g.ltos_profile = "nix"` to prefer system binaries on PATH; `core/kernel/env.lua` also detects `nix` for automatic system-tool preference.
 
 ## Installation
 
@@ -253,14 +253,14 @@ lua/
 │   │   ├── env.lua                Nix / SSH / GUI environment detection
 │   │   └── util.lua               dedup, pure helpers
 │   │
-│   ├── compiler/                  [L1] compiler kernel, no vim API
+│   ├── compiler/                  [L1] compiler kernel; cache IO uses vim at store boundary
 │   │   ├── ir.lua                 IR struct, CompilerContext, clone/with, diagnostics
 │   │   ├── pass.lua               Phase interface + protected run_phase()
-│   │   └── cache.lua              three-tier sha256-keyed cache
+│   │   └── cache.lua              two-tier FNV-1a content-keyed cache (ast / spec)
 │   │
 │   └── domain/                    [L2] domain IR, immutable value objects
 │       ├── schema.lua             typed validator, error recovery, diagnostics
-│       ├── capability.lua         immutable CapabilitySet: add / snapshot / reset
+│       ├── capability.lua         immutable CapabilitySet: add / snapshot
 │       └── icons.lua              single source of truth for glyphs
 │
 ├── toolchain/                     Layer 3: strategy
@@ -272,7 +272,8 @@ lua/
 │   └── rules.lua                  ToolchainStrategy: mason-vs-system decision rules
 │
 ├── runtime/                       Layer 1 (orchestration) + Layer 4 (backend)
-│   ├── init.lua                   orchestrator: profile resolution, cache, build()
+│   ├── init.lua                   orchestrator: BuildRequest, profile, two-tier cache
+│   ├── build_request.lua          sole vim.g entry for compilation config
 │   ├── pipeline.lua               state machine + 5-phase compiler kernel
 │   ├── commands.lua               observability commands: LtosInfo/Debug/IR/Trace/Graph
 │   ├── api.lua                    editor façade: api.editor / api.lsp / api.diagnostics / api.find
@@ -553,4 +554,4 @@ just check   # layer boundary violations (scripts/check_layer_boundaries.sh)
 just test    # 12 headless LTOS regression tests (scripts/run_ltos_tests.sh)
 ```
 
-Coverage includes: cache version unification, schema idempotency, rules layer boundary, mappings/env extension APIs, module discovery, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, and `ConfigProvider`.
+Coverage includes: cache version, schema idempotency, rules layer boundary, BuildRequest, nix profile prefer_system, mappings/env APIs, module discovery, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, ConfigProvider.

@@ -20,6 +20,7 @@
 local ir_mod = require("core.compiler.ir")
 local mappings = require("toolchain.mappings")
 local rules = require("toolchain.rules")
+local build_request_mod = require("runtime.build_request")
 
 ---@type Phase
 local canonicalize_pass = {
@@ -34,10 +35,9 @@ local canonicalize_pass = {
   ---@param ir IR
   ---@return IR
   run = function(ir)
-    local overrides = vim.g.ltos_tool_overrides
-    if type(overrides) ~= "table" then
-      overrides = {}
-    end
+    local req = (ir.meta and ir.meta.build_request) or {}
+    local overrides = req.overrides or {}
+    local ctx = build_request_mod.rules_ctx(req)
 
     local symbols = { lsp = {}, tools = {} }
     local diags = {}
@@ -72,13 +72,13 @@ local canonicalize_pass = {
         for _, v in ipairs(fmts) do
           if type(v) == "string" then
             if not symbols.tools[v] then
-              local res = rules.resolve(v, overrides)
+              local res = rules.resolve(v, overrides, ctx)
               symbols.tools[v] = { mason = res.pkg, system = not res.use_mason }
             end
           elseif type(v) == "table" and v.name then
             local tool = v.name
             if not symbols.tools[tool] then
-              local res = rules.resolve(tool, overrides)
+              local res = rules.resolve(tool, overrides, ctx)
               symbols.tools[tool] = { mason = res.pkg, system = not res.use_mason }
             end
           end
@@ -89,7 +89,7 @@ local canonicalize_pass = {
       for _, lints in pairs(cap.linters or {}) do
         for _, tool in ipairs(lints) do
           if type(tool) == "string" and not symbols.tools[tool] then
-            local res = rules.resolve(tool, overrides)
+            local res = rules.resolve(tool, overrides, ctx)
             symbols.tools[tool] = { mason = res.pkg, system = not res.use_mason }
           end
         end
@@ -98,7 +98,7 @@ local canonicalize_pass = {
       -- ── Explicit mason[] list ─────────────────────────────────────────────
       for _, t in ipairs(cap.mason or {}) do
         if not symbols.tools[t] then
-          local res = rules.resolve(t, overrides)
+          local res = rules.resolve(t, overrides, ctx)
           symbols.tools[t] = { mason = res.pkg, system = not res.use_mason }
         end
       end

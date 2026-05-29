@@ -21,7 +21,7 @@ nvim-config/
 │   │   ├── compiler/               # Layer 1 — 编译器内核，无 vim API，无插件知识
 │   │   │   ├── ir.lua              # IR 值类型 + CompilerContext + Diagnostic
 │   │   │   ├── pass.lua            # Phase 接口 + run_phase() 受保护执行
-│   │   │   └── cache.lua           # 三层缓存（ast / ir / spec），部分失效
+│   │   │   └── cache.lua           # 两级缓存（ast / spec），部分失效
 │   │   │
 │   │   └── domain/                 # Layer 2 — 领域 IR，不可变值对象，纯函数验证
 │   │       ├── schema.lua          # DSL 验证器（FormatterNode / SchemaDiagnostic）
@@ -38,7 +38,8 @@ nvim-config/
 │   │   └── rules.lua               # 工具链解析引擎（override→system→nix→mapping→identity）
 │   │
 │   ├── runtime/                    # Layer 4：编译器驱动 + 后端适配器
-│   │   ├── init.lua                # 编排器：ProviderRegistry、profile、三层缓存协调
+│   │   ├── init.lua                # 编排器：ProviderRegistry、BuildRequest、两级缓存
+│   │   ├── build_request.lua       # 唯一 vim.g 读取点 → ir.meta.build_request
 │   │   ├── pipeline.lua            # 五阶段流水线 + 状态机（PHASE_ORDER 导出）
 │   │   ├── api.lua                 # 编辑器门面（picker / lsp / diagnostics / terminal）
 │   │   ├── commands.lua            # LTOS 用户命令（LtosDebug/Info/IR/Trace/Graph）
@@ -97,22 +98,10 @@ nvim-config/
 │       ├── treesitter/treesitter.lua
 │       └── ui/                     # ui.lua · snacks.lua
 │
-├── spec/                           # 测试套件（nvim --headless -l）
-│   ├── core/
-│   │   ├── schema_spec.lua
-│   │   ├── ir_spec.lua
-│   │   └── pass_spec.lua
-│   ├── toolchain/
-│   │   ├── mappings_spec.lua
-│   │   └── strategies_spec.lua
-│   └── runtime/
-│       ├── pipeline_spec.lua
-│       └── commands_spec.lua
-│
 ├── scripts/
 │   ├── check_layer_boundaries.sh  # 层边界违规检测（含 toolchain vim.g）
-│   ├── ltos_tests.lua           # headless 架构回归测试
-│   └── run_ltos_tests.sh        # check + test 入口
+│   ├── ltos_tests.lua             # headless 架构回归测试
+│   └── run_ltos_tests.sh          # check + test 入口
 │
 └── README.md
 ```
@@ -145,7 +134,7 @@ Layer 2  domain IR         core/domain/schema  core/domain/capability  core/doma
 
 Layer 1  compiler          core/compiler/ir  core/compiler/pass  core/compiler/cache
          ────────────────────────────────────────────────────
-         CompilerContext · Phase 接口 · 三层缓存。
+         CompilerContext · Phase 接口 · 两级缓存（ast / spec）。
          无 vim API。无插件知识。
 
 Layer 0  kernel            core/kernel/bootstrap  core/kernel/env  core/kernel/util
@@ -276,18 +265,19 @@ DSL 表（modules/lang/*.lua）
 
 ---
 
-## 四、三层增量缓存
+## 四、两级增量缓存
 
 ```
-cache key = FNV1a(sorted file content hashes) + ":" + profile + ":v4"
+cache key = FNV-1a(sorted file content hashes) + ":" + profile + ":v4"
 
 Spec Tier (spec_cache.json)   ← 命中则跳过全部流水线
-IR Tier   (ir_cache.json)     ← 命中则从 Phase 4 恢复
-AST Tier  (ast_cache.json)    ← 命中则从 Phase 2 恢复
+AST Tier  (ast_cache.json)    ← 命中则 skip / partial / full collect
 
-失效传播：低层失效 → 所有高层同步失效
-不可序列化值（FormatterNode.fn）: metatable.__ltos_cacheable=false，跳过持久化
+失效传播：ast 失效 → spec 同步失效
+不可序列化值（FormatterNode.fn）: 故不设 IR tier；HIR 不可持久化
 ```
+
+**BuildRequest（编排契约）**：`runtime/build_request.lua` 在 `init.build()` 唯一读取 `vim.g`，注入 `ir.meta.build_request` 供 passes/adapters 使用。
 
 **缓存子模块职责分离：**
 
@@ -312,7 +302,8 @@ toolchain/strategy/
 工具链解析优先级链（rules.lua）：
 
 ```
-用户覆盖 (vim.g.ltos_tool_overrides / mappings.overrides)
+用户覆盖 (BuildRequest.overrides / mappings.overrides)
+    → profile nix: prefer_system（PATH 有则不用 mason）
     → system_tools 白名单（rustfmt / gofmt / zigfmt 等）
     → Nix 检测（env.is_nix and env.has(tool)）
     → 显式映射（tool_to_mason / lsp_to_mason）

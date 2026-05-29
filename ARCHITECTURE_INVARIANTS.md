@@ -44,7 +44,8 @@ Adapters must:
 
 - Only **read** the IR — never write it
 - Return pure Lua tables (`LazySpec[]`)
-- Never call `vim.*` API directly
+- Read runtime config from `ir.meta.build_request` — not `vim.g` directly
+- Avoid `vim.*` where possible; config flows through BuildRequest (P0)
 
 ---
 
@@ -54,7 +55,7 @@ A Strategy is a named resolver: `resolve(bufnr) -> string[]`.
 
 - No module-level mutable state
 - Registered once at bootstrap; registry is locked after
-- Replaceable via `vim.g.ltos_tool_overrides`
+- Replaceable via `BuildRequest.overrides` (injected at orchestrator)
 
 ---
 
@@ -94,6 +95,8 @@ Cache keys are derived from **file content hashes** (FNV-1a), not mtimes. This g
 
 ---
 
+---
+
 ## Invariant 8 — DSL Modules are Pure Declarations
 
 `modules/lang/*.lua` files must:
@@ -103,3 +106,11 @@ Cache keys are derived from **file content hashes** (FNV-1a), not mtimes. This g
 - Contain no `vim.*` calls
 - Contain no side-effects of any kind
 - Declare `version = 1` (or current schema version)
+
+---
+
+## Invariant 9 — BuildRequest is the Sole vim.g Entry for Compilation
+
+`runtime/build_request.lua` is the **only** module that reads `vim.g.ltos_*` build knobs.  
+Passes read `ir.meta.build_request`; adapters read the same field from IR.  
+Layer 3 (`toolchain/*`) receives overrides and context as function parameters only.

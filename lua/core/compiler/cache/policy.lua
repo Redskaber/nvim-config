@@ -2,14 +2,15 @@
 -- Layer 1 compiler: tier invalidation policy + serializability check.
 --
 -- REFACTOR (TODO-2.3): extracted from cache.lua.
--- Tier order: ast < ir < spec  (lower invalidates higher).
+-- Tier order: ast < spec  (lower invalidates higher).
+-- IR tier removed: HIR contains non-serializable FormatterNode.fn closures.
 
 local store = require("core.compiler.cache.store")
 local key_mod = require("core.compiler.cache.key")
 local version = require("core.compiler.cache.version")
 
 local M = {}
-local TIER_ORDER = { "ast", "ir", "spec" }
+local TIER_ORDER = { "ast", "spec" }
 
 -- ── Serializability ───────────────────────────────────────────────────────────
 -- REFACTOR (TODO-2.4): metatable-based cacheable marker replaces _no_cache field.

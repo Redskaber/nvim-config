@@ -87,17 +87,21 @@ local last_run_sm = new_sm()
 ---@param profile      string
 ---@param stop_after?  string
 ---@param sm           table
----@param cached_caps? table        full AST skip — inject caps, skip collect
----@param ast_seed?    table        partial AST — { caps, module_hashes, current_hashes }
+---@param cached_caps? table
+---@param ast_seed?    table
+---@param build_request? BuildRequest
 ---@return IR, table[]|nil, table<string, number>
-local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_seed)
+local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_seed, build_request)
   local ir = ir_mod.new(lang_modules, profile)
+  local meta_patch = {}
   if ast_seed then
-    ir = ir_mod.with(ir, {
-      meta = util.merge(ir.meta or {}, {
-        ast_seed = ast_seed,
-      }),
-    })
+    meta_patch.ast_seed = ast_seed
+  end
+  if build_request then
+    meta_patch.build_request = build_request
+  end
+  if next(meta_patch) ~= nil then
+    ir = ir_mod.with(ir, { meta = util.merge(ir.meta or {}, meta_patch) })
   end
   local timings = {}
 
@@ -204,13 +208,22 @@ end
 ---@param profile?     string
 ---@param cached_caps? table
 ---@param ast_seed?    table
----@return table[]   specs
----@return IR        final IR (for AST cache persistence)
-function M.run(lang_modules, profile, cached_caps, ast_seed)
+---@param build_request? BuildRequest
+---@return table[]
+---@return IR
+function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
   local sm = new_sm()
   last_run_sm = sm
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps, ast_seed)
+  local ir, specs, timings = execute(
+    lang_modules,
+    profile or "full",
+    nil,
+    sm,
+    cached_caps,
+    ast_seed,
+    build_request
+  )
 
   if sm.state ~= STATES.ERROR then
     sm.transition(STATES.DONE)
@@ -247,16 +260,25 @@ function M.run(lang_modules, profile, cached_caps, ast_seed)
 end
 
 ---@param lang_modules string[]
----@param stop_after?  "collect"|"normalize"|"canonicalize"|"resolve"|"optimize"
+---@param stop_after?  string
 ---@param profile?     string
+---@param build_request? BuildRequest
 ---@return IR
----@return table[]|nil specs (nil when stop_after is set before codegen)
-function M.debug_run(lang_modules, stop_after, profile)
+---@return table[]|nil
+function M.debug_run(lang_modules, stop_after, profile, build_request)
   local sm = new_sm()
 
   _G._ltos_debug_freeze = true
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", stop_after, sm, nil, nil)
+  local ir, specs, timings = execute(
+    lang_modules,
+    profile or "full",
+    stop_after,
+    sm,
+    nil,
+    nil,
+    build_request
+  )
 
   _G._ltos_debug_freeze = false
 

@@ -117,6 +117,42 @@ local function test_debug_run_signature()
   assert_true(specs == nil or type(specs) == "table", "debug_run second return is table or nil")
 end
 
+local function test_build_request()
+  local br = require("runtime.build_request")
+  vim.g.ltos_profile = "nix"
+  vim.g.ltos_tool_overrides = { test_br_tool = { use_mason = false, pkg = nil } }
+  local req = br.from_vim("nix", { "modules.lang.python" })
+  assert_eq(req.profile, "nix", "build_request profile")
+  assert_true(req.prefer_system, "nix prefer_system")
+  assert_eq(req.overrides.test_br_tool.use_mason, false, "build_request overrides")
+  vim.g.ltos_profile = nil
+  vim.g.ltos_tool_overrides = nil
+end
+
+local function test_nix_profile_rules()
+  local rules = require("toolchain.rules")
+  local ctx = { prefer_system = true }
+  if vim.fn.executable("git") == 1 then
+    local r = rules.resolve("git", {}, ctx)
+    assert_eq(r.use_mason, false, "nix profile prefers system git")
+  end
+end
+
+local function test_two_tier_cache()
+  local policy = require("core.compiler.cache.policy")
+  local store = require("core.compiler.cache.store")
+  assert_true(store.TIER_FILES.ast ~= nil, "ast tier exists")
+  assert_true(store.TIER_FILES.spec ~= nil, "spec tier exists")
+  assert_true(store.TIER_FILES.ir == nil, "ir tier removed")
+end
+
+local function test_nix_profile_modules()
+  local registry = require("runtime.providers.registry")
+  local full = registry.resolve("full")
+  local nix = registry.resolve("nix")
+  assert_eq(#nix, #full, "nix profile same module count as full")
+end
+
 local tests = {
   test_cache_version_unified,
   test_schema_diag_idempotent,
@@ -127,6 +163,10 @@ local tests = {
   test_provider_registry_minimal,
   test_adapter_registry,
   test_pipeline_phase_order,
+  test_build_request,
+  test_nix_profile_rules,
+  test_two_tier_cache,
+  test_nix_profile_modules,
   test_runtime_build,
   test_config_provider,
   test_debug_run_signature,
