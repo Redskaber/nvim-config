@@ -118,7 +118,7 @@ local function cmd_debug(opts)
   local header = ("LTOS IR snapshot  stage=%s  sub-layer=%s  modules=%d  %s"):format(
     stage or "optimize",
     ir.stage or "?",
-    #(modules),
+    #modules,
     format_timings(ir._timings)
   )
 
@@ -147,7 +147,7 @@ local function cmd_ir(opts)
   local header = ("LTOS IR  stage=%s  sub-layer=%s  modules=%d  %s"):format(
     stage,
     ir.stage or "?",
-    #(modules),
+    #modules,
     format_timings(ir._timings)
   )
 

@@ -55,7 +55,9 @@ local collect_pass = {
     for _, mod in ipairs(lang_modules) do
       -- Skip modules already seeded from partial cache
       if ast_seed and ast_seed.module_hashes and ast_seed.current_hashes then
-        if ast_seed.module_hashes[mod] == ast_seed.current_hashes[mod] and ast_seed.caps[mod:match("([^.]+)$") or mod] then
+        if
+          ast_seed.module_hashes[mod] == ast_seed.current_hashes[mod] and ast_seed.caps[mod:match("([^.]+)$") or mod]
+        then
           goto continue
         end
       end

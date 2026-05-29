@@ -4,7 +4,7 @@
 # 示例: ./concat_files.sh paths.txt terminal.txt
 
 if [ "$#" -ne 2 ]; then
-  echo "用法: $0 <path_list_file> <output_file>"
+  echo "usage: $0 <path_list_file> <output_file>"
   exit 1
 fi
 

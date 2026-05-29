@@ -73,10 +73,10 @@ local function new_sm()
 end
 
 local PHASE_NEXT_SM = {
-  collect      = STATES.NORMALIZING,
-  normalize    = STATES.CANONICALIZING,
+  collect = STATES.NORMALIZING,
+  normalize = STATES.CANONICALIZING,
   canonicalize = STATES.RESOLVING,
-  resolve      = STATES.OPTIMIZING,
+  resolve = STATES.OPTIMIZING,
 }
 
 local last_run_sm = new_sm()
