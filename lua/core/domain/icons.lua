@@ -4,27 +4,27 @@
 
 return {
   diagnostics = {
-    Error = " ",
-    Warn = " ",
-    Hint = " ",
-    Info = " ",
+    Error = " ",
+    Warn = " ",
+    Hint = " ",
+    Info = " ",
   },
   git = {
-    added = " ",
-    modified = " ",
-    removed = " ",
+    added = " ",
+    modified = " ",
+    removed = " ",
   },
   fold = {
-    open = "",
-    close = "",
+    open = " ",
+    close = " ",
   },
   todo = {
-    FIX = " ",
-    TODO = " ",
-    HACK = " ",
-    WARN = " ",
-    PERF = " ",
-    NOTE = " ",
-    TEST = "⏲ ",
+    FIX = " ",
+    TODO = " ",
+    HACK = " ",
+    WARN = " ",
+    PERF = " ",
+    NOTE = " ",
+    TEST = " ",
   },
 }
