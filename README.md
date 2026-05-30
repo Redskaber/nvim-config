@@ -54,7 +54,7 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 │             Strategy interface: applies / resolve / priority.        │
 │             No vim API access. No direct adapter calls.              │
 ├──────────────────────────────────────────────────────────────────────┤
-│  Layer 2 · domain IR        core/domain/schema  core/domain/capability│
+│  Layer 2 · domain IR        core/domain/schema core/domain/capability│
 │             Immutable CapabilitySet. Pure-function validation.       │
 │             No runtime state. No side effects.                       │
 ├──────────────────────────────────────────────────────────────────────┤
