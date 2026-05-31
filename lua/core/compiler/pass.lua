@@ -6,6 +6,7 @@
 
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
+local invariants = require("core.compiler.invariants")
 
 local M = {}
 
@@ -69,6 +70,10 @@ function M.run_phase(phase, ir)
   if type(next_ir) ~= "table" then
     local d = ir_mod.diag(phase.name, "run", "Phase.run returned " .. type(next_ir) .. " instead of IR table")
     return ir_mod.append_diag(ir, d), { d }
+  end
+
+  if invariants.is_enabled() then
+    invariants.check_phase_output(ir, next_ir, phase.name)
   end
 
   return next_ir, {}

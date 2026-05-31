@@ -94,6 +94,35 @@ if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null |
   fail=1
 fi
 
+# ── INV-11: only collect_ext may assign ext_caps ─────────────────────────────
+for f in "$LUA/runtime/passes/"*.lua; do
+  base="$(basename "$f")"
+  if [ "$base" = "collect_ext.lua" ]; then
+    continue
+  fi
+  if grep -nE '(^|[^a-z_])ext_caps[[:space:]]*=' "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+    echo "FAIL [INV-11]: $f assigns ext_caps — only collect_ext may write ext_caps"
+    fail=1
+  fi
+done
+
+# ── INV-13: cap adapters must not call vim API ────────────────────────────────
+for f in "$LUA/runtime/adapters/image.lua" "$LUA/runtime/adapters/media.lua" \
+  "$LUA/runtime/adapters/ai.lua" "$LUA/runtime/adapters/ai_cap.lua" \
+  "$LUA/runtime/adapters/keybind.lua"; do
+  if [ -f "$f" ] && grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+    echo "FAIL [INV-13]: $f uses vim API — cap adapters must be pure"
+    fail=1
+  fi
+done
+
+# ── INV-15: conflict.lua must not mutate strategy registry ───────────────────
+if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null |
+  grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  echo "FAIL [INV-15]: conflict.lua must not write strategy registry"
+  fail=1
+fi
+
 if [ $fail -eq 0 ]; then
   echo "Layer boundary check: PASSED"
 else

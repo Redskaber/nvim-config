@@ -168,6 +168,7 @@ function M.new(lang_modules, profile)
     },
     profile = profile or "full",
     ext_caps = { image = {}, media = {}, ai = {}, keybind = {}, editor = {} },
+    cap_specs = {},
   }
 end
 

@@ -637,20 +637,30 @@ toolchain.strategy.conflict 仅做只读分析；
 ## 十、验证
 
 ```bash
-just check   # 层边界检查（含 toolchain vim.g、compiler vim.*）
-just test    # headless 回归测试
+just check   # 层边界 + Invariant 11/13/15 静态检测
+just test    # headless 模块化 spec 套件
 ```
 
-**当前 spec 通过率估算：**
+**测试结构（E-01 已完成）：**
 
-| 套件 | 总测试数 | 当前可通过 | 阻塞原因 |
-|------|---------|-----------|---------|
-| `spec/core/*.lua` | ~90 | ~75 | ext_schema_spec(全失败)；ir_spec(ext_caps 4个失败) |
-| `spec/modules/*.lua` | ~80 | 0 | 所有引用模块缺失 |
-| `spec/runtime/*.lua` | ~120 | ~70 | collect_ext/cap_resolve/lifecycle/cap_adapters 全失败 |
-| `spec/toolchain/*.lua` | ~55 | ~40 | conflict_spec(全失败)；mappings_spec(resolve 4个失败) |
-| **合计** | **~345** | **~185 (54%)** | |
+```
+lua/spec/
+  _runner.lua              # 轻量 runner
+  core/compiler_spec.lua   # cache / ir / invariants
+  runtime/pipeline_spec.lua
+  modules/capability_spec.lua
+  toolchain/strategy_spec.lua
+scripts/ltos_tests.lua     # 入口
+```
 
-**关键路径文件（P3 必须实现以解除阻塞）：**
+**当前通过率：20/20**
 
+---
 
+## 十一、演进项状态
+
+| 编号 | 方向 | 状态 |
+|------|------|------|
+| E-01 | spec 模块化 | ✅ `lua/spec/*` + `_runner` |
+| E-03 | keybind preset 外置 | ✅ `modules/capability/defaults/keybind_presets.lua` |
+| E-04 | Invariant 11–15 CI | ✅ `check_layer_boundaries.sh` 扩展 |

@@ -136,10 +136,12 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
 
   -- AST tier fast-path: inject cached caps, skip collect phase (TODO-7.1)
   if cached_caps then
-    ir = ir_mod.with(ir, { stage = "AST", caps = cached_caps })
+    local ext_caps = (ast_seed and ast_seed.ext_caps) or ir.ext_caps
+    ir = ir_mod.with(ir, { stage = "AST", caps = cached_caps, ext_caps = ext_caps })
     timings["collect"] = 0
+    timings["collect_ext"] = 0
     if vim.g.ltos_debug or vim.g.ltos_debug_cache then
-      vim.notify("[pipeline] AST cache hit — collect phase skipped", vim.log.levels.DEBUG)
+      vim.notify("[pipeline] AST cache hit — collect/collect_ext skipped", vim.log.levels.DEBUG)
     end
     -- Honor stop_after="collect" even when skipping the phase
     if stop_after == "collect" then
@@ -152,8 +154,7 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     end
   end
   for _, phase in ipairs(phases) do
-    -- Skip collect if AST cache was used (already advanced SM past collecting)
-    if cached_caps and phase.name == "collect" then
+    if cached_caps and (phase.name == "collect" or phase.name == "collect_ext") then
       goto continue
     end
     local t0 = os.clock()

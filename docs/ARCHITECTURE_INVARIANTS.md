@@ -120,3 +120,33 @@ Layer 3 (`toolchain/*`) receives overrides and context as function parameters on
 `core/compiler/ports.lua` is the **only** injection point for vim-dependent cache I/O.  
 `runtime/ports_bootstrap.lua` configures ports at startup.  
 No other `core/compiler/*` file may call `vim.*` directly.
+
+---
+
+## Invariant 11 — ext_caps Bucket Ownership
+
+Only `runtime/passes/collect_ext.lua` may populate `ir.ext_caps`.
+
+---
+
+## Invariant 12 — cap_type DSL Validation
+
+`collect_ext.run()` calls `ext_schema.validate()`; failures skip the module and append diagnostics.
+
+---
+
+## Invariant 13 — Cap Adapter Purity
+
+Cap adapters return `LazySpec[]` without vim API. Side-effects go through `runtime/emitter/cap_effects.lua`.
+
+---
+
+## Invariant 14 — Dual State Machines
+
+`runtime/lifecycle.lua` and `runtime/pipeline.lua` state machines are independent.
+
+---
+
+## Invariant 15 — Conflict Analysis is Read-Only
+
+`toolchain/strategy/conflict.lua` never writes to StrategyRegistry.

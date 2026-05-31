@@ -1,8 +1,5 @@
 -- ~/.config/nvim/lua/runtime/init.lua
 -- Compiler kernel: orchestrator.
--- Resolves profile via ProviderRegistry, drives two-tier cache (spec + ast),
--- and calls into runtime/pipeline.lua for full pipeline runs.
--- All vim.g reads for the build are consolidated in BuildRequest.from_vim().
 
 local M = {}
 
@@ -10,6 +7,7 @@ require("runtime.ports_bootstrap").setup()
 
 local provider_registry = require("runtime.providers.registry")
 local build_request_mod = require("runtime.build_request")
+local util = require("core.kernel.util")
 
 local function valid_profiles()
   local set = { full = true }
@@ -19,7 +17,6 @@ local function valid_profiles()
   return set
 end
 
----@return string
 local function resolve_profile()
   local raw = vim.g.ltos_profile
   if raw == nil then
@@ -32,10 +29,11 @@ local function resolve_profile()
   return "full"
 end
 
----@param modules string[]
----@return table<string, string>
+local function cap_modules()
+  return require("runtime.passes.collect_ext").registered()
+end
+
 local function compute_module_hashes(modules)
-  local util = require("core.kernel.util")
   local hashes = {}
   for _, mod in ipairs(modules) do
     local path = vim.api.nvim_get_runtime_file(mod:gsub("%.", "/") .. ".lua", false)[1]
@@ -46,8 +44,17 @@ local function compute_module_hashes(modules)
   return hashes
 end
 
----@param payload any
----@return { caps: table, module_hashes?: table<string, string> }|nil
+local function compute_all_hashes(lang_modules, cap_mods)
+  local all = {}
+  for _, m in ipairs(lang_modules) do
+    all[#all + 1] = m
+  end
+  for _, m in ipairs(cap_mods) do
+    all[#all + 1] = m
+  end
+  return compute_module_hashes(all)
+end
+
 local function normalise_ast_payload(payload)
   if not payload then
     return nil
@@ -56,22 +63,26 @@ local function normalise_ast_payload(payload)
     return payload
   end
   if type(payload) == "table" then
-    return { caps = payload, module_hashes = {} }
+    return { caps = payload, module_hashes = {}, ext_caps = {} }
   end
   return nil
 end
 
----@param modules string[]
----@param cached_entry { caps: table, module_hashes?: table<string, string> }
----@return "skip"|"partial"|"full"
----@return table|nil
-local function ast_reuse_strategy(modules, cached_entry)
-  local current = compute_module_hashes(modules)
+local function ast_reuse_strategy(lang_modules, cap_mods, cached_entry)
+  local tracked = {}
+  for _, m in ipairs(lang_modules) do
+    tracked[#tracked + 1] = m
+  end
+  for _, m in ipairs(cap_mods) do
+    tracked[#tracked + 1] = m
+  end
+
+  local current = compute_module_hashes(tracked)
   local old = cached_entry.module_hashes or {}
-  local all_match = true
+  local all_match = #tracked > 0
   local any_match = false
 
-  for _, mod in ipairs(modules) do
+  for _, mod in ipairs(tracked) do
     if old[mod] and old[mod] == current[mod] then
       any_match = true
     else
@@ -79,43 +90,29 @@ local function ast_reuse_strategy(modules, cached_entry)
     end
   end
 
-  if all_match and next(old) ~= nil then
-    return "skip", cached_entry.caps
+  if all_match then
+    return "skip", { caps = cached_entry.caps, ext_caps = cached_entry.ext_caps }
   end
   if any_match then
-    return "partial", { caps = cached_entry.caps, module_hashes = old, current_hashes = current }
+    return "partial", {
+      caps = cached_entry.caps,
+      ext_caps = cached_entry.ext_caps,
+      module_hashes = old,
+      current_hashes = current,
+    }
   end
   return "full", nil
 end
 
----@return string[]
-local function cap_modules()
-  return require("runtime.passes.collect_ext").registered()
-end
-
----@param modules string[]
----@param profile string
----@return table[]|nil
 local function try_cache(modules, profile)
   local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile, cap_modules())
   if key == "" then
     return nil
   end
-
-  local specs = cache.load("spec", key)
-  if specs then
-    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
-      vim.notify("[ltos] spec cache hit — skipping pipeline", vim.log.levels.DEBUG)
-    end
-    return specs
-  end
-  return nil
+  return cache.load("spec", key)
 end
 
----@param modules string[]
----@param profile string
----@param specs table[]
 local function persist_cache(modules, profile, specs)
   local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile, cap_modules())
@@ -124,38 +121,27 @@ local function persist_cache(modules, profile, specs)
   end
 end
 
----@param modules string[]
----@param profile string
----@return table|nil
 local function try_ast_cache(modules, profile)
   local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile, cap_modules())
   if key == "" then
     return nil
   end
-  local cached = normalise_ast_payload(cache.load("ast", key))
-  if cached then
-    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
-      vim.notify("[ltos] ast cache hit — evaluating incremental reuse", vim.log.levels.DEBUG)
-    end
-    return cached
-  end
-  return nil
+  return normalise_ast_payload(cache.load("ast", key))
 end
 
----@param modules string[]
----@param profile string
----@param caps table
----@param module_hashes table<string, string>
-local function persist_ast_cache(modules, profile, caps, module_hashes)
+local function persist_ast_cache(modules, profile, caps, ext_caps, module_hashes)
   local cache = require("core.compiler.cache")
   local key = cache.key(modules, profile, cap_modules())
   if key ~= "" then
-    cache.save("ast", key, { caps = caps, module_hashes = module_hashes or {} })
+    cache.save("ast", key, {
+      caps = caps,
+      ext_caps = ext_caps or {},
+      module_hashes = module_hashes or {},
+    })
   end
 end
 
----@return string[]
 function M.lang_modules()
   return provider_registry.resolve(resolve_profile())
 end
@@ -175,7 +161,6 @@ M.LANG_MODULES = setmetatable({}, {
   end,
 })
 
----@return table[]
 function M.build()
   local lifecycle = require("runtime.lifecycle")
   if lifecycle.state() == "READY" then
@@ -185,6 +170,7 @@ function M.build()
 
   local profile = resolve_profile()
   local modules = provider_registry.resolve(profile)
+  local caps = cap_modules()
   local req = build_request_mod.from_vim(profile, modules)
 
   lifecycle.transition("COMPILE")
@@ -201,14 +187,12 @@ function M.build()
   local ast_seed = nil
 
   if cached_ast then
-    local strategy, seed = ast_reuse_strategy(modules, cached_ast)
+    local strategy, seed = ast_reuse_strategy(modules, caps, cached_ast)
     if strategy == "skip" then
-      cached_caps = seed
+      cached_caps = seed.caps
+      ast_seed = { ext_caps = seed.ext_caps }
     elseif strategy == "partial" then
       ast_seed = seed
-      if vim.g.ltos_debug or vim.g.ltos_debug_cache then
-        vim.notify("[ltos] ast partial invalidation — incremental collect", vim.log.levels.DEBUG)
-      end
     end
   end
 
@@ -216,12 +200,12 @@ function M.build()
   local specs, run_ir = pipeline.run(modules, profile, cached_caps, ast_seed, req)
 
   lifecycle.transition("EMIT")
-
+  require("runtime.emitter.cap_effects").apply_all(run_ir)
   persist_cache(modules, profile, specs)
 
   if run_ir and run_ir.caps then
-    local hashes = (run_ir.meta and run_ir.meta.module_hashes) or compute_module_hashes(modules)
-    persist_ast_cache(modules, profile, run_ir.caps, hashes)
+    local hashes = run_ir.meta and run_ir.meta.module_hashes or compute_all_hashes(modules, caps)
+    persist_ast_cache(modules, profile, run_ir.caps, run_ir.ext_caps, hashes)
   end
 
   lifecycle.transition("READY")

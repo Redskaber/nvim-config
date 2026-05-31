@@ -8,17 +8,23 @@ local util = require("core.kernel.util")
 local ports = require("core.compiler.ports")
 local cap_schema = require("modules.capability.schema")
 local ext_schema = require("core.domain.ext_schema")
+local cap_graph = require("modules.capability.graph")
+local cap_registry = require("modules.capability.registry")
 
 local _registered_modules = {}
 
---- Register external capability modules to be collected (replaces list).
----@param modules string[]
 function M.register(modules)
   assert(type(modules) == "table", "modules must be a table")
   _registered_modules = modules
+  cap_registry._reset()
+  for _, mod_path in ipairs(modules) do
+    local ok, cap = pcall(require, mod_path)
+    if ok and type(cap) == "table" and cap.cap_type then
+      cap_registry.register(cap.cap_type, mod_path)
+    end
+  end
 end
 
----@return string[]
 function M.registered()
   return _registered_modules
 end
@@ -31,67 +37,109 @@ local function module_hash(mod_path)
   return util.file_content_hash(path) or "?"
 end
 
+local function find_seeded_cap(ast_seed, mod_path)
+  if not ast_seed or not ast_seed.ext_caps then
+    return nil
+  end
+  for _, bucket in pairs(ast_seed.ext_caps) do
+    if bucket[mod_path] then
+      return bucket[mod_path]
+    end
+  end
+  return nil
+end
+
+local function load_cap(mod_path, ast_seed, diagnostics, stage)
+  if ast_seed and ast_seed.module_hashes and ast_seed.current_hashes then
+    if ast_seed.module_hashes[mod_path] == ast_seed.current_hashes[mod_path] then
+      local seeded = find_seeded_cap(ast_seed, mod_path)
+      if seeded then
+        return seeded
+      end
+    end
+  end
+
+  local ok, cap = pcall(require, mod_path)
+  if not ok then
+    diagnostics[#diagnostics + 1] = ir_mod.diag(
+      stage,
+      mod_path,
+      ("Failed to load capability module '%s': %s"):format(mod_path, cap)
+    )
+    return nil
+  end
+  return cap
+end
+
+local function validate_cap(mod_path, cap, diagnostics, stage)
+  if cap.cap_type == "lang" then
+    diagnostics[#diagnostics + 1] = ir_mod.diag(
+      stage,
+      mod_path,
+      "cap_type 'lang' is reserved for lang modules; use modules/lang/* instead"
+    )
+    return false
+  end
+
+  local validation_res = cap_schema.validate(mod_path, cap)
+  if not validation_res.ok then
+    for _, msg in ipairs(validation_res.diags) do
+      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg)
+    end
+    return false
+  end
+
+  local ext_res = ext_schema.validate(cap.cap_type, mod_path, cap)
+  if not ext_res.ok then
+    for _, msg in ipairs(ext_res.diags) do
+      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg)
+    end
+    return false
+  end
+
+  for _, msg in ipairs(ext_res.diags) do
+    diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg, "warn")
+  end
+
+  return true
+end
+
 M.pass = {
   name = "collect_ext",
   input_state = "collecting",
   output_state = "collecting",
 
-  ---@param ir IR
-  ---@return IR
   run = function(ir)
     local next_ir = ir_mod.with(ir, { ext_caps = util.deep_copy(ir.ext_caps) })
     local module_hashes = util.deep_copy(ir.meta.module_hashes or {})
     local diagnostics = util.deep_copy(ir.diagnostics or {})
+    local ast_seed = ir.meta and ir.meta.ast_seed
+    local graph_input = {}
 
     for _, mod_path in ipairs(_registered_modules) do
-      local ok, cap = pcall(require, mod_path)
-      if not ok then
-        diagnostics[#diagnostics + 1] = ir_mod.diag(
-          next_ir.stage,
-          mod_path,
-          ("Failed to load capability module '%s': %s"):format(mod_path, cap)
-        )
-        goto continue
+      local cap = load_cap(mod_path, ast_seed, diagnostics, next_ir.stage)
+      if cap and validate_cap(mod_path, cap, diagnostics, next_ir.stage) then
+        graph_input[#graph_input + 1] = { mod_path = mod_path, cap = cap }
+        module_hashes[mod_path] = module_hash(mod_path)
       end
+    end
 
-      if cap.cap_type == "lang" then
-        diagnostics[#diagnostics + 1] = ir_mod.diag(
-          next_ir.stage,
-          mod_path,
-          ("cap_type 'lang' is reserved for lang modules; use modules/lang/* instead")
-        )
-        goto continue
+    local order, graph_diags = cap_graph.sort(graph_input)
+    for _, d in ipairs(graph_diags) do
+      diagnostics[#diagnostics + 1] = d
+    end
+
+    local by_path = {}
+    for _, entry in ipairs(graph_input) do
+      by_path[entry.mod_path] = entry.cap
+    end
+
+    for _, mod_path in ipairs(order) do
+      local cap = by_path[mod_path]
+      if cap then
+        next_ir.ext_caps[cap.cap_type] = next_ir.ext_caps[cap.cap_type] or {}
+        next_ir.ext_caps[cap.cap_type][mod_path] = cap
       end
-
-      local validation_res = cap_schema.validate(mod_path, cap)
-      if not validation_res.ok then
-        for _, diag_msg in ipairs(validation_res.diags) do
-          diagnostics[#diagnostics + 1] = ir_mod.diag(next_ir.stage, mod_path, diag_msg)
-        end
-        goto continue
-      end
-
-      local ext_validation_res = ext_schema.validate(cap.cap_type, mod_path, cap)
-      if not ext_validation_res.ok then
-        for _, diag_msg in ipairs(ext_validation_res.diags) do
-          diagnostics[#diagnostics + 1] = ir_mod.diag(next_ir.stage, mod_path, diag_msg)
-        end
-        goto continue
-      end
-
-      if #ext_validation_res.diags > 0 then
-        for _, diag_msg in ipairs(ext_validation_res.diags) do
-          diagnostics[#diagnostics + 1] = ir_mod.diag(next_ir.stage, mod_path, diag_msg, "warn")
-        end
-      end
-
-      if not next_ir.ext_caps[cap.cap_type] then
-        next_ir.ext_caps[cap.cap_type] = {}
-      end
-      next_ir.ext_caps[cap.cap_type][mod_path] = cap
-      module_hashes[mod_path] = module_hash(mod_path)
-
-      ::continue::
     end
 
     return ir_mod.with(next_ir, {
@@ -101,7 +149,6 @@ M.pass = {
   end,
 }
 
--- Bootstrap default cap modules from data file (declarative scope control).
 local cap_defaults = require("runtime.defaults.caps")
 M.register(cap_defaults.modules)
 

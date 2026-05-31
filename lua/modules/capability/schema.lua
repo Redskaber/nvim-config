@@ -64,9 +64,15 @@ function M.validate(mod_name, cap)
     if cap.bindings then
       for _, binding in ipairs(cap.bindings) do
         if type(binding) ~= "table" or not binding.lhs or not binding.rhs then
-          table.insert(diags, ("Keybind capability in module '%s': binding entry must be a table with 'lhs' and 'rhs' fields."):format(mod_name))
+          table.insert(diags, ("Keybind capability in module '%s': binding entry must have 'lhs' and 'rhs'."):format(mod_name))
           ok = false
         end
+      end
+    end
+    if cap.preset then
+      local presets = require("modules.capability.keybind_presets")
+      if not presets.is_known(cap.preset) then
+        table.insert(diags, ("Keybind capability in module '%s': unknown preset '%s'."):format(mod_name, cap.preset))
       end
     end
   end

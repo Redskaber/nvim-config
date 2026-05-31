@@ -37,6 +37,10 @@ function M.setup()
       end
     end,
   })
+
+  if vim.g.ltos_debug_invariants then
+    require("core.compiler.invariants").enable()
+  end
 end
 
 return M
