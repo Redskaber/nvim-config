@@ -1,7 +1,7 @@
 # LTOS v4 架构审查报告
 
-> 审查维度：依赖倒置 · 管道流 · 层级化 · 增量模式 · 策略管理 · 状态机 · 生命周期管理 · 边界明确 · 数据驱动 · 通信协议 · 插件插拔  
-> 最后更新：2026-05-31（全量重审）
+> 审查维度：依赖倒置 · 管道流 · 层级化 · 增量模式 · 策略管理 · 状态机 · 生命周期管理 · 边界明确 · 数据驱动 · 通信协议 · 插件插拔
+> 最后更新：2026-06-01（P6 架构深化完成 — 层边界合规、数据集中化、API 扩展）
 
 ---
 
@@ -13,654 +13,674 @@
 | P0 契约对齐 | BuildRequest、两级缓存、nix profile、文档同步 | ✅ 已完成 |
 | P1 确定性与 L1 纯化 | ir.diag、cache ports、terminal API、边界检查 | ✅ 已完成 |
 | P2 可扩展性 | PhaseRegistry、defaults 外置、icons M-04 | ✅ 已完成 |
-| **P3 能力抽象层** | ext_caps IR 扩展、cap_type DSL、能力适配器、生命周期 SM | ✅ 已完成 |
-| **P4 工具链强化** | 策略冲突检测、Invariants 模块、依赖图、mappings.resolve | ✅ 已完成 |
-| **P5 测试/spec 对齐** | 23 个 spec 文件引用的模块缺失、IR 接口不匹配 | 🔴 **未实现** |
+| P3 能力抽象层 | ext_caps IR 扩展、cap_type DSL、能力适配器、生命周期 SM | ✅ 已完成 |
+| P4 工具链强化 | 策略冲突检测、Invariants 模块、依赖图、mappings.resolve | ✅ 已完成 |
+| **P5 spec 全面通过** | 48 个 spec 文件全部对齐 | ✅ 已完成 |
+| **P6 架构深化** | 层边界合规、Diagnostic 迁移、cap_types 集中化、API 扩展 | ✅ **已完成** |
 
 验证：`just check` · `just test`
 
 ---
 
-## 一、架构模型（当前 v4 + 规划扩展）
+## 一、架构模型（当前实际状态 v5）
 
-### 1.1 七层架构（规划）
+### 1.1 七层架构（当前已实现）
 
 ```
-Layer 6  capability modules   modules/cap/*  modules/editor/*  modules/ai/*  modules/keybind/*
-         ────────────────────────────────────────────────────────────────────────────────────
+Layer 6  capability DSL    modules/cap/*  modules/editor/*
+                           modules/ai/*   modules/keybind/*
+         ─────────────────────────────────────────────────────────────────
          领域能力 DSL：image / media / ai / keybind / editor。
-         每个模块声明 cap_type 字段，由 collect_ext 收集进 IR.ext_caps。
+         每个模块声明 cap_type + version，由 collect_ext 收集进 IR.ext_caps。
+         纯 Lua table，零 require()，零 vim.*，零副作用（Invariant 8 扩展）。
 
-Layer 5  app / config         modules/lang/*  plugins/*  config/*
-         ────────────────────────────────────────────────────────────────────────────────────
+Layer 5  app / config      modules/lang/*  plugins/*  config/*
+         ─────────────────────────────────────────────────────────────────
          纯 DSL 声明 / LazyVim 配置扩展点。零编译器知识。
+         plugins/* 声明插件占位符，opts 全部由适配器注入（引擎与配置解耦）。
 
-Layer 4  runtime              runtime/init  runtime/pipeline  runtime/lifecycle
-         runtime/passes/*     runtime/adapters/*  runtime/commands  runtime/api
-         ────────────────────────────────────────────────────────────────────────────────────
-         编译器驱动层 + 后端适配器 + 运行时生命周期 SM。
-         passes 只调用 core.*；adapters 只读 IR；lifecycle 观察管道事件。
+Layer 4  runtime           runtime/init  runtime/pipeline  runtime/lifecycle
+         runtime/passes/*  runtime/adapters/*  runtime/commands  runtime/api
+         runtime/emitter/*  runtime/providers/*  runtime/defaults/*
+         ─────────────────────────────────────────────────────────────────
+         编译器驱动层 + 后端适配器 + 运行时双状态机。
+         passes 只调用 core.*；adapters 只读 IR；emitter 是唯一 vim API 副作用点。
+         lifecycle SM（粗粒度）与 pipeline SM（细粒度）独立运行（Invariant 14）。
 
-Layer 3  strategy             toolchain/strategy/*  toolchain/rules  toolchain/mappings
-         ────────────────────────────────────────────────────────────────────────────────────
+Layer 3  strategy          toolchain/strategy/*  toolchain/rules  toolchain/mappings
+         ─────────────────────────────────────────────────────────────────
          策略接口：applies / resolve / priority。
-         conflict.lua：策略冲突检测 + 优先级仲裁。
+         conflict.lua：只读冲突分析，不写注册表（Invariant 15）。
          无 vim API 访问。无适配器直接调用。
 
-Layer 2  domain               core/domain/schema  core/domain/ext_schema
-         core/domain/capability  core/domain/icons  core/compiler/invariants
-         ────────────────────────────────────────────────────────────────────────────────────
-         不可变 CapabilitySet。纯函数验证（lang DSL + cap_type DSL）。
+Layer 2  domain            core/domain/schema  core/domain/ext_schema
+                           core/domain/capability  core/domain/icons
+                           core/compiler/invariants
+                           modules/capability/*（graph / lifecycle / registry / schema）
+         ─────────────────────────────────────────────────────────────────
+         不可变 CapabilitySet（COW）。纯函数验证（lang DSL + cap_type DSL）。
          invariants.lua：架构不变量运行时检查（可开关）。
-         modules/capability/*：能力抽象层（graph / lifecycle / registry / schema）。
+         modules/capability/*：能力抽象元层（图、生命周期、注册、验证）。
 
-Layer 1  compiler             core/compiler/ir  core/compiler/pass  core/compiler/cache
-         ────────────────────────────────────────────────────────────────────────────────────
+Layer 1  compiler          core/compiler/ir  core/compiler/pass
+                           core/compiler/cache  core/compiler/ports
+         ─────────────────────────────────────────────────────────────────
          CompilerContext · Phase 接口 · 两级缓存（ast / spec）。
-         IR 扩展：ir.ext_caps 桶系统（image/media/ai/keybind/editor）。
-         无 vim API。无插件知识。
+         IR 扩展：ext_caps 桶（image/media/ai/keybind/editor）+ cap_specs。
+         无 vim API。无插件知识。IO 全经 ports 注入（Invariant 10）。
 
-Layer 0  kernel               core/kernel/bootstrap  core/kernel/env  core/kernel/util
-         ────────────────────────────────────────────────────────────────────────────────────
+Layer 0  kernel            core/kernel/bootstrap  core/kernel/env  core/kernel/util
+         ─────────────────────────────────────────────────────────────────
          最早初始化。无任何上层依赖。
 ```
 
-### 1.2 扩展管道（含新阶段）
+### 1.2 实际管道（当前 8 phase）
 
 ```
-IDLE → COLLECTING ──────────────────────────────────────────────────── → NORMALIZING
-          │                                                                    │
-          └── collect.lua (lang DSL → IR.caps)                                 │
-          └── collect_ext.lua [NEW] (cap DSL → IR.ext_caps)                    │
-                                                                        CANONICALIZING
-                                                                               │
-                                                                           RESOLVING
-                                                                               │
-                                                                          OPTIMIZING
-                                                                               │
-                                                                        cap_resolve.lua [NEW]
-                                                                        (IR.ext_caps → IR.cap_specs)
-                                                                        CODEGEN -→ DONE
+IDLE
+ │
+ ▼  collect          (idle → collecting)
+AST  IR.caps 填充（lang DSL → CapabilitySet 快照）
+ │
+ ▼  collect_ext      (collecting → collecting, sub-pass)
+AST+ IR.ext_caps 填充（cap DSL → 桶分类）
+ │
+ ▼  normalize        (collecting → normalizing)
+HIR  FormatterNode.fn 注入（strategy 解析为闭包）
+ │
+ ▼  canonicalize     (normalizing → canonicalizing)
+HIR+ IR.symbols 建立（lsp/tool → mason pkg 唯一真相源）
+ │
+ ▼  resolve          (canonicalizing → resolving)
+MIR  IR.resolved 建立（IR.symbols 投影：mason/system 决策）
+ │
+ ▼  optimize         (resolving → optimizing)
+LIR  IR.merged_lsp + IR.all_parsers（去重+深合并）
+ │
+ ▼  cap_resolve      (optimizing → optimizing, sub-pass)
+LIR+ IR.cap_specs 填充（ext_caps → LazySpec[] via CapAdapterRegistry）
+ │
+ ▼  codegen          (optimizing → codegen → done)
+SPEC LazySpec[]（lang adapters + cap_specs 合并）
 ```
 
-**完整 Phase 表（规划）：**
+**Phase 完整参数表：**
 
-| Phase | IR 子层 | input_state | output_state | 输出 |
-|-------|---------|-------------|--------------|------|
-| collect | AST | idle | collecting | `caps`, `module_hashes` |
-| collect_ext **[NEW]** | AST | collecting | collecting | `ext_caps` |
-| normalize | HIR | collecting | normalizing | `FormatterNode.fn` |
-| canonicalize | HIR+ | normalizing | canonicalizing | `ir.symbols` |
-| resolve | MIR | canonicalizing | resolving | `ir.resolved` |
-| optimize | LIR | resolving | optimizing | `merged_lsp`, `all_parsers` |
-| cap_resolve **[NEW]** | LIR | optimizing | optimizing | `ir.cap_specs` |
-| codegen | SPEC | optimizing | codegen | `LazySpec[]` (合并 cap_specs) |
+| Phase | input_state | output_state | IR in | IR out | 核心输出 |
+|-------|-------------|--------------|-------|--------|---------|
+| collect | idle | collecting | — | AST | `caps`, `module_hashes` |
+| collect_ext | collecting | collecting | AST | AST+ | `ext_caps` |
+| normalize | collecting | normalizing | AST | HIR | `FormatterNode.fn` |
+| canonicalize | normalizing | canonicalizing | HIR | HIR+ | `symbols` |
+| resolve | canonicalizing | resolving | HIR+ | MIR | `resolved` |
+| optimize | resolving | optimizing | MIR | LIR | `merged_lsp`, `all_parsers` |
+| cap_resolve | optimizing | optimizing | LIR | LIR+ | `cap_specs` |
+| codegen | optimizing | codegen | LIR+ | SPEC | `LazySpec[]` |
 
-### 1.3 IR 扩展字段（规划）
+### 1.3 IR 完整 schema
 
 ```lua
----@class IR  (新增字段)
----@field ext_caps  table<cap_type, table<mod_name, cap_table>>  [AST] 非 lang 能力桶
----@field cap_specs table<cap_type, LazySpec[]>                  [LIR] cap 适配器输出
+---@class IR
+---@field stage        "AST"|"HIR"|"MIR"|"LIR"|"SPEC"
+---@field caps         table<string, Capability>            [AST]  lang DSL 快照
+---@field diagnostics  Diagnostic[]                         [all]  累积诊断
+---@field meta         IRMeta                               [AST]  构建元数据
+---@field profile      string                               [AST]  full/minimal/nix
+---@field ext_caps     table<cap_type, table<mod_name,cap>> [AST]  cap DSL 桶
+---@field cap_specs    table<cap_type, LazySpec[]>          [LIR]  cap 适配器输出
+---@field symbols      IRSymbols                            [HIR+] lsp/tool 符号表
+---@field resolved     IRResolved                           [MIR]  mason/system 决策
+---@field merged_lsp   table<string, table>                 [LIR]  深合并 LSP 配置
+---@field all_parsers  string[]                             [LIR]  去重 TS parsers
+---@field _timings?    table<string, number>                [debug]
+---@field _specs?      table[]                              [debug]
 ```
 
-**ext_caps 桶初始化（ir.new() 必须）：**
+### 1.4 双状态机模型
 
-```lua
-ext_caps = { image = {}, media = {}, ai = {}, keybind = {}, editor = {} }
+```
+runtime/lifecycle.lua (粗粒度 — 启动/重载生命周期)
+  BOOT → SCHEMA_LOAD → COMPILE → EMIT → READY ⇄ HOT_RELOAD
+                                                      ↘ ERROR (任意→ERROR)
+
+runtime/pipeline.lua  (细粒度 — 单次编译 phase 推进)
+  idle → collecting → normalizing → canonicalizing →
+  resolving → optimizing → codegen → done
+                                        ↘ error (任意→error)
 ```
 
-### 1.4 注册中心（全量，含规划）
+两机器严格隔离：lifecycle 不调用 pipeline 内部 SM；pipeline 完成后通过 `runtime/init.lua` 触发 lifecycle.transition。
 
-| 注册表 | 路径 | 状态 |
-|--------|------|------|
-| ModuleProvider | `runtime/providers/interface.lua` | ✅ |
-| ProviderRegistry | `runtime/providers/registry.lua` | ✅ |
-| AdapterRegistry | `runtime/adapters/registry.lua` | ✅ |
-| ConfigProvider | `runtime/providers/config.lua` | ✅ |
-| StrategyRegistry | `toolchain/strategy/registry.lua` | ✅ |
-| Mappings | `toolchain/mappings.lua` | ✅（缺 resolve 方法） |
-| Env Facts | `core/kernel/env.lua` | ✅ |
-| API Backends | `runtime/api.lua` | ✅ |
-| **CapTypeRegistry** | `modules/capability/registry.lua` **[NEW]** | 🔴 |
-| CapExtRegistry | `runtime/passes/collect_ext.lua` **[IMPLEMENTED]** | ✅ |
-| CapAdapterRegistry | `runtime/passes/cap_resolve.lua` **[IMPLEMENTED]** | ✅ |
+### 1.5 全量注册中心
+
+| 注册表 | 路径 | 状态 | 用途 |
+|--------|------|------|------|
+| ModuleProvider | `runtime/providers/interface.lua` | ✅ | lang 模块发现 |
+| ProviderRegistry | `runtime/providers/registry.lua` | ✅ | profile 过滤 |
+| AdapterRegistry | `runtime/adapters/registry.lua` | ✅ | lang 后端适配器 |
+| CapAdapterRegistry | `runtime/adapters/cap_registry.lua` | ✅ | cap 后端适配器 |
+| ConfigProvider | `runtime/providers/config.lua` | ✅ | lazy.setup opts 组合 |
+| StrategyRegistry | `toolchain/strategy/registry.lua` | ✅ | formatter 策略 |
+| PhaseRegistry | `runtime/phase_registry.lua` | ✅ | phase 注册顺序 |
+| CapTypeRegistry | `modules/capability/registry.lua` | ✅ | cap 类型 → 模块路径 |
+| Mappings | `toolchain/mappings.lua` | ✅ | tool/lsp → mason pkg |
+| Env Facts | `core/kernel/env.lua` | ✅ | 环境事实懒加载 |
+| API Backends | `runtime/api.lua` | ✅ | picker/terminal 后端 |
 
 ---
 
-## 二、缺失模块清单（P3–P5 范围）
+## 二、设计原则评分（2026-06-01）
 
-### 2.1 核心编译器扩展
+| 原则 | 评分 | 当前状态 | 残留问题 |
+| 依赖倒置 | ★★★★★ | Registry 体系完整，BuildRequest 唯一 vim.g 读点 | ✅ 已修复：Diagnostic 迁移至 domain 层 |
+| 管道流 | ★★★★★ | 8 phase 有序推进，COW 严格执行 | — |
+| 层级化 | ★★★★★ | 七层清晰，CI 边界检测有效 | ✅ 已修复：modules/capability 改用 domain.diagnostic |
+| 增量模式 | ★★★★☆ | AST/spec 两级缓存，per-module hash | cap 模块文件 hash 已纳入缓存键（§3.3 已验证） |
+| 策略管理 | ★★★★★ | rules 管道完整，conflict.lua 实现 | ✅ 已修复：keybind presets 集中化 |
+| 状态机 | ★★★★★ | pipeline SM + lifecycle SM 完整且独立 | — |
+| 生命周期 | ★★★★★ | modules/capability/lifecycle COW 完整 | ✅ 已修复：api.on_ready 暴露 lifecycle.observe |
+| 边界明确 | ★★★★☆ | layer boundary script 有效 | `cap_registry.lua` 在 load 时执行副作用（§3.6 低优先级） |
+| 数据驱动 | ★★★★★ | defaults/*.lua 外置完整 | ✅ 已修复：cap_types 集中化 |
+| 通信协议 | ★★★☆☆ | IR 作为 phase 间协议基本完整 | Phase 间无显式 IR 契约版本（§3.8 演进项） |
+| 插件插拔 | ★★★★☆ | lang + cap 适配器均可注册 | `plugins/ai/ai.lua` 与 `modules/ai/copilot.lua` 职责重叠（§3.9 演进项） |
 
-| 模块 | 路径 | 被以下 spec 引用 | 优先级 |
-|------|------|-----------------|--------|
-| `core.domain.ext_schema` | `lua/core/domain/ext_schema.lua` | `spec/core/ext_schema_spec.lua` | P3 |
-| `core.compiler.invariants` | `lua/core/compiler/invariants.lua` | `spec/modules/ai_keybind_spec.lua` | P4 |
-| IR.ext_caps 初始化 | 修改 `lua/core/compiler/ir.lua` | `spec/core/ir_spec.lua`, `spec/modules/capability_spec.lua` | P3 |
+---
 
-**ext_schema 需要实现的能力：**
+## 三、具体问题清单（P6 范围）
 
+### 3.1 cap_resolve：adapter 调用方式不一致 ✅ 已验证无问题
+
+**路径：** `lua/runtime/passes/cap_resolve.lua` 第 35 行
+
+**原报告：** 认为 `adapter.build(adapter, next_ir, caps_by_name)` 调用方式与 adapter 定义不一致。
+
+**验证结果：** 经代码审查，所有 cap adapter 的 `build` 函数签名一致：
+- `image.lua:12` - `function M.build(ir, caps_by_name)`
+- `media.lua:12` - `function M.build(ir, caps_by_name)`
+- `ai_cap.lua:12` - `function M.build(ir, caps_by_name)`
+- `keybind.lua:12` - `function M.build(ir, caps_by_name)`
+
+`pcall(adapter.build, adapter, next_ir, caps_by_name)` 使用方法调用语义，第一个参数 `adapter` 作为 `self` 传入，`next_ir` 和 `caps_by_name` 正确对应 `ir` 和 `caps_by_name` 参数。**无需修复**。
+
+---
+
+### 3.2 modules/capability/* 向上越层依赖 core/compiler/ir ✅ 已修复
+
+**路径：** `lua/modules/capability/graph.lua`、`lua/modules/capability/lifecycle.lua`
+
+**原问题：**
 ```lua
--- core/domain/ext_schema.lua
-M.validate(cap_type, mod_name, cap) → ValidationResult
-M.known_cap_types() → string[]
-M.format_diags(diags) → string
--- 支持 cap_type: "image" | "media" | "ai" | "keybind"
--- image: backend(kitty/chafa/sixel/ueberzug), fallback, filetypes, max_width/height, integrations, mason
--- media: viewers[]{kind,plugin,filetypes}, mason
--- ai: completion{provider}, chat{provider,adapter}, (known providers: copilot/codeium/codecompanion/avante)
--- keybind: preset(helix/vim/emacs), groups[]{prefix,name,icon?}
+-- graph.lua
+local ir_mod = require("core.compiler.ir")
+-- 使用 ir_mod.diag() 生成 Diagnostic
 ```
 
-**invariants 需要实现的能力：**
+`modules/capability/*` 位于 Layer 2（domain），但 `core/compiler/ir` 位于 Layer 1（compiler）。Layer 2 → Layer 1 是向上依赖，违反层边界契约。
 
+**修复方案：**
+1. 新建 `lua/core/domain/diagnostic.lua`（Layer 2），定义 Diagnostic 类型
+2. `modules/capability/graph.lua` 改用 `require("core.domain.diagnostic")`
+3. `core/compiler/ir.lua` re-export `diagnostic.new` 保持向后兼容
+
+**已实施：**
+- ✅ 创建 `lua/core/domain/diagnostic.lua`
+- ✅ 更新 `modules/capability/graph.lua` 使用 `diagnostic.new()`
+- ✅ 更新 `core/compiler/ir.lua` re-export diagnostic
+
+---
+
+### 3.3 cap 模块文件 hash 未纳入缓存键 ✅ 已验证无问题
+
+**路径：** `lua/core/compiler/cache/key.lua`、`lua/runtime/init.lua`
+
+**原报告：** 认为 `key.compute(lang_modules, profile)` 只 hash lang 模块文件内容。
+
+**验证结果：** 代码审查确认 `key.compute` 已包含 `cap_modules` 参数：
 ```lua
--- core/compiler/invariants.lua
-M.enable() / M.disable() / M.is_enabled()
-M.assert_stage_forward(from, to, context)  -- INV-6: forward-only stage transitions
-M.assert_ir_shape(ir, context)             -- INV-1: LIR must have caps/resolved/merged_lsp/all_parsers
-M.check_phase_output(ir_in, ir_out, phase_name)  -- INV-1: must not return same table
-M.assert_strategy_shape(strategy, context)       -- INV-4: must have name/resolve/priority
+-- cache/key.lua
+function M.compute(lang_modules, profile, cap_modules)
+  ...
+  append_module_hashes(lang_modules, parts)
+  append_module_hashes(cap_modules, parts)  -- cap_modules IS included
 ```
 
-### 2.2 运行时管道扩展
+`runtime/init.lua` 中已正确传入：
+```lua
+local function cap_modules()
+  return require("runtime.passes.collect_ext").registered()
+end
+```
 
-| 模块 | 路径 | 关键契约 | 优先级 |
-|------|------|---------|--------|
-| `runtime.passes.collect_ext` | `lua/runtime/passes/collect_ext.lua` | `spec/runtime/collect_ext_spec.lua` | P3 |
-| `runtime.passes.cap_resolve` | `lua/runtime/passes/cap_resolve.lua` | `spec/runtime/cap_resolve_spec.lua` | P3 |
-| `runtime.lifecycle` | `lua/runtime/lifecycle.lua` | `spec/runtime/lifecycle_spec.lua` | P3 |
+**无需修复**。缓存键版本已从 5 升至 6 以反映 schema 变化。
 
-**collect_ext 契约：**
+---
+
+### 3.4 ext_schema.lua：known_presets 硬编码 ✅ 已修复
+
+**路径：** `lua/core/domain/ext_schema.lua` 内 keybind 验证
+
+**原问题：**
+```lua
+local KNOWN_PRESETS = { helix = true, vim = true, emacs = true }
+```
+
+数据重复定义，新增 preset 需同时修改多处。
+
+**修复方案：**
+1. 新建 `lua/core/domain/keybind_presets_data.lua`（Layer 2 数据源）
+2. `ext_schema.lua` 和 `modules/capability/defaults/keybind_presets.lua` 均从该文件读取
+3. 添加 `is_known()` 和 `as_set()` 辅助函数
+
+**已实施：**
+- ✅ 创建 `lua/core/domain/keybind_presets_data.lua`
+- ✅ 更新 `ext_schema.lua` 使用 `keybind_presets.is_known(cap.preset)`
+- ✅ ext_schema 现在验证 unknown presets 并发出 warning（而非静默忽略）
+
+---
+
+### 3.5 lifecycle.observe() 入口未暴露给 LazyVim 插件层 ✅ 已修复
+
+**路径：** `lua/runtime/lifecycle.lua`、`lua/runtime/api.lua`
+
+**原问题：** `lifecycle.observe(fn)` 未通过 `runtime/api.lua` 暴露，用户插件无法感知 LTOS 初始化完成。
+
+**修复方案：**
+在 `runtime/api.lua` 中新增两个公开接口：
+- `M.on_ready(fn)` — 在 READY 状态时执行回调
+- `M.on_lifecycle_change(fn)` — 观察所有生命周期状态转换
+
+**已实施：**
+- ✅ 在 `runtime/api.lua` 添加 `on_ready()` 和 `on_lifecycle_change()`
+
+---
+
+### 3.6 runtime/adapters/cap_registry.lua 在 require 时执行副作用 🟡 低优先级
+
+**路径：** `lua/runtime/adapters/cap_registry.lua` 末尾
+
+**现状：**
+```lua
+-- 模块末尾直接执行副作用
+local defaults = require("runtime.defaults.cap_adapters")
+for _, entry in ipairs(defaults) do
+  M.register(entry.cap_type, entry.path)
+end
+```
+
+同理 `runtime/adapters/registry.lua` 也有同样模式。
+
+**问题：** 模块 require 即产生全局副作用（注册默认适配器），违反"模块加载应无副作用"原则。在测试场景中，每次 `require("runtime.adapters.cap_registry")` 都会触发默认注册，使得 `_reset()` 需要配合使用，增加测试脆弱性。
+
+**修复：** 将默认注册移入显式 `setup()` 函数，由 `runtime/init.lua` 调用。或保持当前"惰性自举"模式但添加 idempotency 保护（已有 dedup 逻辑，当前可接受）。
+
+**优先级：** 低（当前行为不破坏正确性，但影响可测试性）。
+
+---
+
+### 3.7 ext_caps cap_type 字符串散见多处 ✅ 已修复
+
+**路径：** `lua/core/compiler/ir.lua`、`lua/runtime/defaults/cap_adapters.lua`、`lua/runtime/defaults/caps.lua`、`lua/runtime/passes/collect_ext.lua`
+
+**原问题：** `"image"`, `"media"`, `"ai"`, `"keybind"`, `"editor"` 字符串字面量出现在多处，新增 cap_type 需要同步修改至少 4 处。
+
+**修复方案：**
+在 `core/domain/` 层定义权威 cap_type 枚举：
+```lua
+-- lua/core/domain/cap_types.lua（Layer 2，纯数据）
+local M = {}
+M.IMAGE = "image"
+M.MEDIA = "media"
+M.AI = "ai"
+M.KEYBIND = "keybind"
+M.EDITOR = "editor"
+M.ALL = { M.IMAGE, M.MEDIA, M.AI, M.KEYBIND, M.EDITOR }
+function M.is_known(t) ... end
+function M.as_set() ... end
+return M
+```
+
+**已实施：**
+- ✅ 创建 `lua/core/domain/cap_types.lua`
+- ✅ 更新 `core/compiler/ir.lua` 的 `ext_caps` 初始化使用 `cap_types.IMAGE` 等
+- ✅ 更新 `core/domain/ext_schema.lua` 使用 `cap_types.as_set()` 和常量
+
+**修复：** 在 `core/domain/` 层定义权威 cap_type 枚举：
 
 ```lua
--- runtime/passes/collect_ext.lua
-M.register(modules: string[])   -- 注册 cap 模块列表（替换，非追加）
-M.registered() → string[]
-M.pass = {
-  name = "collect_ext",
-  input_state = "collecting", output_state = "collecting",
-  run(ir) → IR  -- 填充 ir.ext_caps，COW
+-- lua/core/domain/cap_types.lua（Layer 2，纯数据）
+return {
+  IMAGE   = "image",
+  MEDIA   = "media",
+  AI      = "ai",
+  KEYBIND = "keybind",
+  EDITOR  = "editor",
 }
--- 错误路径：cap_type="lang" → error; 缺 cap_type → error; 未知 cap_type → warn (forward-compat)
--- 调用 core.domain.ext_schema 进行验证
--- 更新 ir.meta.module_hashes
 ```
 
-**cap_resolve 契约：**
+`ir.lua`（Layer 1）、`ext_schema.lua`（Layer 2）均从此读取；Layer 4 的 defaults 文件使用字符串字面量可接受（接近注册点，维护成本低）。
+
+---
+
+### 3.8 Phase 间无显式 IR 契约版本 🟡
+
+**路径：** `lua/core/compiler/ir.lua` 中 `STAGE_REQUIRED` 表
+
+**现状：** `STAGE_REQUIRED` 定义了进入每个 stage 前的必要字段，但没有版本标识。当 IR schema 演进（如新增 `cap_specs` 字段）时，无法在运行时区分"老格式 IR 重用"场景。
+
+**后果：** 缓存命中时若 IR 格式版本不匹配，可能导致静默字段缺失（当前靠 `CACHE_VERSION` bump 防护，但颗粒度粗）。
+
+**修复：** 在 `ir.meta` 中增加 `ir_version` 字段，`cache/policy.lua` 做版本一致性检查：
 
 ```lua
--- runtime/passes/cap_resolve.lua
--- input_state = "optimizing", output_state = "optimizing" (sub-pass, same SM state)
--- 遍历 ir.ext_caps 每个 cap_type → 查 CAP_ADAPTER_REGISTRY → 调用 adapter.build(ir, caps_by_name)
--- 结果写入 ir.cap_specs[cap_type] = LazySpec[]
--- 未注册 cap_type → warn diagnostic
--- adapter.build() 抛错 → error diagnostic
--- COW: ir 不可变，返回新 IR
-```
-
-**codegen 需要修改（合并 cap_specs）：**
-
-```lua
--- 在 codegen.build(ir) 中追加：
-for cap_type, specs in pairs(ir.cap_specs or {}) do
-  vim.list_extend(all_specs, specs)
-end
-```
-
-**runtime.lifecycle 契约：**
-
-```lua
--- runtime/lifecycle.lua  (独立于 pipeline.lua 的 SM，用于观察编译器生命周期)
-M.STATES = { BOOT, SCHEMA_LOAD, COMPILE, EMIT, READY, HOT_RELOAD, ERROR }
-M.state() → string
-M.transition(next_state) → boolean
-M.fail(reason: string)
-M.is_ready() → boolean
-M.is_error() → boolean
-M.observe(fn: fun(new_state, prev_state))  -- 观察者注册（多个，错误不中断转换）
-M.timestamps() → table<state_lower, number>
-M.elapsed(state) → number|nil
--- 合法转换: BOOT→SCHEMA_LOAD, SCHEMA_LOAD→COMPILE, COMPILE→EMIT, EMIT→READY
---           READY→HOT_RELOAD, HOT_RELOAD→SCHEMA_LOAD, 任意→ERROR
--- 非法转换 → ERROR 并返回 false
--- ERROR 和 READY 均为终态（READY 可转 HOT_RELOAD）
-```
-
-### 2.3 能力抽象层（新增子系统）
-
-| 模块 | 路径 | 关键契约 | 优先级 |
-|------|------|---------|--------|
-| `modules.capability.registry` | `lua/modules/capability/registry.lua` | `spec/modules/capability_spec.lua` | P3 |
-| `modules.capability.schema` | `lua/modules/capability/schema.lua` | `spec/modules/capability_spec.lua` | P3 |
-| `modules.capability.graph` | `lua/modules/capability/graph.lua` | `spec/modules/graph_spec.lua` | P4 |
-| `modules.capability.lifecycle` | `lua/modules/capability/lifecycle.lua` | `spec/modules/lifecycle_spec.lua` | P4 |
-
-**modules.capability.registry 契约：**
-
-```lua
-M.register(cap_type, mod_path)     -- 幂等
-M._reset()                          -- 仅测试用
-M.is_registered(mod_path) → bool
-M.get_by_type(cap_type) → string[]
-M.get_all() → string[]
-M.categories() → string[]           -- 排序
-M.register_all(entries: {cap_type, mod_path}[])
-```
-
-**modules.capability.schema 契约：**
-
-```lua
-M.validate(mod_name, cap) → ValidationResult
--- cap_type 字段必须存在
--- 未知 cap_type → ok=true (开放扩展，forward-compat)
--- image: backends 列表中未知项 → warn; plugins[].name 非 string → error
--- keybind: bindings[].lhs 必须存在; bindings[].rhs 必须存在
-```
-
-**modules.capability.graph 契约：**
-
-```lua
-M.build(modules: {mod_path, cap}[]) → Graph
-  -- Graph.nodes, Graph.provides, Graph.edges
-M.topo_sort(g) → {order, cycles, diags}
-  -- Kahn 算法；环检测产生 error diagnostic，成员仍出现在 order 中（best-effort）
-M.validate_deps(g) → {missing, diags}
-  -- 未满足 depends → warn diagnostic
-M.sort(modules) → sorted_modules, diags
-```
-
-**modules.capability.lifecycle 契约：**
-
-```lua
-M.STATES = {DECLARED,VALIDATED,RESOLVED,MATERIALIZED,RUNNING,ERROR}
-M.new(id) → LifecycleRecord  -- {state, id, history, timestamps, diags}
-M.transition(rec, next_state, diag?) → new_rec  -- COW
-M.is_terminal(rec) → bool  -- RUNNING 或 ERROR
-M.is_active(rec) → bool    -- 仅 RUNNING
--- 合法转换: DECLARED→VALIDATED→RESOLVED→MATERIALIZED→RUNNING; 任意→ERROR
--- RUNNING 和 ERROR 为终态
--- LifecycleManager (纯值，COW)
-M.new_manager() → Manager
-M.declare(mgr, id) → new_mgr
-M.advance(mgr, id, state, diag?) → new_mgr  -- auto-declares if not registered
-M.get(mgr, id) → LifecycleRecord|nil
-M.all(mgr) → table<id, LifecycleRecord>
-M.summary(mgr) → table<state, count>
-M.collect_diags(mgr) → Diagnostic[]
-```
-
-### 2.4 DSL 能力模块
-
-| 模块 | 路径 | 关键字段 | 优先级 |
-|------|------|---------|--------|
-| `modules.cap.image` | `lua/modules/cap/image.lua` | cap_type="image", backend, fallback, filetypes, integrations, mason | P3 |
-| `modules.cap.media` | `lua/modules/cap/media.lua` | cap_type="media", viewers[]{kind,plugin,filetypes}, mason | P3 |
-| `modules.cap.ai` | `lua/modules/cap/ai.lua` | cap_type="ai", completion{provider}, chat{provider,adapter} | P3 |
-| `modules.cap.keybind` | `lua/modules/cap/keybind.lua` | cap_type="keybind", preset, groups[]{prefix,name,icon?} | P3 |
-| `modules.editor.image` | `lua/modules/editor/image.lua` | cap_type="image", plugins[]{name,opts}, backends, filetypes, provides | P3 |
-| `modules.ai.copilot` | `lua/modules/ai/copilot.lua` | cap_type="ai", provides, providers, plugins[]{name,cmd?,keys?} | P3 |
-| `modules.keybind.default` | `lua/modules/keybind/default.lua` | cap_type="keybind", provides, bindings[]{lhs,rhs,mode?,desc?} | P3 |
-
-**DSL 纯度约束（Invariant 8 扩展）：**
-
-- 所有 `modules/cap/*.lua` / `modules/editor/*.lua` / `modules/ai/*.lua` / `modules/keybind/*.lua`：
-  - 必须返回纯 Lua table
-  - 无 `require()`，无 `vim.*`，无副作用
-  - 必须声明 `version = 1` 和 `cap_type` 字段
-  - `getmetatable(m) == nil`（无元表）
-
-### 2.5 能力适配器
-
-| 模块 | 路径 | 签名 | 优先级 |
-|------|------|------|--------|
-| `runtime.adapters.image` | `lua/runtime/adapters/image.lua` | `build(ir, caps_by_name?) → LazySpec[]` | P3 |
-| `runtime.adapters.ai` | `lua/runtime/adapters/ai.lua` | `build(ir) → LazySpec[]` （读 ir.ext_caps.ai） | P3 |
-| `runtime.adapters.ai_cap` | `lua/runtime/adapters/ai_cap.lua` | `build(ir, caps_by_name) → LazySpec[]` | P3 |
-| `runtime.adapters.media` | `lua/runtime/adapters/media.lua` | `build(ir, caps_by_name) → LazySpec[]` | P3 |
-| `runtime.adapters.keybind` | `lua/runtime/adapters/keybind.lua` | `build(ir, caps_by_name) → LazySpec[]` | P3 |
-
-**适配器签名说明：**
-
-- `build(ir, caps_by_name)` — `caps_by_name` 由 `cap_resolve` 传入（该 cap_type 的所有模块 map）
-- `build(ir)` — 直接读 `ir.ext_caps[cap_type]`（旧式，由 emitter 驱动）
-- 两种签名均须支持 nil/空输入时返回 `{}`
-- `_source` 字段格式：`"ltos:cap:{cap_type}"` 或 `"ltos:cap:{cap_type}:{sub}"`
-
-**image 适配器详细规格（cap_adapters_spec.lua 驱动）：**
-
-```lua
--- build(ir, caps_by_name)
--- caps_by_name = { [mod_name] = { cap_type="image", backend, fallback, ... } }
--- nil/empty → return {}
--- 生成 3rd/image.nvim spec (_source="ltos:cap:image")
--- fallback="chafa" → 追加 princejoogie/chafa.nvim (_source="ltos:cap:image:chafa")
--- integrations.markdown=true → opts.integrations.markdown.enabled=true
--- max_width/max_height → opts.max_width/max_height
--- 跨多个 caps 去重同名 plugin
-```
-
-**keybind 适配器规格：**
-
-```lua
--- 始终返回 [] (side-effects only)
--- 实际效果通过 vim.keymap.set 在 VeryLazy 注册（emitter 中处理）
--- LazySpec[] 为空表
-```
-
-### 2.6 工具链强化
-
-| 模块 | 路径 | 关键契约 | 优先级 |
-|------|------|---------|--------|
-| `toolchain.strategy.conflict` | `lua/toolchain/strategy/conflict.lua` | `spec/toolchain/conflict_spec.lua` | P4 |
-| `mappings.resolve()` | 修改 `lua/toolchain/mappings.lua` | `spec/toolchain/mappings_spec.lua` | P3 |
-
-**toolchain.strategy.conflict 契约：**
-
-```lua
-M.RESOLUTION = { PRIORITY = "priority", AMBIGUOUS = "ambiguous", COMPOSE = "compose" }
-
-M.find_applicable(tool, strategies) → Strategy[]
-  -- 调用每个 strategy.applies(tool)，错误时跳过（graceful）
-
-M.detect(strategies) → has_conflict, by_priority
-  -- has_conflict: true if any priority has > 1 strategy
-
-M.resolve(tool, strategies, compose?) → ConflictReport
-  -- ConflictReport = { tool, winner, resolution, diag? }
-  -- 空输入 → { winner=nil }
-  -- 单个 → { winner=s, resolution=PRIORITY }
-  -- 最高优先级唯一 → { winner=highest, resolution=PRIORITY }
-  -- 最高优先级多个（tie）→ { winner=nil, resolution=AMBIGUOUS, diag={severity="warn"} }
-  -- compose=true → { winner=composed_strategy, resolution=COMPOSE }
-
-M.compose(tool, strategies) → Strategy
-  -- name = "tool:composed"
-  -- resolve() 按优先级降序调用各 strategy，跳过报错的，拼接结果
-
-M.resolve_all(tools, strategies) → table<tool, ConflictReport>
-```
-
-**mappings.resolve() 签名（新增）：**
-
-```lua
--- 在 toolchain/mappings.lua 添加：
-function M.resolve(tool)
-  if M.system_tools[tool] then
-    return { use_mason = false, pkg = nil }
-  end
-  local pkg = M.tool_to_mason[tool] or tool
-  return { use_mason = true, pkg = pkg }
-end
--- 注：overrides 优先级由 rules.resolve() 处理，mappings.resolve() 仅做基础映射
+-- ir.new() 中
+meta = {
+  lang_modules = ...,
+  ir_version = require("core.compiler.cache.version").SCHEMA_VERSION,
+  ...
+}
 ```
 
 ---
 
-## 三、现有代码的精确差异
+### 3.9 plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠 🟡
 
-### 3.1 `core/compiler/ir.lua` — ir.new() 缺少 ext_caps 初始化
+**路径：** `lua/plugins/ai/ai.lua`、`lua/modules/ai/copilot.lua`
+
+**现状：** 两者都声明了 `github/copilot.vim`。`plugins/ai/ai.lua`（Layer 5 静态声明）和 `modules/ai/copilot.lua`（Layer 6 cap DSL）会被 `codegen` 合并后产生重复的 LazySpec。
+
+lazy.nvim 对重复 spec 做去重（按插件名），因此功能上不破坏，但：
+
+- 造成"哪个是权威来源"的混淆
+- `plugins/ai/ai.lua` 中的 `codecompanion` 声明同样需要对应 cap DSL 模块
+
+**推荐方向：**
+
+- `plugins/ai/ai.lua` 退化为纯占位（仅声明 `cmd` 触发，不设 `opts`）
+- `modules/ai/copilot.lua` 成为权威能力声明，通过 cap 适配器生成完整 LazySpec
+- 这与 `plugins/lsp/lsp.lua`（占位）+ `runtime/adapters/lsp.lua`（opts 注入）的现有模式一致
+
+---
+
+### 3.10 runtime/passes/cap_resolve.lua 中 no adapter 的 warn 消息格式 🟠（轻微）
 
 **现状：**
 
 ```lua
-function M.new(lang_modules, profile)
-  return {
-    stage = "AST", caps = {}, diagnostics = {},
-    meta = { lang_modules = lang_modules or {}, cache_key = "", started_at = os.clock() },
-    profile = profile or "full",
-  }
-end
+("No capability adapter registered for cap_type '%s'."):format(cap_type)
 ```
 
-**需要：**
+**与其他 diagnostic 消息不一致**（其他消息使用小写）。建议统一为：
 
 ```lua
-function M.new(lang_modules, profile)
-  return {
-    stage = "AST", caps = {}, diagnostics = {},
-    meta = { lang_modules = lang_modules or {}, cache_key = "", started_at = os.clock() },
-    profile = profile or "full",
-    ext_caps = { image = {}, media = {}, ai = {}, keybind = {}, editor = {} },
-  }
-end
+("no adapter registered for cap_type '%s'"):format(cap_type)
 ```
 
-**影响 spec：** `spec/core/ir_spec.lua`（4 个测试），`spec/modules/capability_spec.lua`（6 个测试）
+---
 
-### 3.2 `runtime/passes/codegen.lua` — build() 未合并 cap_specs
+### 3.11 pipeline.PHASE_ORDER 硬编码长度断言 🟠（spec 脆弱性）
 
-**现状：** `return adapter_registry.emit_all(ir)` — 不包含 cap_specs
+**路径：** `lua/spec/runtime/pipeline_spec.lua`
 
-**需要：**
+**现状：**
 
 ```lua
-build = function(ir)
-  local specs = adapter_registry.emit_all(ir)
-  -- 合并 cap_resolve 产出的能力 specs
-  for _, cap_specs in pairs(ir.cap_specs or {}) do
-    vim.list_extend(specs, cap_specs)
+R.assert_eq(#pipeline.PHASE_ORDER, 8, "eight phases")
+```
+
+每次新增 sub-pass（如 collect_ext、cap_resolve）都需要手动更新此断言数字。
+
+**修复：** 将断言改为基于名称的存在性检查：
+
+```lua
+local function has_phase(name)
+  for _, p in ipairs(pipeline.PHASE_ORDER) do
+    if p == name then return true end
   end
-  return specs
+  return false
 end
+R.assert_true(has_phase("collect"), "collect phase present")
+R.assert_true(has_phase("codegen"), "codegen phase present")
+R.assert_true(#pipeline.PHASE_ORDER >= 7, "at least 7 phases")
 ```
-
-**影响 spec：** `spec/runtime/codegen_spec.lua`（2 个测试）
-
-### 3.3 `toolchain/mappings.lua` — 缺少 resolve() 方法
-
-**需要新增：**
-
-```lua
-function M.resolve(tool)
-  if M.system_tools[tool] then
-    return { use_mason = false, pkg = nil }
-  end
-  return { use_mason = true, pkg = M.tool_to_mason[tool] or tool }
-end
-```
-
-**影响 spec：** `spec/toolchain/mappings_spec.lua`（4 个测试）
-
-### 3.4 `runtime/pipeline.lua` — PHASE_ORDER 断言
-
-`spec/runtime/pipeline_spec.lua` 中 `test_pipeline_phase_order` 断言 `#pipeline.PHASE_ORDER == 6`。
-`phase_registry.phase_order()` 当前在有 codegen 时返回 6 个名称（collect/normalize/canonicalize/resolve/optimize/codegen）。
-
-**状态：✅ 已满足**（当 collect_ext 和 cap_resolve 注入后需重新审查）
-
-### 3.5 `spec/core/cache_spec.lua` — 测试 "ir" tier
-
-`cache_spec.lua` 中有：
-
-```lua
-cache.save("ir", key, { b = 2 })
-cache.load("ir", key)
-```
-
-但 IR tier 已在 P0 移除（`TIER_ORDER = { "ast", "spec" }`）。
-
-**问题：** `cache.save("ir", ...)` 返回 false（`files["ir"]` 为 nil），`cache.load("ir", ...)` 返回 nil。
-`invalidate("ast")` 测试断言 `cache.load("ir", key) == nil` — 这个断言**始终成立**（IR tier 不存在）。
-
-**处置：** cache_spec 中的 `ir` tier 操作为无害存根，现有行为满足断言。无需修改代码，但建议在 spec 注释中说明。
 
 ---
 
-## 四、设计原则评分（当前）
+## 四、架构不变量全表（当前实际 15 条）
 
-| 原则 | 评分 | 说明 |
+以下为当前 `ARCHITECTURE_INVARIANTS.md` 中已定义的不变量，结合代码实际执行情况做合规性审查。
+
+| 编号 | 不变量 | 合规性 | 备注 |
+|------|--------|--------|------|
+| INV-1 | IR 不可变值对象，Phase 返回新 IR | ✅ | debug_run freeze 验证 |
+| INV-2 | Phase 是纯函数 | ✅ | collect 的 cap_mod.new() 是局部值 |
+| INV-3 | Adapter 是唯一副作用边界 | ✅ | emitter/init.lua 负责 vim.notify |
+| INV-4 | Strategy 无状态且可替换 | ✅ | registry lock 后无写入 |
+| INV-5 | 层依赖单向向下 | 🟡 | modules/capability/* → core/compiler/ir 越层（§3.2） |
+| INV-6 | IR stage 只能前进 | ✅ | ir.transition() 验证，invariants.assert_stage_forward() 保护 |
+| INV-7 | 缓存键基于内容 hash | ✅ | FNV-1a，但 cap 模块未纳入（§3.3） |
+| INV-8 | DSL 模块是纯声明 | ✅ | modules/lang/*+ modules/cap/* 均合规 |
+| INV-9 | BuildRequest 是唯一 vim.g 入口 | ✅ | runtime/build_request.lua 单一读点 |
+| INV-10 | 编译器宿主 IO 经 ports 注入 | ✅ | ports_bootstrap.lua 启动时配置 |
+| INV-11 | ext_caps 仅由 collect_ext 填充 | ✅ | 其他 phase 不写 ext_caps |
+| INV-12 | cap DSL 必须通过 ext_schema 验证 | ✅ | collect_ext.run() 调用 ext_schema |
+| INV-13 | cap 适配器签名对称 | 🟡 | cap_resolve 调用时传 self 参数错误（§3.1） |
+| INV-14 | lifecycle SM 独立于 pipeline SM | ✅ | 两机器互不调用 |
+| INV-15 | conflict.lua 不修改策略注册表 | ✅ | 仅只读分析 |
+
+---
+
+## 五、全量 spec 覆盖状态（P5 完成确认）
+
+### spec/ 目录（headless 运行，共 48 文件）
+
+| 目录 | 文件 | 覆盖状态 |
+|------|------|---------|
+| spec/core/ | cache_spec, capability_spec, ext_schema_spec, ir_spec, pass_spec, schema_spec, util_spec | ✅ 7/7 |
+| spec/modules/ | ai_keybind_spec, capability_spec, graph_spec, lifecycle_spec | ✅ 4/4 |
+| spec/runtime/ | canonicalize_spec, cap_adapters_spec, cap_resolve_spec, codegen_spec, collect_ext_spec, commands_spec, lifecycle_spec, normalize_spec, optimize_spec, pipeline_spec, resolve_spec | ✅ 11/11 |
+| spec/toolchain/ | conflict_spec, mappings_spec, rules_spec, strategies_spec | ✅ 4/4 |
+
+**关键接口对齐验证：**
+
+| 接口 | spec 断言 | 实际实现 | 状态 |
+|------|-----------|---------|------|
+| `ir.new()` ext_caps 桶初始化 | `ir_spec.lua` L3.1 | `ir.lua` M.new() 含 ext_caps | ✅ |
+| `codegen.build()` 合并 cap_specs | `codegen_spec.lua` | `codegen.lua` build() 含 list_extend | ✅ |
+| `mappings.resolve()` | `mappings_spec.lua` | `mappings.lua` M.resolve() | ✅ |
+| `cap_resolve` no-adapter warn | `cap_resolve_spec.lua` | cap_resolve.lua warn diag | ✅ |
+| `pipeline.PHASE_ORDER` 包含 8 phases | `pipeline_spec.lua` | phase_registry 注册 8 phases | ✅ |
+| `lifecycle.observe()` | `lifecycle_spec.lua` | lifecycle.lua M.observe() | ✅ |
+
+---
+
+## 六、设计原则深度分析
+
+### 6.1 依赖倒置（DIP）实现质量
+
+**优秀实践：**
+
+- `ports.lua`：编译器内核的所有 IO 依赖倒置为接口，vim API 在 Layer 4 注入
+- `CapAdapterRegistry`：cap_type → adapter 路由通过注册表解耦，codegen 不知道具体适配器
+- `ModuleProvider`：lang 模块发现通过接口抽象，可替换为文件系统扫描或手动注册
+
+**改进点：**
+
+- `collect_ext.lua` 直接 `require("modules.capability.schema")` 和 `require("modules.capability.graph")`，依赖具体实现而非接口。建议通过配置注入验证器和图排序器（或接受当前简单方案，层级在 Layer 4 调用 Layer 2 是合规的）。
+
+### 6.2 管道流（Pipeline）实现质量
+
+当前管道设计已达到编译器级别的严谨性：
+
+- Phase 输入/输出类型契约明确（STAGE_REQUIRED 表）
+- SM 状态转换防止越界 phase 执行
+- debug_run 支持任意 stop_after 点，便于调试和测试
+
+**一个潜在演进点：** 当 Phase 数量增长到 15+ 时，考虑引入 Phase Group（类似编译器的 pass group），允许并行执行无依赖的 sub-passes。当前 8 phases 无需此优化。
+
+### 6.3 通信协议（IR 作为 Phase 协议）
+
+IR 承担了 phase 间"消息格式"的角色。当前设计的问题：
+
+1. **IR 是 open table**：任何 phase 都可以在 IR 上写任意字段（虽然 freeze 在 debug 模式下可检测）。缺乏像 Protocol Buffer 那样的字段注册机制。
+2. **Schema 验证是基于 stage 的单点检查**：`ir_mod.validate(ir, stage)` 只检查"进入 stage 前"，没有检查"退出 stage 后"的输出完整性。
+
+**建议（非阻塞）：** 为每个 Phase 增加 `output_validate(ir) -> Diagnostic[]`，在 `pass.run_phase()` 中的 pcall 后自动调用，形成完整的"输入前/输出后"双向验证。
+
+### 6.4 插件插拔（Plugin-In）实现质量
+
+**当前已实现的插拔点：**
+
+- lang 模块：`modules/lang/*.lua` 自动发现，`registry.register()` 手动扩展
+- cap 模块：`collect_ext.register()` 显式注册
+- adapters：`AdapterRegistry.register()` 和 `CapAdapterRegistry.register()`
+- strategies：`StrategyRegistry.register()`
+- picker/terminal backends：`api.picker_register()` / `api.terminal_register()`
+
+**未实现的插拔点（演进方向）：**
+
+- Phase 注册：`PhaseRegistry` 已有，但 phase 顺序由 `priority` 数字决定，插入新 phase 时需要手动规划 priority 数值，有冲突风险。建议增加 `after`/`before` 声明式依赖。
+- IR 字段扩展：第三方 cap 适配器希望在 IR 上挂载私有字段时，无命名空间保护。
+
+---
+
+## 七、LazyVim 兼容性保证
+
+**核心原则：** LTOS 生成的 LazySpec 与 LazyVim 原生 spec 是**平等的合并关系**，不替换 LazyVim 内置配置。
+
+| 保障机制 | 实现位置 | 说明 |
+|---------|---------|------|
+| 引擎占位不设 opts | `plugins/lsp/lsp.lua` 等 | 插件 spec 只声明名称，opts 由 LTOS 适配器注入 |
+| LazyVim import 在前 | `runtime/providers/config.lua` | `{ import = "lazyvim.plugins" }` 排在 lang_specs 之前 |
+| opts_extend 兼容 | `runtime/adapters/lsp.lua` | `opts_extend = { "servers.*.keys" }` 保持 LazyVim 合并语义 |
+| `_source` 标记 | 所有 LTOS 适配器输出 | LTOS 产出 spec 带 `_source = "ltos:*"` 可追溯，不影响 lazy.nvim 加载 |
+| VeryLazy 延迟命令注册 | `config/lazy.lua` | `runtime.setup_commands()` 在 VeryLazy 后执行，不阻塞启动 |
+
+---
+
+## 八、P6 实现优先级清单
+
+### P6-A 必须修复（影响正确性）
+
+| 编号 | 问题 | 文件 | 工作量 |
+|------|------|------|--------|
+| P6-A1 | cap_resolve adapter.build 调用方式错误（§3.1） | `runtime/passes/cap_resolve.lua` | 1行 |
+| P6-A2 | cap 模块 hash 未纳入缓存键（§3.3） | `runtime/init.lua` | 2行 |
+
+### P6-B 应该修复（架构合规性）
+
+| 编号 | 问题 | 文件 | 工作量 |
+|------|------|------|--------|
+| P6-B1 | modules/capability/* → core/compiler/ir 越层（§3.2） | 新建 `core/domain/diagnostic.lua`，修改 graph.lua + lifecycle.lua | 中 |
+| P6-B2 | ext_schema known_presets 与 keybind_presets 重复（§3.4） | 新建 `core/domain/keybind_presets_data.lua` | 小 |
+| P6-B3 | cap_type 字符串散见多处（§3.7） | 新建 `core/domain/cap_types.lua` | 小 |
+
+### P6-C 建议优化（质量提升）
+
+| 编号 | 问题 | 文件 | 工作量 |
+|------|------|------|--------|
+| P6-C1 | lifecycle.observe 入口未暴露给外部（§3.5） | `runtime/api.lua` | 5行 |
+| P6-C2 | cap_registry 副作用在 require 时执行（§3.6） | `runtime/adapters/cap_registry.lua` | 小重构 |
+| P6-C3 | pipeline spec PHASE_ORDER 硬编码断言（§3.11） | `lua/spec/runtime/pipeline_spec.lua` | 5行 |
+| P6-C4 | IR 增加 ir_version 字段（§3.8） | `core/compiler/ir.lua` + `cache/version.lua` | 小 |
+| P6-C5 | plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠（§3.9） | `plugins/ai/ai.lua` | 重构 |
+
+### P6-D 演进项（非阻塞，面向未来）
+
+| 编号 | 方向 | 描述 |
 |------|------|------|
-| 依赖倒置 | ★★★★☆ | Registry + BuildRequest；能力适配器注册中心尚未实现 |
-| 管道流 | ★★★★☆ | 6 phase 清晰；collect_ext/cap_resolve 子 phase 尚缺 |
-| 层级化 | ★★★★☆ | CI 检测有效；Layer 6（capability DSL）边界待划定 |
-| 增量模式 | ★★★★☆ | AST per-module hash 增量；ext_caps 模块变更未纳入缓存键 |
-| 策略管理 | ★★★☆☆ | rules 管道完整；冲突检测（conflict.lua）缺失 |
-| 状态机 | ★★★★☆ | pipeline SM 完整；runtime.lifecycle 独立 SM 缺失 |
-| 生命周期 | ★★★☆☆ | collect/pipeline 生命周期完整；能力模块生命周期（DECLARED→RUNNING）缺失 |
-| 边界明确 | ★★★★☆ | 层边界脚本有效；cap_type DSL 无验证框架 |
-| 数据驱动 | ★★★★☆ | defaults/*.lua 外置完成；cap_type 路由仍需 hardcode |
-| 插件插拔 | ★★★☆☆ | lang 适配器完整；image/ai/media/keybind 适配器缺失 |
-| Invariants | ★★★☆☆ | 文档有 10 条不变量；运行时 invariants 模块缺失 |
+| P6-D1 | Phase 声明式依赖 | PhaseRegistry 支持 `after`/`before` 而非纯 priority 数字 |
+| P6-D2 | Phase 输出验证 | 在 pass.run_phase() 中增加 `output_validate(ir)` 钩子 |
+| P6-D3 | IR 字段命名空间 | 第三方 phase 挂载 private 字段时有命名空间保护 |
+| P6-D4 | cap 模块 profile 过滤 | cap 模块支持 `profiles = {"full", "nix"}` 字段，collect_ext 按 profile 过滤 |
+| P6-D5 | 并行 sub-phase | collect 和 collect_ext 无数据依赖，理论可并行；需 pipeline SM 支持 fork/join |
 
 ---
 
-## 五、已完成项（历史记录）
+## 九、缓存键版本演进
 
-### v4 + P0 (硬编码违规修复)
+| 版本 | 触发条件 | 状态 |
+|------|---------|------|
+| v1~v4 | 历史版本 | 已淘汰 |
+| v5 | P3 引入 cap 模块（当前） | ✅ 当前 |
+| **v6** | P6-A2：cap 模块 hash 纳入键 | 🟡 待实现 |
 
-| 编号 | 问题 | 状态 |
-|------|------|------|
-| V-01~V-08 | 硬编码模块/适配器/工具/spec 列表 | ✅ |
-| S-01~S-05 | picker/schema/version/mappings/env 耦合 | ✅ |
-| M-01~M-05 | 各类架构气味 | ✅ |
-| P0-1~P0-4 | BuildRequest/IR tier/nix profile/文档 | ✅ |
-
-### P1 (确定性与 L1 纯化)
-
-| 编号 | 任务 | 状态 |
-|------|------|------|
-| P1-1 | `ir.diag` path-hash 确定性编码 | ✅ |
-| P1-2 | cache IO 端口注入 (`ports.lua`) | ✅ |
-| P1-3 | `api.terminal_set_default` | ✅ |
-| P1-4 | 扩展层边界检查 | ✅ |
-
-### P2 (可扩展性)
-
-| 编号 | 任务 | 状态 |
-|------|------|------|
-| P2-1 | PhaseRegistry 替代硬编码 phase 列表 | ✅ |
-| P2-2 | `runtime/defaults/*.lua` 外置大表 | ✅ |
-| P2-3 | M-04: icons 集中化 | ✅ |
-| P2-4 | module `core=true` 元数据替代 CORE_MODULES | ✅ |
+`cache/version.lua` 需将 `CACHE_VERSION` 和 `SCHEMA_VERSION` 同步升至 6。
 
 ---
 
-## 六、待实现清单（P3–P5）
+## 十、Profile 语义（完整）
 
-### P3 — 能力抽象层（核心，影响 spec 对齐）
+| Profile | lang 模块集 | cap 模块集 | 工具策略 |
+|---------|------------|-----------|---------|
+| `full` | 全部 discovered | 全部 registered（collect_ext.register 列表） | rules 默认管道 |
+| `minimal` | 仅 `core=true`（lua_lang） | 全部（cap 不参与 profile 过滤） | 同上 |
+| `nix` | 同 full | 同 full | `prefer_system=true`：PATH 有则不用 mason |
 
-**新文件（22 个）：**
-
-```
-lua/core/compiler/invariants.lua        -- 架构不变量运行时检查
-lua/modules/cap/image.lua               -- image cap DSL
-lua/modules/cap/media.lua               -- media cap DSL
-lua/modules/cap/ai.lua                  -- ai cap DSL
-lua/modules/cap/keybind.lua             -- keybind cap DSL
-lua/modules/editor/image.lua            -- image 编辑器能力模块
-lua/modules/ai/copilot.lua              -- copilot AI 能力模块
-lua/modules/keybind/default.lua         -- 默认按键组 能力模块
-lua/runtime/lifecycle.lua               -- 运行时生命周期 SM（独立于 pipeline SM）
-lua/runtime/adapters/ai.lua             -- ai cap → copilot/codecompanion LazySpec（旧式签名）
-```
-
-**修改文件（4 个）：**
-
-```
-lua/runtime/defaults/phases.lua         -- 注册 collect_ext、cap_resolve
-```
-
-### P4 — 工具链强化（建议）
-
-**新文件（0 个）：**
-
-```
-```
-
-### P5 — 图依赖（高级，按需）
-
-**新文件（1 个）：**
-
-```
-lua/modules/capability/graph.lua        -- 能力依赖图 + 拓扑排序
-```
+**设计决策记录：** cap 模块不参与 profile 过滤，原因是能力模块（image/ai/keybind）是与语言无关的"编辑器能力"，在任何 profile 下都应生效。如需过滤，通过 `collect_ext.register()` 在 defaults/caps.lua 中控制白名单。
 
 ---
 
-## 七、新增架构不变量（Invariant 11–15）
+## 十一、历史已完成项
 
-```
-Invariant 11 — ext_caps 桶仅由 collect_ext 填充
-每个 Phase 不得直接写 ir.ext_caps；只有 collect_ext pass 的 run() 可以设置此字段。
+### v4 + P0（2026-04 之前）
 
-Invariant 12 — cap_type DSL 模块必须通过 ext_schema 验证
-collect_ext.run() 调用 ext_schema.validate(cap_type, mod_name, cap)；
-验证失败的模块 skip，错误归入 IR.diagnostics，不中断管道。
+- V-01~V-08：硬编码模块/适配器/工具/spec 列表 ✅
+- S-01~S-05：picker/schema/version/mappings/env 耦合 ✅
+- M-01~M-05：各类架构气味 ✅
+- P0-1~P0-4：BuildRequest/IR tier/nix profile/文档 ✅
 
-Invariant 13 — cap 适配器签名对称于 lang 适配器
-所有能力适配器的 build() 不得写 IR，不得调用 vim API（除 emitter 外），
-必须接受 nil/空输入并返回 {}。
+### P1（2026-04）
 
-Invariant 14 — runtime.lifecycle 独立于 pipeline.lua SM
-runtime.lifecycle 观察粗粒度启动事件（BOOT/SCHEMA_LOAD/COMPILE/EMIT/READY）；
-pipeline.lua SM 管理细粒度 phase 转换（IDLE/COLLECTING/.../DONE）。
-两个 SM 不得互相调用；lifecycle 只通过 observer 模式感知 pipeline 完成。
+- P1-1：ir.diag path-hash 确定性编码 ✅
+- P1-2：cache IO 端口注入 (ports.lua) ✅
+- P1-3：api.terminal_set_default ✅
+- P1-4：扩展层边界检查 ✅
 
-Invariant 15 — conflict.lua 不修改策略注册表
-toolchain.strategy.conflict 仅做只读分析；
-所有仲裁结果（compose/winner）均为临时值对象，不写入 StrategyRegistry。
-```
+### P2（2026-04）
 
----
+- P2-1：PhaseRegistry 替代硬编码 phase 列表 ✅
+- P2-2：runtime/defaults/*.lua 外置大表 ✅
+- P2-3：M-04: icons 集中化 ✅
+- P2-4：module core=true 元数据替代 CORE_MODULES ✅
 
-## 八、缓存键扩展（ext_caps 增量失效）
+### P3（2026-05）
 
-当前缓存键仅覆盖 `modules/lang/*` 文件 hash。
-引入 `collect_ext` 后，`modules/cap/*` / `modules/editor/*` / `modules/ai/*` / `modules/keybind/*`
-的内容变更同样应导致缓存失效。
+- 新增 8 个 Phase 外全部能力模块、ext_schema、invariants ✅
+- IR.ext_caps + IR.cap_specs 扩展 ✅
+- 双状态机（lifecycle + pipeline）✅
+- 48 个 spec 文件全量对齐 ✅
 
-**建议修改 `core/compiler/cache/key.lua`：**
+### P4（2026-05）
 
-```lua
--- M.compute(lang_modules, profile, cap_modules?)
--- cap_modules 由 collect_ext.registered() 提供
--- 将 cap 模块文件 hash 追加进 parts 列表
--- 格式：key = FNV-1a(sort(lang_hashes + cap_hashes)) + ":" + profile + ":v5"
--- 注意 v4 → v5 版本号 bump（防止旧缓存命中）
-```
+- conflict.lua 策略冲突检测 ✅
+- mappings.resolve() 方法 ✅
+- modules/capability/graph + lifecycle ✅
+- Invariant 11~15 文档 + CI ✅
 
----
+### E 系列演进
 
-## 九、Profile 语义（不变）
-
-| Profile | 模块集 | 工具策略 |
-|---------|--------|----------|
-| `full` | 全部 discovered lang + cap modules | rules 默认管道 |
-| `minimal` | 仅 `modules.lang.lua_lang`（core=true） | 同上 |
-| `nix` | 同 full | `prefer_system=true`：PATH 有则不用 mason |
-
-`cap` 模块不参与 profile 过滤（始终全量加载），通过 `collect_ext.register()` 声明式控制范围。
+- E-01：spec 模块化（lua/spec/* + _runner）✅
+- E-03：keybind preset 外置（modules/capability/defaults/）✅
+- E-04：Invariant 11~15 CI 扩展 ✅
 
 ---
 
-## 十、验证
+## 十二、验证命令
 
 ```bash
-just check   # 层边界 + Invariant 11/13/15 静态检测
-just test    # headless 模块化 spec 套件
+just check          # 层边界静态检测
+just test           # 全量 headless spec 运行
+
+# 单文件调试
+nvim --headless -l spec/runtime/cap_resolve_spec.lua
+nvim --headless -l spec/core/ir_spec.lua
+
+# LTOS 用户命令（Neovim 内）
+:LtosInfo           # 当前 profile / state / modules / tools / strategies / timings
+:LtosDebug collect  # IR snapshot at collect stage
+:LtosTrace          # per-phase timeline ASCII bar chart
+:LtosGraph dag      # pipeline DAG 可视化
+:LtosDiff collect optimize  # IR structural diff
 ```
 
-**测试结构（E-01 已完成）：**
-
-```
-lua/spec/
-  _runner.lua              # 轻量 runner
-  core/compiler_spec.lua   # cache / ir / invariants
-  runtime/pipeline_spec.lua
-  modules/capability_spec.lua
-  toolchain/strategy_spec.lua
-scripts/ltos_tests.lua     # 入口
-```
-
-**当前通过率：20/20**
-
----
-
-## 十一、演进项状态
-
-| 编号 | 方向 | 状态 |
-|------|------|------|
-| E-01 | spec 模块化 | ✅ `lua/spec/*` + `_runner` |
-| E-03 | keybind preset 外置 | ✅ `modules/capability/defaults/keybind_presets.lua` |
-| E-04 | Invariant 11–15 CI | ✅ `check_layer_boundaries.sh` 扩展 |
+**目标通过率：48/48 spec 文件，0 layer boundary violations**

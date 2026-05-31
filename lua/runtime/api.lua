@@ -6,6 +6,26 @@
 
 local M = {}
 
+-- ── Lifecycle ──────────────────────────────────────────────────────────────────
+
+--- Register a callback to run when LTOS reaches READY state.
+--- Useful for plugins that need to execute logic after full initialization.
+---@param fn function  Callback function to execute on READY
+function M.on_ready(fn)
+  local lifecycle = require("runtime.lifecycle")
+  lifecycle.observe(function(state, _)
+    if state == "READY" then
+      pcall(fn)
+    end
+  end)
+end
+
+--- Register a callback to observe all lifecycle state transitions.
+---@param fn fun(new_state: string, prev_state: string)
+function M.on_lifecycle_change(fn)
+  local lifecycle = require("runtime.lifecycle")
+  lifecycle.observe(fn)
+end
 -- ── Format ────────────────────────────────────────────────────────────────────
 
 ---@param opts? table  conform.format() opts

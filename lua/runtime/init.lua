@@ -94,12 +94,13 @@ local function ast_reuse_strategy(lang_modules, cap_mods, cached_entry)
     return "skip", { caps = cached_entry.caps, ext_caps = cached_entry.ext_caps }
   end
   if any_match then
-    return "partial", {
-      caps = cached_entry.caps,
-      ext_caps = cached_entry.ext_caps,
-      module_hashes = old,
-      current_hashes = current,
-    }
+    return "partial",
+      {
+        caps = cached_entry.caps,
+        ext_caps = cached_entry.ext_caps,
+        module_hashes = old,
+        current_hashes = current,
+      }
   end
   return "full", nil
 end

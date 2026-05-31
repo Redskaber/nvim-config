@@ -1,5 +1,5 @@
 -- lua/core/compiler/ir.lua
--- Layer 1 compiler: IR value type + CompilerContext + Diagnostic.
+-- Layer 1 compiler: IR value type + CompilerContext.
 --
 -- IR sub-layers (immutable, copy-on-write):
 --   AST   — raw validated capability snapshot from collect pass
@@ -14,9 +14,14 @@
 --   • Diagnostic gains .code field (machine-readable error codes)
 --   • CompilerContext carries run_id for tracing
 --   • debug-mode freeze on input IR in run_phase (via util.freeze)
+--
+-- v4.2 changes (P6-B1):
+--   • Diagnostic type moved to core/domain/diagnostic.lua (Layer 2)
+--   • Re-exported here for backward compatibility
 
 local M = {}
 local util = require("core.kernel.util") -- for unfreeze in ir.with()
+local diagnostic = require("core.domain.diagnostic")
 
 -- ── Stage enum ────────────────────────────────────────────────────────────────
 
@@ -45,32 +50,14 @@ local STAGE_TRANSITIONS = {
 ---@field message  string
 ---@field severity "error"|"warn"|"info"
 
---- Deterministic diagnostic code (pure, idempotent across runs).
----@param stage    string
----@param node     string
----@param message  string
----@param severity string
----@return string
-local function diag_code(stage, node, message, severity)
-  local prefix = (severity == "error") and "E" or (severity == "warn") and "W" or "I"
-  local h = util.hash(("%s:%s:%s"):format(stage, node, message))
-  return prefix .. string.format("%04x", h % 0x10000)
-end
-
+--- Creates a Diagnostic. Re-exported from core.domain.diagnostic.
 ---@param stage    string
 ---@param node     string
 ---@param message  string
 ---@param severity? "error"|"warn"|"info"
 ---@return Diagnostic
 function M.diag(stage, node, message, severity)
-  severity = severity or "error"
-  return {
-    code = diag_code(stage, node, message, severity),
-    stage = stage,
-    node = node,
-    message = message,
-    severity = severity,
-  }
+  return diagnostic.new(stage, node, message, severity)
 end
 
 -- Backward-compat alias
@@ -157,6 +144,7 @@ local STAGE_REQUIRED = {
 ---@param profile?     string
 ---@return IR
 function M.new(lang_modules, profile)
+  local cap_types = require("core.domain.cap_types")
   return {
     stage = "AST",
     caps = {},
@@ -167,7 +155,13 @@ function M.new(lang_modules, profile)
       started_at = os.clock(),
     },
     profile = profile or "full",
-    ext_caps = { image = {}, media = {}, ai = {}, keybind = {}, editor = {} },
+    ext_caps = {
+      [cap_types.IMAGE] = {},
+      [cap_types.MEDIA] = {},
+      [cap_types.AI] = {},
+      [cap_types.KEYBIND] = {},
+      [cap_types.EDITOR] = {},
+    },
     cap_specs = {},
   }
 end

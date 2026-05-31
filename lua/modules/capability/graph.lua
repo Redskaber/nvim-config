@@ -3,7 +3,7 @@
 
 local M = {}
 
-local ir_mod = require("core.compiler.ir")
+local diagnostic = require("core.domain.diagnostic")
 local util = require("core.kernel.util")
 
 local function tbl_count(t)
@@ -115,7 +115,7 @@ function M.topo_sort(g)
     table.sort(cycle_members)
     if #cycle_members > 0 then
       cycles[#cycles + 1] = cycle_members
-      diags[#diags + 1] = ir_mod.diag(
+      diags[#diags + 1] = diagnostic.new(
         "graph",
         "topo_sort",
         ("Detected dependency cycle involving: %s"):format(table.concat(cycle_members, ", ")),
@@ -154,7 +154,7 @@ function M.validate_deps(g)
         missing[mod_path] = missing[mod_path] or {}
         missing[mod_path][#missing[mod_path] + 1] = dep
         diags[#diags + 1] =
-          ir_mod.diag("graph", mod_path, ("Missing dependency '%s' for module '%s'"):format(dep, mod_path), "warn")
+          diagnostic.new("graph", mod_path, ("Missing dependency '%s' for module '%s'"):format(dep, mod_path), "warn")
       end
     end
   end
