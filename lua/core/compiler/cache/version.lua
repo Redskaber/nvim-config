@@ -5,7 +5,7 @@
 
 local M = {}
 
-M.CACHE_VERSION = 4
-M.SCHEMA_VERSION = 4
+M.CACHE_VERSION = 5
+M.SCHEMA_VERSION = 5
 
 return M

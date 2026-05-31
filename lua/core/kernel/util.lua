@@ -197,4 +197,37 @@ function M.deep_copy(t)
   end
   return copy
 end
+
+--- Append all elements from src into dst (mutates dst).
+---@param dst any[]
+---@param src any[]
+---@return any[]
+function M.list_extend(dst, src)
+  for _, v in ipairs(src or {}) do
+    dst[#dst + 1] = v
+  end
+  return dst
+end
+
+---@param t table|nil
+---@return boolean
+function M.tbl_isempty(t)
+  return t == nil or next(t) == nil
+end
+
+--- Deep-merge variadic tables (right wins on scalar conflict).
+---@param base table|nil
+---@param ... table
+---@return table
+function M.merge_recursive(base, ...)
+  local result = M.deep_copy(base or {})
+  for i = 1, select("#", ...) do
+    local b = select(i, ...)
+    if type(b) == "table" then
+      result = M.deep_merge(result, b)
+    end
+  end
+  return result
+end
+
 return M

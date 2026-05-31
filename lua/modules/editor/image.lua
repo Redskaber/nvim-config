@@ -10,6 +10,7 @@ return {
     { name = "some-editor-image-plugin", opts = {} },
   },
   backends = { "kitty", "sixel" },
+  backend = "kitty",
   filetypes = { "drawio", "plantuml" },
   provides = { "image_preview" },
 }

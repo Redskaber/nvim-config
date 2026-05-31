@@ -1,6 +1,8 @@
 -- lua/toolchain/strategy/conflict.lua
 -- P4: Strategy conflict detection and prioritization.
 
+local util = require("core.kernel.util")
+
 local M = {}
 
 ---@enum M.RESOLUTION

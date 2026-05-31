@@ -1,92 +1,70 @@
 -- lua/runtime/adapters/image.lua
 -- P3: Capability adapter for 'image' cap_type.
--- Generates LazySpecs for image-related plugins.
 
 local M = {}
 
 local util = require("core.kernel.util")
 
---- Builds LazySpecs for image capabilities.
----@param ir IR The current Intermediate Representation.
----@param caps_by_name table<string, table>  Map of module_name to image capability tables.
----@return LazySpec[]  An array of LazySpecs.
+local IMAGE_NVIM = "3rd/image.nvim"
+local CHAFA_NVIM = "princejoogie/chafa.nvim"
+
+---@param ir IR
+---@param caps_by_name table<string, table>
+---@return LazySpec[]
 function M.build(ir, caps_by_name)
-  if not caps_by_name or util.tbl_isempty(caps_by_name) then
+  if util.tbl_isempty(caps_by_name) then
     return {}
   end
 
   local specs = {}
-  local image_nvim_opts = {
-    integrations = {},
-  }
-  local chaf-nvim_needed = false
+  local image_nvim_opts = { integrations = {} }
+  local chafa_needed = false
   local seen_plugins = {}
 
-  for mod_name, cap in pairs(caps_by_name) do
-    -- Process image.nvim related options
-    if cap.max_width then image_nvim_opts.max_width = cap.max_width end
-    if cap.max_height then image_nvim_opts.max_height = cap.max_height end
-
-    if cap.integrations then
-      if cap.integrations.markdown then
-        image_nvim_opts.integrations.markdown = { enabled = true }
-      end
-      -- Add other integrations as needed
+  for _, cap in pairs(caps_by_name) do
+    if cap.max_width then
+      image_nvim_opts.max_width = cap.max_width
+    end
+    if cap.max_height then
+      image_nvim_opts.max_height = cap.max_height
     end
 
-    -- Handle fallback for chafa.nvim
+    if cap.integrations and cap.integrations.markdown then
+      image_nvim_opts.integrations.markdown = { enabled = true }
+    end
+
     if cap.fallback == "chafa" then
-      chaf-nvim_needed = true
+      chafa_needed = true
     end
 
-    -- Collect unique plugins
     if cap.plugins then
       for _, plugin_entry in ipairs(cap.plugins) do
-        if not seen_plugins[plugin_entry.name] then
-          table.insert(specs, {
-            plugin_entry.name,
+        local name = plugin_entry.name
+        if type(name) == "string" and not seen_plugins[name] then
+          specs[#specs + 1] = {
+            name,
             opts = plugin_entry.opts or {},
-            _source = ("ltos:cap:image:%s"):format(plugin_entry.name),
-          })
-          seen_plugins[plugin_entry.name] = true
+            _source = ("ltos:cap:image:%s"):format(name),
+          }
+          seen_plugins[name] = true
         end
-      end
-    end
-
-    -- Mason packages (if any)
-    if cap.mason then
-      if type(cap.mason) == "table" then
-        for _, pkg in ipairs(cap.mason) do
-          table.insert(specs, {
-            "mason.nvim",
-            opts = function(_, opts)
-              opts.ensure_installed = opts.ensure_installed or {}
-              table.insert(opts.ensure_installed, pkg)
-            end,
-            _source = ("ltos:cap:image:mason:%s"):format(pkg),
-          })
-        end
-      else
-        -- Handle single mason package string if needed
       end
     end
   end
 
-  -- Add image.nvim spec if any image capabilities were found
-  if next(caps_by_name) ~= nil then
-    table.insert(specs, {
-      "nvim-image.lua", -- Assuming this is the main image plugin
+  if not seen_plugins[IMAGE_NVIM] then
+    specs[#specs + 1] = {
+      IMAGE_NVIM,
       opts = image_nvim_opts,
       _source = "ltos:cap:image",
-    })
+    }
   end
 
-  -- Add chafa.nvim if required by fallback
-  if chaf-nvim_needed then
-    table.insert(specs, {
-      "princejoogie/chafa.nvim",
+  if chafa_needed and not seen_plugins[CHAFA_NVIM] then
+    specs[#specs + 1] = {
+      CHAFA_NVIM,
       _source = "ltos:cap:image:chafa",
-    })
+    }
   end
 
   return specs

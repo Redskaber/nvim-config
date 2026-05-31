@@ -1,17 +1,25 @@
 -- lua/modules/capability/graph.lua
--- P4: Capability dependency graph and topological sort.
+-- P4: Capability dependency graph + topological sort (pure, deterministic).
 
 local M = {}
 
-local ir_mod = require("core.compiler.ir") -- For diagnostic creation
+local ir_mod = require("core.compiler.ir")
+local util = require("core.kernel.util")
+
+local function tbl_count(t)
+  local n = 0
+  for _ in pairs(t) do
+    n = n + 1
+  end
+  return n
+end
 
 ---@class Graph
----@field nodes table<string, table>  Map of module_path to {mod_path, cap} for easy access
----@field provides table<string, string[]>  Map of provided_feature to module_path[]
----@field edges table<string, string[]>  Adjacency list: module_path -> module_path[] (dependencies)
+---@field nodes table<string, {mod_path: string, cap: table}>
+---@field provides table<string, string[]>
+---@field edges table<string, string[]>
 
---- Builds a dependency graph from a list of capability modules.
----@param modules table<number, {mod_path: string, cap: table}>
+---@param modules {mod_path: string, cap: table}[]
 ---@return Graph
 function M.build(modules)
   local graph = {
@@ -24,23 +32,26 @@ function M.build(modules)
     graph.nodes[entry.mod_path] = entry
     graph.edges[entry.mod_path] = {}
 
-    -- Populate provides
     if entry.cap.provides then
       for _, feature in ipairs(entry.cap.provides) do
-        if not graph.provides[feature] then
-          graph.provides[feature] = {}
-        end
-        table.insert(graph.provides[feature], entry.mod_path)
+        graph.provides[feature] = graph.provides[feature] or {}
+        graph.provides[feature][#graph.provides[feature] + 1] = entry.mod_path
       end
     end
+  end
 
-    -- Populate edges (dependencies)
-    if entry.cap.depends_on then
-      for _, dep_feature in ipairs(entry.cap.depends_on) do
-        -- This assumes depends_on refers to features, not module paths directly
-        -- Actual graph building might need more complex logic to map features to modules
-        -- For simplicity, we'll just add a placeholder edge.
-        table.insert(graph.edges[entry.mod_path], dep_feature) -- Placeholder
+  for _, entry in ipairs(modules) do
+    local deps = entry.cap.depends or entry.cap.depends_on or {}
+    for _, dep in ipairs(deps) do
+      local targets = graph.provides[dep]
+      if targets then
+        for _, dep_mod in ipairs(targets) do
+          if dep_mod ~= entry.mod_path then
+            graph.edges[entry.mod_path][#graph.edges[entry.mod_path] + 1] = dep_mod
+          end
+        end
+      elseif graph.nodes[dep] then
+        graph.edges[entry.mod_path][#graph.edges[entry.mod_path] + 1] = dep
       end
     end
   end
@@ -48,66 +59,121 @@ function M.build(modules)
   return graph
 end
 
---- Performs a topological sort using Kahn's algorithm.
---- Detects cycles and reports diagnostics.
 ---@param g Graph
----@return table  {order: string[], cycles: string[][], diags: Diagnostic[]}
+---@return {order: string[], cycles: string[][], diags: Diagnostic[]}
 function M.topo_sort(g)
+  local in_degree = {}
   local order = {}
   local diags = {}
   local cycles = {}
 
-  -- Placeholder for Kahn's algorithm implementation
-  -- This is a complex algorithm and will require a full implementation
-  -- For now, returning dummy values.
-  -- The actual implementation would involve calculating in-degrees, a queue, etc.
-
-  -- Example of a dummy cycle detection
-  if #g.nodes > 2 and math.random() < 0.1 then -- Simulate occasional cycle
-    table.insert(cycles, { "moduleA", "moduleB", "moduleA" })
-    table.insert(diags, ir_mod.diag("graph", "topo_sort", "Detected a cycle in dependency graph.", "error"))
-  end
-
   for mod_path in pairs(g.nodes) do
-    table.insert(order, mod_path)
+    in_degree[mod_path] = 0
   end
-  table.sort(order) -- Best effort sort if no cycles
+
+  for mod_path, deps in pairs(g.edges) do
+    for _, dep in ipairs(deps) do
+      if g.nodes[dep] then
+        in_degree[mod_path] = (in_degree[mod_path] or 0) + 1
+      end
+    end
+  end
+
+  local queue = {}
+  for mod_path, deg in pairs(in_degree) do
+    if deg == 0 then
+      queue[#queue + 1] = mod_path
+    end
+  end
+  table.sort(queue)
+
+  local qi = 1
+  while qi <= #queue do
+    local node = queue[qi]
+    qi = qi + 1
+    order[#order + 1] = node
+
+    for mod_path, deps in pairs(g.edges) do
+      for _, dep in ipairs(deps) do
+        if dep == node and g.nodes[mod_path] then
+          in_degree[mod_path] = in_degree[mod_path] - 1
+          if in_degree[mod_path] == 0 then
+            queue[#queue + 1] = mod_path
+          end
+        end
+      end
+    end
+  end
+
+  if #order < tbl_count(g.nodes) then
+    local cycle_members = {}
+    for mod_path, deg in pairs(in_degree) do
+      if deg > 0 then
+        cycle_members[#cycle_members + 1] = mod_path
+      end
+    end
+    table.sort(cycle_members)
+    if #cycle_members > 0 then
+      cycles[#cycles + 1] = cycle_members
+      diags[#diags + 1] = ir_mod.diag(
+        "graph",
+        "topo_sort",
+        ("Detected dependency cycle involving: %s"):format(table.concat(cycle_members, ", ")),
+        "error"
+      )
+    end
+    for mod_path in pairs(g.nodes) do
+      local found = false
+      for _, o in ipairs(order) do
+        if o == mod_path then
+          found = true
+          break
+        end
+      end
+      if not found then
+        order[#order + 1] = mod_path
+      end
+    end
+    table.sort(order)
+  end
 
   return { order = order, cycles = cycles, diags = diags }
 end
 
---- Validates dependencies of modules in the graph.
 ---@param g Graph
----@return table  {missing: table<string, string[]>, diags: Diagnostic[]}
+---@return {missing: table<string, string[]>, diags: Diagnostic[]}
 function M.validate_deps(g)
   local missing = {}
   local diags = {}
 
-  -- Placeholder for dependency validation logic
-  -- This would iterate through g.edges and check if provided features exist.
-  -- For now, returning dummy values.
-  if #g.nodes > 0 and math.random() < 0.05 then -- Simulate occasional missing dep
-    missing["moduleX"] = { "featureY" }
-    table.insert(diags, ir_mod.diag("graph", "validate_deps", "Missing dependency feature 'featureY' for module 'moduleX'.", "warn"))
+  for mod_path, entry in pairs(g.nodes) do
+    local deps = entry.cap.depends or entry.cap.depends_on or {}
+    for _, dep in ipairs(deps) do
+      local satisfied = g.provides[dep] ~= nil or g.nodes[dep] ~= nil
+      if not satisfied then
+        missing[mod_path] = missing[mod_path] or {}
+        missing[mod_path][#missing[mod_path] + 1] = dep
+        diags[#diags + 1] = ir_mod.diag(
+          "graph",
+          mod_path,
+          ("Missing dependency '%s' for module '%s'"):format(dep, mod_path),
+          "warn"
+        )
+      end
+    end
   end
 
   return { missing = missing, diags = diags }
 end
 
---- Sorts a list of modules based on their dependencies.
---- Wrapper around build, topo_sort, validate_deps.
----@param modules table<number, {mod_path: string, cap: table}>
----@return string[] sorted_modules
----@return Diagnostic[] diags
+---@param modules {mod_path: string, cap: table}[]
+---@return string[]
+---@return Diagnostic[]
 function M.sort(modules)
   local g = M.build(modules)
   local topo_res = M.topo_sort(g)
   local dep_res = M.validate_deps(g)
-
-  local all_diags = util.list_extend(topo_res.diags, dep_res.diags)
-
-  -- If cycles or missing deps, the order might not be perfectly resolvable.
-  -- Return best-effort order and all collected diagnostics.
+  local all_diags = util.list_extend(util.deep_copy(topo_res.diags), dep_res.diags)
   return topo_res.order, all_diags
 end
 

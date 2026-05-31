@@ -88,12 +88,17 @@ local function ast_reuse_strategy(modules, cached_entry)
   return "full", nil
 end
 
+---@return string[]
+local function cap_modules()
+  return require("runtime.passes.collect_ext").registered()
+end
+
 ---@param modules string[]
 ---@param profile string
 ---@return table[]|nil
 local function try_cache(modules, profile)
   local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile)
+  local key = cache.key(modules, profile, cap_modules())
   if key == "" then
     return nil
   end
@@ -113,7 +118,7 @@ end
 ---@param specs table[]
 local function persist_cache(modules, profile, specs)
   local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile)
+  local key = cache.key(modules, profile, cap_modules())
   if key ~= "" then
     cache.save("spec", key, specs)
   end
@@ -124,7 +129,7 @@ end
 ---@return table|nil
 local function try_ast_cache(modules, profile)
   local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile)
+  local key = cache.key(modules, profile, cap_modules())
   if key == "" then
     return nil
   end
@@ -144,7 +149,7 @@ end
 ---@param module_hashes table<string, string>
 local function persist_ast_cache(modules, profile, caps, module_hashes)
   local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile)
+  local key = cache.key(modules, profile, cap_modules())
   if key ~= "" then
     cache.save("ast", key, { caps = caps, module_hashes = module_hashes or {} })
   end
@@ -172,12 +177,22 @@ M.LANG_MODULES = setmetatable({}, {
 
 ---@return table[]
 function M.build()
+  local lifecycle = require("runtime.lifecycle")
+  if lifecycle.state() == "READY" then
+    lifecycle.transition("HOT_RELOAD")
+  end
+  lifecycle.transition("SCHEMA_LOAD")
+
   local profile = resolve_profile()
   local modules = provider_registry.resolve(profile)
   local req = build_request_mod.from_vim(profile, modules)
 
+  lifecycle.transition("COMPILE")
+
   local cached = try_cache(modules, profile)
   if cached then
+    lifecycle.transition("EMIT")
+    lifecycle.transition("READY")
     return cached
   end
 
@@ -200,12 +215,16 @@ function M.build()
   local pipeline = require("runtime.pipeline")
   local specs, run_ir = pipeline.run(modules, profile, cached_caps, ast_seed, req)
 
+  lifecycle.transition("EMIT")
+
   persist_cache(modules, profile, specs)
 
   if run_ir and run_ir.caps then
     local hashes = (run_ir.meta and run_ir.meta.module_hashes) or compute_module_hashes(modules)
     persist_ast_cache(modules, profile, run_ir.caps, hashes)
   end
+
+  lifecycle.transition("READY")
   return specs
 end
 

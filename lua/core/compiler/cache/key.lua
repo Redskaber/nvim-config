@@ -23,20 +23,29 @@ local function resolve_path(mod)
   return ports.resolve_runtime_file(mod:gsub("%.", "/") .. ".lua")
 end
 
----@param lang_modules string[]
----@param profile      string
----@return string
-function M.compute(lang_modules, profile)
-  profile = profile or "full"
-  local parts = {}
-
-  for _, mod in ipairs(lang_modules) do
+---@param modules string[]
+local function append_module_hashes(modules, parts)
+  for _, mod in ipairs(modules or {}) do
     local path = resolve_path(mod)
     if path then
       local content = read_file(path)
       parts[#parts + 1] = path .. "=" .. util.hash(content)
+    else
+      parts[#parts + 1] = mod .. "=missing"
     end
   end
+end
+
+---@param lang_modules string[]
+---@param profile      string
+---@param cap_modules? string[]
+---@return string
+function M.compute(lang_modules, profile, cap_modules)
+  profile = profile or "full"
+  local parts = {}
+
+  append_module_hashes(lang_modules, parts)
+  append_module_hashes(cap_modules, parts)
 
   if #parts == 0 then
     return ""

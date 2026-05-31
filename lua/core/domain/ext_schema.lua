@@ -3,65 +3,88 @@
 
 local M = {}
 
+local KNOWN_BACKENDS = {
+  kitty = true,
+  chafa = true,
+  sixel = true,
+  ueberzug = true,
+}
+
 local CAP_TYPES = {
   image = true,
   media = true,
   ai = true,
   keybind = true,
-  editor = true, -- Added editor as per IR.ext_caps initialization
+  editor = true,
 }
 
----@class ValidationResult
----@field ok boolean
----@field diags table<string, string>
+local KNOWN_AI_PROVIDERS = {
+  copilot = true,
+  codeium = true,
+  codecompanion = true,
+  avante = true,
+}
 
---- Validate a capability table against its cap_type schema.
 ---@param cap_type string
 ---@param mod_name string
 ---@param cap table
----@return ValidationResult
+---@return { ok: boolean, diags: string[] }
 function M.validate(cap_type, mod_name, cap)
   local diags = {}
   local ok = true
 
   if not CAP_TYPES[cap_type] then
     diags[#diags + 1] = ("Unknown cap_type '%s' for module '%s'"):format(cap_type, mod_name)
-    -- For forward compatibility, unknown cap_types are not errors, just warnings.
-    ok = true
+    return { ok = true, diags = diags }
   end
 
-  -- Placeholder for actual validation logic based on cap_type
-  -- This will be expanded as individual cap_type schemas are defined.
-  if cap_type == "image" then
-    if not cap.backend then
+  if cap_type == "image" or cap_type == "editor" then
+    if not cap.backend and not cap.backends then
       ok = false
-      diags[#diags + 1] = ("Image capability for '%s' is missing 'backend' field."):format(mod_name)
+      diags[#diags + 1] = ("Image capability for '%s' is missing 'backend' or 'backends' field."):format(mod_name)
     end
-    -- Add more image specific validations here
+    if cap.backends then
+      for _, backend in ipairs(cap.backends) do
+        if type(backend) == "string" and not KNOWN_BACKENDS[backend] then
+          diags[#diags + 1] = ("Image capability for '%s': unknown backend '%s'."):format(mod_name, backend)
+        end
+      end
+    end
+    if cap.backend and type(cap.backend) == "string" and not KNOWN_BACKENDS[cap.backend] then
+      diags[#diags + 1] = ("Image capability for '%s': unknown backend '%s'."):format(mod_name, cap.backend)
+    end
+    if cap.fallback and type(cap.fallback) == "string" and not KNOWN_BACKENDS[cap.fallback] then
+      diags[#diags + 1] = ("Image capability for '%s': unknown fallback '%s'."):format(mod_name, cap.fallback)
+    end
   elseif cap_type == "media" then
     if not cap.viewers or #cap.viewers == 0 then
       ok = false
       diags[#diags + 1] = ("Media capability for '%s' is missing 'viewers' array."):format(mod_name)
     end
-    -- Add more media specific validations here
   elseif cap_type == "ai" then
-    if not cap.completion and not cap.chat then
+    if not cap.completion and not cap.chat and not cap.plugins then
       ok = false
-      diags[#diags + 1] = ("AI capability for '%s' must define 'completion' or 'chat'."):format(mod_name)
+      diags[#diags + 1] = ("AI capability for '%s' must define 'completion', 'chat', or 'plugins'."):format(mod_name)
     end
-    -- Add more AI specific validations here
+    if cap.completion and cap.completion.provider and not KNOWN_AI_PROVIDERS[cap.completion.provider] then
+      diags[#diags + 1] = ("AI capability for '%s': unknown completion provider '%s'."):format(
+        mod_name,
+        cap.completion.provider
+      )
+    end
+    if cap.chat and cap.chat.provider and not KNOWN_AI_PROVIDERS[cap.chat.provider] then
+      diags[#diags + 1] = ("AI capability for '%s': unknown chat provider '%s'."):format(mod_name, cap.chat.provider)
+    end
   elseif cap_type == "keybind" then
-    if not cap.preset and not cap.groups then
+    if not cap.preset and not cap.groups and not cap.bindings then
       ok = false
-      diags[#diags + 1] = ("Keybind capability for '%s' must define 'preset' or 'groups'."):format(mod_name)
+      diags[#diags + 1] = ("Keybind capability for '%s' must define 'preset', 'groups', or 'bindings'."):format(mod_name)
     end
-    -- Add more keybind specific validations here
   end
 
   return { ok = ok, diags = diags }
 end
 
---- Get all known capability types.
 ---@return string[]
 function M.known_cap_types()
   local types = {}
@@ -72,11 +95,12 @@ function M.known_cap_types()
   return types
 end
 
---- Format diagnostics into a readable string.
----@param diags table<string, string>
+---@param diags string[]
 ---@return string
 function M.format_diags(diags)
-  if #diags == 0 then return "" end
+  if not diags or #diags == 0 then
+    return ""
+  end
   return table.concat(diags, "\n")
 end
 

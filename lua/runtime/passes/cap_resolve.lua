@@ -1,78 +1,60 @@
 -- lua/runtime/passes/cap_resolve.lua
--- P3: Resolves external capabilities into LazySpecs.
+-- P3: Resolves external capabilities into LazySpecs via CapAdapterRegistry.
 
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
-
--- Placeholder for CapAdapterRegistry. This will be a separate module.
--- For now, we'll simulate it or require it if it exists.
-local CAP_ADAPTER_REGISTRY = {}
-local ok, temp_reg = pcall(require, "runtime.adapters.cap_registry")
-if ok then
-  CAP_ADAPTER_REGISTRY = temp_reg
-else
-  -- Mock registry for development if the actual registry isn't built yet
-  CAP_ADAPTER_REGISTRY.get = function(cap_type)
-    -- In a real scenario, this would load the specific adapter for cap_type
-    if cap_type == "image" then
-      return require("runtime.adapters.image")
-    elseif cap_type == "ai" then
-      return require("runtime.adapters.ai_cap")
-    elseif cap_type == "media" then
-      return require("runtime.adapters.media")
-    elseif cap_type == "keybind" then
-      return require("runtime.adapters.keybind")
-    end
-    return nil
-  end
-end
+local cap_registry = require("runtime.adapters.cap_registry")
 
 M.pass = {
   name = "cap_resolve",
   input_state = "optimizing",
-  output_state = "optimizing", -- sub-pass, same SM state
+  output_state = "optimizing",
 
-  --- Run the cap_resolve pass.
-  --- Converts ir.ext_caps into ir.cap_specs (LazySpec[]).
   ---@param ir IR
   ---@return IR
   run = function(ir)
-    local next_ir = ir_mod.with(ir, { cap_specs = ir_mod.deep_copy(ir.cap_specs or {}) })
-    local diagnostics = ir_mod.deep_copy(ir.diagnostics)
+    local next_ir = ir_mod.with(ir, { cap_specs = util.deep_copy(ir.cap_specs or {}) })
+    local diagnostics = util.deep_copy(ir.diagnostics or {})
 
     if not ir.ext_caps then
       return next_ir
     end
 
     for cap_type, caps_by_mod_name in pairs(ir.ext_caps) do
-      local adapter = CAP_ADAPTER_REGISTRY.get(cap_type)
-
-      if not adapter then
-        table.insert(diagnostics, ir_mod.diag(
-          next_ir.stage, cap_type, ("No capability adapter registered for cap_type '%s'."):format(cap_type), "warn"
-        ))
+      if util.tbl_isempty(caps_by_mod_name) then
         goto continue
       end
 
-      local resolved_specs
-      local ok, res = pcall(adapter.build, adapter, next_ir, caps_by_mod_name)
-      if ok then
-        resolved_specs = res
-      else
-        table.insert(diagnostics, ir_mod.diag(
-          next_ir.stage, cap_type, ("Capability adapter for '%s' failed to build specs: %s"):format(cap_type, tostring(res)), "error"
-        ))
-        resolved_specs = {}
+      local adapter = cap_registry.get(cap_type)
+      if not adapter then
+        diagnostics[#diagnostics + 1] = ir_mod.diag(
+          next_ir.stage,
+          cap_type,
+          ("No capability adapter registered for cap_type '%s'."):format(cap_type),
+          "warn"
+        )
+        goto continue
       end
-      next_ir.cap_specs[cap_type] = resolved_specs
+
+      local ok, resolved_specs = pcall(adapter.build, adapter, next_ir, caps_by_mod_name)
+      if ok then
+        next_ir.cap_specs[cap_type] = resolved_specs or {}
+      else
+        diagnostics[#diagnostics + 1] = ir_mod.diag(
+          next_ir.stage,
+          cap_type,
+          ("Capability adapter for '%s' failed to build specs: %s"):format(cap_type, tostring(resolved_specs)),
+          "error"
+        )
+        next_ir.cap_specs[cap_type] = {}
+      end
 
       ::continue::
     end
 
-    next_ir = ir_mod.with(next_ir, { diagnostics = diagnostics })
-    return next_ir
+    return ir_mod.with(next_ir, { diagnostics = diagnostics })
   end,
 }
 

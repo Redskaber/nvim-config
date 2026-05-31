@@ -18,7 +18,7 @@ end
 local function test_cache_version_unified()
   local v = require("core.compiler.cache.version")
   assert_eq(v.CACHE_VERSION, v.SCHEMA_VERSION, "cache version unified")
-  assert_true(v.CACHE_VERSION >= 4, "version >= 4")
+  assert_true(v.CACHE_VERSION >= 5, "version >= 5")
 end
 
 local function test_schema_diag_idempotent()
@@ -179,6 +179,53 @@ local function test_nix_profile_modules()
   assert_eq(#nix, #full, "nix profile same module count as full")
 end
 
+local function test_collect_ext_populates()
+  local collect_ext = require("runtime.passes.collect_ext")
+  local ir_mod = require("core.compiler.ir")
+  local mods = collect_ext.registered()
+  assert_true(#mods >= 5, "collect_ext has default cap modules")
+  local ir = collect_ext.pass.run(ir_mod.new({ "modules.lang.lua_lang" }, "full"))
+  assert_true(ir.ext_caps ~= nil, "ext_caps initialized")
+  assert_true(next(ir.ext_caps.image) ~= nil, "image caps collected")
+end
+
+local function test_cap_registry()
+  local reg = require("runtime.adapters.cap_registry")
+  local list = reg.list()
+  assert_true(#list >= 4, "cap adapters registered")
+  assert_true(reg.get("image") ~= nil, "image adapter resolved")
+end
+
+local function test_lifecycle_sm()
+  local lc = require("runtime.lifecycle")
+  lc._reset()
+  assert_eq(lc.state(), "BOOT", "lifecycle starts at BOOT")
+  assert_true(lc.transition("SCHEMA_LOAD"), "BOOT→SCHEMA_LOAD")
+  assert_true(lc.transition("COMPILE"), "SCHEMA_LOAD→COMPILE")
+  assert_true(lc.is_ready() == false, "not ready before EMIT/READY")
+  assert_true(lc.transition("EMIT"), "COMPILE→EMIT")
+  assert_true(lc.transition("READY"), "EMIT→READY")
+  assert_true(lc.is_ready(), "ready after READY")
+end
+
+local function test_mappings_resolve()
+  local mappings = require("toolchain.mappings")
+  local git = mappings.resolve("git")
+  assert_eq(git.use_mason, false, "git is system tool")
+  local ruff = mappings.resolve("ruff")
+  assert_eq(ruff.use_mason, true, "ruff uses mason")
+  assert_true(ruff.pkg ~= nil, "ruff has pkg")
+end
+
+local function test_cache_key_includes_caps()
+  local key_mod = require("core.compiler.cache.key")
+  local lang = { "modules.lang.python" }
+  local caps = require("runtime.passes.collect_ext").registered()
+  local k1 = key_mod.compute(lang, "full", caps)
+  local k2 = key_mod.compute(lang, "full", {})
+  assert_true(k1 ~= k2, "cap modules affect cache key")
+end
+
 local tests = {
   test_cache_version_unified,
   test_schema_diag_idempotent,
@@ -196,6 +243,11 @@ local tests = {
   test_nix_profile_rules,
   test_two_tier_cache,
   test_nix_profile_modules,
+  test_collect_ext_populates,
+  test_cap_registry,
+  test_lifecycle_sm,
+  test_mappings_resolve,
+  test_cache_key_includes_caps,
   test_runtime_build,
   test_config_provider,
   test_debug_run_signature,

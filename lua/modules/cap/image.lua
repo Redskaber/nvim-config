@@ -15,7 +15,5 @@ return {
     markdown = true,
   },
   mason = {},
-  plugins = {
-    { name = "nvim-image.lua" },
-  },
+  plugins = {},
 }
