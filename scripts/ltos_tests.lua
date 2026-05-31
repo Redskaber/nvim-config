@@ -91,7 +91,7 @@ end
 
 local function test_pipeline_phase_order()
   local pipeline = require("runtime.pipeline")
-  assert_eq(#pipeline.PHASE_ORDER, 6, "six phases")
+  assert_eq(#pipeline.PHASE_ORDER, 8, "eight phases")
   assert_eq(pipeline.PHASE_ORDER[1], "collect", "collect first")
 end
 

@@ -8,6 +8,7 @@
 -- `run` is provided for interface compliance and sub-pipeline use only.
 
 local ir_mod = require("core.compiler.ir")
+local util = require("core.kernel.util")
 
 local adapter_registry = require("runtime.adapters.registry")
 
@@ -34,7 +35,12 @@ local codegen_pass = {
   ---@param ir IR
   ---@return table[]  LazySpec[]
   build = function(ir)
-    return adapter_registry.emit_all(ir)
+    local specs = adapter_registry.emit_all(ir)
+    -- 合并 cap_resolve 产出的能力 specs
+    for _, cap_specs in pairs(ir.cap_specs or {}) do
+      util.list_extend(specs, cap_specs)
+    end
+    return specs
   end,
 }
 

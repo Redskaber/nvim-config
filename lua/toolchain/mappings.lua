@@ -7,68 +7,24 @@
 --   • system_tools: NEVER install via mason.
 --   • resolve() priority: user overrides → system_tools → Nix → mappings → identity.
 --   • Tool resolution: use toolchain.rules.resolve() — not here (avoids circular require).
+-- P2: Uses externalized defaults from toolchain.defaults.mappings
 
 local M = {}
 
+-- Load default mappings
+local defaults = require("toolchain.defaults.mappings")
+
 -- ── LSP server → mason package ────────────────────────────────────────────────
 
-M.lsp_to_mason = {
-  lua_ls = "lua-language-server",
-  rust_analyzer = "rust-analyzer",
-  nil_ls = "nil",
-  tsserver = "typescript-language-server",
-  jsonls = "json-lsp",
-  yamlls = "yaml-language-server",
-  pylsp = "python-lsp-server",
-  clangd = "clangd",
-  gopls = "gopls",
-  zls = "zls",
-  vtsls = "vtsls",
-  taplo = "taplo",
-  pyright = "pyright",
-  jdtls = "jdtls",
-  kotlin_language_server = "kotlin-language-server",
-  clojure_lsp = "clojure-lsp",
-  asm_lsp = "asm-lsp",
-  bashls = "bash-language-server",
-}
+M.lsp_to_mason = vim.tbl_deep_extend("force", {}, defaults.lsp_to_mason)
 
 -- ── Formatter / linter tool → mason package ──────────────────────────────────
 
-M.tool_to_mason = {
-  ruff_format = "ruff",
-  ["google-java-format"] = "google-java-format",
-  ktfmt = "ktfmt",
-  ktlint = "ktlint",
-  cljfmt = "cljfmt",
-  ["clj-kondo"] = "clj-kondo",
-  ["clang-format"] = "clang-format",
-  checkstyle = "checkstyle",
-  eslint = "eslint_d",
-  prettierd = "prettierd",
-  prettier = "prettier",
-  goimports = "goimports",
-  shfmt = "shfmt",
-  shellcheck = "shellcheck",
-}
+M.tool_to_mason = vim.tbl_deep_extend("force", {}, defaults.tool_to_mason)
 
 -- ── System-only tools (never via mason) ──────────────────────────────────────
 
-M.system_tools = {
-  rustup = true,
-  nix = true,
-  git = true,
-  make = true,
-  cc = true,
-  rustfmt = true,
-  clippy = true,
-  gofmt = true,
-  zigfmt = true,
-  fish_indent = true,
-  fish = true,
-  nixpkgs_fmt = true,
-  clangtidy = true,
-}
+M.system_tools = vim.tbl_deep_extend("force", {}, defaults.system_tools)
 
 -- ── User-defined overrides (runtime-injected via register_override) ──────────
 
@@ -109,6 +65,15 @@ function M.tool_pkg(tool)
     return nil
   end
   return M.tool_to_mason[tool] or tool
+end
+
+---@param tool string
+---@return { use_mason: boolean, pkg: string|nil }
+function M.resolve(tool)
+  if M.system_tools[tool] then
+    return { use_mason = false, pkg = nil }
+  end
+  return { use_mason = true, pkg = M.tool_to_mason[tool] or tool }
 end
 
 return M

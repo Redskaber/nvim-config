@@ -167,6 +167,7 @@ function M.new(lang_modules, profile)
       started_at = os.clock(),
     },
     profile = profile or "full",
+    ext_caps = { image = {}, media = {}, ai = {}, keybind = {}, editor = {} },
   }
 end
 

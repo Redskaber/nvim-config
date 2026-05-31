@@ -1,7 +1,9 @@
 -- ~/.config/nvim/lua/modules/lang/lua_lang.lua
 -- DSL: Lua language toolchain declaration.
+-- P2: core module for minimal profile
 
 return {
+  core = true,
   version = 1,
   treesitter = { "lua", "luadoc", "luap" },
   lsp = {

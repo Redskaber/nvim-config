@@ -1,5 +1,6 @@
 -- lua/runtime/adapters/registry.lua
 -- AdapterRegistry: register codegen backends; codegen emits via registry.emit_all(ir).
+-- P2: Uses externalized defaults from runtime.defaults.adapters
 
 local M = {}
 
@@ -33,11 +34,10 @@ function M.emit_all(ir)
   return emitter.emit(ir, M.list())
 end
 
--- Built-in adapters (register = extend, never modify codegen.lua)
-M.register("runtime.adapters.lsp", { priority = 10 })
-M.register("runtime.adapters.mason", { priority = 20 })
-M.register("runtime.adapters.treesitter", { priority = 30 })
-M.register("runtime.adapters.conform", { priority = 40 })
-M.register("runtime.adapters.lint", { priority = 50 })
+-- Load and register default adapters
+local defaults = require("runtime.defaults.adapters")
+for _, entry in ipairs(defaults) do
+  M.register(entry.path, { priority = entry.priority })
+end
 
 return M

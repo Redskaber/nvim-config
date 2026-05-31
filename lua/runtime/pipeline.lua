@@ -3,28 +3,52 @@
 --   • debug_run() no longer calls cap_mod.reset() — global state eliminated.
 --   • Each run gets a fresh IR via ir_mod.new(); collect pass uses cap_mod.new() internally.
 --   • _G._ltos_debug_freeze activated in debug_run for mutation detection.
+-- P2: Uses PhaseRegistry instead of hardcoded phases.
 
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
 local pass_mod = require("core.compiler.pass")
 local util = require("core.kernel.util")
+local phase_registry = require("runtime.phase_registry")
 
-local PHASES = {
-  require("runtime.passes.collect"),
-  require("runtime.passes.normalize"),
-  require("runtime.passes.canonicalize"), -- TODO-0.2: symbol canonicalization
-  require("runtime.passes.resolve"),
-  require("runtime.passes.optimize"),
-}
-local CODEGEN = require("runtime.passes.codegen")
-
-M.PHASE_ORDER = { "collect", "normalize", "canonicalize", "resolve", "optimize", "codegen" }
-
-for _, p in ipairs(PHASES) do
-  pass_mod.assert_valid(p)
+-- Load default phases and register them
+--- Resolve a phase from a module path.
+--- A pass module may export a Phase directly, or wrap it under `.pass`
+--- (Phase Module Pattern: used by sub-passes like collect_ext, cap_resolve).
+---@param mod_path string
+---@return Phase
+local function resolve_phase(mod_path)
+  local mod = require(mod_path)
+  -- Phase Module Pattern: module wraps phase under .pass
+  if type(mod) == "table" and mod.pass ~= nil then
+    return mod.pass
+  end
+  return mod
 end
-pass_mod.assert_valid(CODEGEN) -- codegen satisfies Phase interface (has run + validate)
+
+local function register_default_phases()
+  local defaults = require("runtime.defaults.phases")
+  for _, entry in ipairs(defaults.phases) do
+    local phase = resolve_phase(entry.path)
+    pass_mod.assert_valid(phase)
+    phase_registry.register(phase, { priority = entry.priority })
+  end
+  local codegen = resolve_phase(defaults.codegen)
+  pass_mod.assert_valid(codegen)
+  phase_registry.register_codegen(codegen)
+end
+
+register_default_phases()
+
+local function PHASES()
+  return phase_registry.list()
+end
+local function CODEGEN()
+  return phase_registry.codegen()
+end
+
+M.PHASE_ORDER = phase_registry.phase_order()
 
 -- ── State machine ─────────────────────────────────────────────────────────────
 
@@ -50,6 +74,12 @@ local TRANSITIONS = {
   codegen = { done = true, error = true },
 }
 
+local PHASE_NEXT_SM = {
+  collect = STATES.NORMALIZING,
+  normalize = STATES.CANONICALIZING,
+  canonicalize = STATES.RESOLVING,
+  resolve = STATES.OPTIMIZING,
+}
 local function new_sm()
   local sm = { state = STATES.IDLE, timestamps = {} }
 
@@ -71,13 +101,6 @@ local function new_sm()
 
   return sm
 end
-
-local PHASE_NEXT_SM = {
-  collect = STATES.NORMALIZING,
-  normalize = STATES.CANONICALIZING,
-  canonicalize = STATES.RESOLVING,
-  resolve = STATES.OPTIMIZING,
-}
 
 local last_run_sm = new_sm()
 
@@ -105,6 +128,8 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
   end
   local timings = {}
 
+  local phases = PHASES()
+  local codegen = CODEGEN()
   if not sm.transition(STATES.COLLECTING) then
     return ir, nil, timings
   end
@@ -121,11 +146,12 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
       return ir, nil, timings
     end
     -- Advance SM past collecting state
-    if not sm.transition(STATES.NORMALIZING) then
+    local next_after_collect = PHASE_NEXT_SM["collect"]
+    if next_after_collect and not sm.transition(next_after_collect) then
       return ir, nil, timings
     end
   end
-  for _, phase in ipairs(PHASES) do
+  for _, phase in ipairs(phases) do
     -- Skip collect if AST cache was used (already advanced SM past collecting)
     if cached_caps and phase.name == "collect" then
       goto continue
@@ -159,14 +185,14 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
 
   -- Codegen
   local t0 = os.clock()
-  local pre = CODEGEN.validate and CODEGEN.validate(ir) or {}
+  local pre = codegen.validate and codegen.validate(ir) or {}
   local specs = {}
 
   if #pre == 0 then
     if not sm.transition(STATES.CODEGEN) then
       return ir, nil, timings
     end
-    local ok, result = pcall(CODEGEN.build, ir)
+    local ok, result = pcall(codegen.build, ir)
     if ok then
       specs = result
     else

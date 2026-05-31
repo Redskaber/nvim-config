@@ -1,5 +1,6 @@
 -- lua/runtime/providers/registry.lua
 -- ProviderRegistry: profile-aware module list composition.
+-- P2: Uses module metadata (core=true) instead of hard-coded CORE_MODULES
 
 local module_provider = require("runtime.providers.interface")
 
@@ -8,10 +9,16 @@ local M = {}
 local _filters = {}
 local _extra = {}
 
--- Core modules always included in minimal profile
-local CORE_MODULES = {
-  "modules.lang.lua_lang",
-}
+--- Check if a module is a core module by loading and inspecting metadata.
+---@param mod_path string
+---@return boolean
+local function is_core_module(mod_path)
+  local ok, mod = pcall(require, mod_path)
+  if not ok then
+    return false
+  end
+  return type(mod) == "table" and mod.core == true
+end
 
 --- Register an additional lang module path (extension point).
 ---@param mod string
@@ -46,15 +53,11 @@ M.register_filter("nix", function(modules, _)
   return modules
 end)
 
---- Built-in minimal profile filter: keep CORE_MODULES only.
+--- Built-in minimal profile filter: keep core modules only (modules with core=true).
 M.register_filter("minimal", function(modules, _)
-  local core_set = {}
-  for _, m in ipairs(CORE_MODULES) do
-    core_set[m] = true
-  end
   local out = {}
   for _, m in ipairs(modules) do
-    if core_set[m] then
+    if is_core_module(m) then
       out[#out + 1] = m
     end
   end
