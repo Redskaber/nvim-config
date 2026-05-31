@@ -64,15 +64,22 @@ function M.transition(rec, next_state, diag)
     new_rec.state = M.STATES.ERROR
     table.insert(new_rec.history, M.STATES.ERROR)
     new_rec.timestamps[M.STATES.ERROR] = current_time
-    if diag then table.insert(new_rec.diags, diag) end
+    if diag then
+      table.insert(new_rec.diags, diag)
+    end
     return new_rec
   end
 
-  if LEGAL_TRANSITIONS[new_rec.state] == next_state or (new_rec.state == M.STATES.RUNNING and next_state == M.STATES.RUNNING) then
+  if
+    LEGAL_TRANSITIONS[new_rec.state] == next_state
+    or (new_rec.state == M.STATES.RUNNING and next_state == M.STATES.RUNNING)
+  then
     new_rec.state = next_state
     table.insert(new_rec.history, next_state)
     new_rec.timestamps[next_state] = current_time
-    if diag then table.insert(new_rec.diags, diag) end
+    if diag then
+      table.insert(new_rec.diags, diag)
+    end
   else
     -- Illegal transition, record an error and stay in current state or transition to ERROR
     local error_diag = {

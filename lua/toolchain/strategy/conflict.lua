@@ -71,7 +71,9 @@ function M.resolve(tool, strategies, compose)
   for prio in pairs(by_priority) do
     table.insert(sorted_priorities, prio)
   end
-  table.sort(sorted_priorities, function(a, b) return a > b end) -- Highest priority first
+  table.sort(sorted_priorities, function(a, b)
+    return a > b
+  end) -- Highest priority first
 
   local highest_priority_strategies = by_priority[sorted_priorities[1]]
 
@@ -85,7 +87,12 @@ function M.resolve(tool, strategies, compose)
     else
       local diag_msg = ("Multiple strategies for tool '%s' have the same highest priority: %s"):format(
         tool,
-        table.concat(vim.tbl_map(function(s) return s.name end, highest_priority_strategies), ", ")
+        table.concat(
+          vim.tbl_map(function(s)
+            return s.name
+          end, highest_priority_strategies),
+          ", "
+        )
       )
       return {
         tool = tool,
@@ -104,12 +111,16 @@ end
 ---@return table  Composed strategy
 function M.compose(tool, strategies)
   local sorted_strategies = util.deep_copy(strategies)
-  table.sort(sorted_strategies, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
+  table.sort(sorted_strategies, function(a, b)
+    return (a.priority or 0) > (b.priority or 0)
+  end)
 
   return {
     name = ("%s:composed"):format(tool),
     priority = sorted_strategies[1].priority or 0, -- Use highest priority of component strategies
-    applies = function(t) return t == tool end,
+    applies = function(t)
+      return t == tool
+    end,
     resolve = function(ctx)
       local results = {}
       for _, strategy in ipairs(sorted_strategies) do
@@ -119,7 +130,8 @@ function M.compose(tool, strategies)
         else
           -- Log error, but continue with other strategies
           require("core.compiler.ir").diag(
-            "strategy", strategy.name,
+            "strategy",
+            strategy.name,
             ("Strategy '%s' failed to resolve for tool '%s': %s"):format(strategy.name, tool, tostring(res)),
             "warn"
           )

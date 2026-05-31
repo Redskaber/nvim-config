@@ -44,7 +44,10 @@ function M.validate(mod_name, cap)
     if cap.backends then
       for _, backend in ipairs(cap.backends) do
         if type(backend) ~= "string" then
-          table.insert(diags, ("Image capability in module '%s': backend list contains non-string entry."):format(mod_name))
+          table.insert(
+            diags,
+            ("Image capability in module '%s': backend list contains non-string entry."):format(mod_name)
+          )
           ok = false
         end
       end
@@ -52,7 +55,10 @@ function M.validate(mod_name, cap)
     if cap.plugins then
       for _, plugin in ipairs(cap.plugins) do
         if type(plugin) ~= "table" or type(plugin.name) ~= "string" then
-          table.insert(diags, ("Image capability in module '%s': plugin entry must be a table with a 'name' string."):format(mod_name))
+          table.insert(
+            diags,
+            ("Image capability in module '%s': plugin entry must be a table with a 'name' string."):format(mod_name)
+          )
           ok = false
         end
       end
@@ -64,7 +70,10 @@ function M.validate(mod_name, cap)
     if cap.bindings then
       for _, binding in ipairs(cap.bindings) do
         if type(binding) ~= "table" or not binding.lhs or not binding.rhs then
-          table.insert(diags, ("Keybind capability in module '%s': binding entry must have 'lhs' and 'rhs'."):format(mod_name))
+          table.insert(
+            diags,
+            ("Keybind capability in module '%s': binding entry must have 'lhs' and 'rhs'."):format(mod_name)
+          )
           ok = false
         end
       end
