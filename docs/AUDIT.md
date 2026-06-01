@@ -17,6 +17,7 @@
 | P4 工具链强化 | 策略冲突检测、Invariants 模块、依赖图、mappings.resolve | ✅ 已完成 |
 | **P5 spec 全面通过** | 48 个 spec 文件全部对齐 | ✅ 已完成 |
 | **P6 架构深化** | 层边界合规、Diagnostic 迁移、cap_types 集中化、API 扩展 | ✅ **已完成** |
+| **P6 剩余优化** | C2/C4/C5/D1/D2 等演进项全部实施 | ✅ **已完成** |
 
 验证：`just check` · `just test`
 
@@ -294,26 +295,17 @@ local KNOWN_PRESETS = { helix = true, vim = true, emacs = true }
 
 ---
 
-### 3.6 runtime/adapters/cap_registry.lua 在 require 时执行副作用 🟡 低优先级
+### 3.6 runtime/adapters/cap_registry.lua 在 require 时执行副作用 ✅ 已修复
 
-**路径：** `lua/runtime/adapters/cap_registry.lua` 末尾
+**路径：** `lua/runtime/adapters/cap_registry.lua`、`lua/runtime/adapters/registry.lua`
 
-**现状：**
-```lua
--- 模块末尾直接执行副作用
-local defaults = require("runtime.defaults.cap_adapters")
-for _, entry in ipairs(defaults) do
-  M.register(entry.cap_type, entry.path)
-end
-```
+**修复方案：** 将默认注册移入显式 `setup()` 函数，由 `runtime/init.lua` 调用。
 
-同理 `runtime/adapters/registry.lua` 也有同样模式。
-
-**问题：** 模块 require 即产生全局副作用（注册默认适配器），违反"模块加载应无副作用"原则。在测试场景中，每次 `require("runtime.adapters.cap_registry")` 都会触发默认注册，使得 `_reset()` 需要配合使用，增加测试脆弱性。
-
-**修复：** 将默认注册移入显式 `setup()` 函数，由 `runtime/init.lua` 调用。或保持当前"惰性自举"模式但添加 idempotency 保护（已有 dedup 逻辑，当前可接受）。
-
-**优先级：** 低（当前行为不破坏正确性，但影响可测试性）。
+**实施：**
+- ✅ 两个注册表均添加 `setup()` 函数，执行默认注册
+- ✅ `runtime/init.lua` 在启动时显式调用 `registry.setup()` 和 `cap_registry.setup()`
+- ✅ 添加 `_setup_done` 标志确保幂等性
+- ✅ 模块 require 时不再产生副作用
 
 ---
 
@@ -361,87 +353,78 @@ return {
 
 ---
 
-### 3.8 Phase 间无显式 IR 契约版本 🟡
+### 3.8 Phase 间无显式 IR 契约版本 ✅ 已修复
 
-**路径：** `lua/core/compiler/ir.lua` 中 `STAGE_REQUIRED` 表
+**路径：** `lua/core/compiler/ir.lua`、`lua/core/compiler/cache/version.lua`、`lua/core/compiler/cache/policy.lua`
 
-**现状：** `STAGE_REQUIRED` 定义了进入每个 stage 前的必要字段，但没有版本标识。当 IR schema 演进（如新增 `cap_specs` 字段）时，无法在运行时区分"老格式 IR 重用"场景。
+**修复方案：** 在 `ir.meta` 中增加 `ir_version` 字段，`cache/policy.lua` 做版本一致性检查。
 
-**后果：** 缓存命中时若 IR 格式版本不匹配，可能导致静默字段缺失（当前靠 `CACHE_VERSION` bump 防护，但颗粒度粗）。
-
-**修复：** 在 `ir.meta` 中增加 `ir_version` 字段，`cache/policy.lua` 做版本一致性检查：
-
-```lua
--- ir.new() 中
-meta = {
-  lang_modules = ...,
-  ir_version = require("core.compiler.cache.version").SCHEMA_VERSION,
-  ...
-}
-```
+**实施：**
+- ✅ `ir.new()` 中注入 `ir_version = schema_version`
+- ✅ `cache/version.lua` 版本号提升至 7（CACHE_VERSION 和 SCHEMA_VERSION）
+- ✅ `cache/policy.lua` 加载缓存时检查 `ir_version` 一致性
+- ✅ 版本不匹配时自动失效缓存并记录日志
 
 ---
 
-### 3.9 plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠 🟡
+### 3.9 plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠 ✅ 已修复
 
-**路径：** `lua/plugins/ai/ai.lua`、`lua/modules/ai/copilot.lua`
+**路径：** `lua/plugins/ai/ai.lua`、`lua/modules/ai/copilot.lua`、`lua/runtime/adapters/ai_cap.lua`
 
-**现状：** 两者都声明了 `github/copilot.vim`。`plugins/ai/ai.lua`（Layer 5 静态声明）和 `modules/ai/copilot.lua`（Layer 6 cap DSL）会被 `codegen` 合并后产生重复的 LazySpec。
+**修复方案：**
+- `plugins/ai/ai.lua` 退化为纯占位（注释掉所有插件声明）
+- `modules/ai/copilot.lua` 成为权威能力声明，提供完整 DSL 字段
+- `runtime/adapters/ai_cap.lua` 支持完整 AI 提供商（copilot, codeium, codecompanion, avante）
 
-lazy.nvim 对重复 spec 做去重（按插件名），因此功能上不破坏，但：
-
-- 造成"哪个是权威来源"的混淆
-- `plugins/ai/ai.lua` 中的 `codecompanion` 声明同样需要对应 cap DSL 模块
-
-**推荐方向：**
-
-- `plugins/ai/ai.lua` 退化为纯占位（仅声明 `cmd` 触发，不设 `opts`）
-- `modules/ai/copilot.lua` 成为权威能力声明，通过 cap 适配器生成完整 LazySpec
-- 这与 `plugins/lsp/lsp.lua`（占位）+ `runtime/adapters/lsp.lua`（opts 注入）的现有模式一致
+**实施：**
+- ✅ `plugins/ai/ai.lua` 中所有插件声明被注释，成为占位符
+- ✅ `modules/ai/copilot.lua` 添加完整字段：`cap_type`, `version`, `provides`, `completion`, `chat`, `plugins`
+- ✅ `runtime/adapters/ai_cap.lua` 支持从 DSL 生成完整 LazySpec
+- ✅ 保持与现有模式一致：插件占位 + 适配器注入 opts
 
 ---
 
-### 3.10 runtime/passes/cap_resolve.lua 中 no adapter 的 warn 消息格式 🟠（轻微）
+### 3.10 runtime/passes/cap_resolve.lua 中 no adapter 的 warn 消息格式 ✅ 已修复
 
-**现状：**
+**路径：** `lua/runtime/passes/cap_resolve.lua`
 
-```lua
-("No capability adapter registered for cap_type '%s'."):format(cap_type)
-```
-
-**与其他 diagnostic 消息不一致**（其他消息使用小写）。建议统一为：
+**修复：** 统一 diagnostic 消息格式，使用小写开头：
 
 ```lua
-("no adapter registered for cap_type '%s'"):format(cap_type)
+("no capability adapter registered for cap_type '%s'"):format(cap_type)
 ```
+
+**实施：** ✅ 已更新消息格式，与其他诊断消息保持一致
 
 ---
 
-### 3.11 pipeline.PHASE_ORDER 硬编码长度断言 🟠（spec 脆弱性）
+### 3.11 pipeline.PHASE_ORDER 硬编码长度断言 ✅ 已修复
 
 **路径：** `lua/spec/runtime/pipeline_spec.lua`
 
-**现状：**
+**修复：** 将硬编码数字断言改为基于名称的存在性检查，提高 spec 的健壮性。
 
-```lua
-R.assert_eq(#pipeline.PHASE_ORDER, 8, "eight phases")
-```
-
-每次新增 sub-pass（如 collect_ext、cap_resolve）都需要手动更新此断言数字。
-
-**修复：** 将断言改为基于名称的存在性检查：
-
+**实施：**
 ```lua
 local function has_phase(name)
   for _, p in ipairs(pipeline.PHASE_ORDER) do
-    if p == name then return true end
+    if p == name then
+      return true
+    end
   end
   return false
 end
-R.assert_true(has_phase("collect"), "collect phase present")
-R.assert_true(has_phase("codegen"), "codegen phase present")
-R.assert_true(#pipeline.PHASE_ORDER >= 7, "at least 7 phases")
+R.assert_true(#pipeline.PHASE_ORDER >= 7)
+local required = {
+  "collect", "collect_ext", "normalize", "canonicalize",
+  "resolve", "optimize", "cap_resolve", "codegen",
+}
+for _, name in ipairs(required) do
+  R.assert_true(has_phase(name), name .. " must be present")
+end
 ```
+
+✅ 已更新 spec，现在不依赖硬编码阶段数量
 
 ---
 
@@ -574,25 +557,25 @@ IR 承担了 phase 间"消息格式"的角色。当前设计的问题：
 | P6-B2 | ext_schema known_presets 与 keybind_presets 重复（§3.4） | 新建 `core/domain/keybind_presets_data.lua` | 小 |
 | P6-B3 | cap_type 字符串散见多处（§3.7） | 新建 `core/domain/cap_types.lua` | 小 |
 
-### P6-C 建议优化（质量提升）
+### P6-C 建议优化（质量提升）✅ 全部完成
 
-| 编号 | 问题 | 文件 | 工作量 |
-|------|------|------|--------|
-| P6-C1 | lifecycle.observe 入口未暴露给外部（§3.5） | `runtime/api.lua` | 5行 |
-| P6-C2 | cap_registry 副作用在 require 时执行（§3.6） | `runtime/adapters/cap_registry.lua` | 小重构 |
-| P6-C3 | pipeline spec PHASE_ORDER 硬编码断言（§3.11） | `lua/spec/runtime/pipeline_spec.lua` | 5行 |
-| P6-C4 | IR 增加 ir_version 字段（§3.8） | `core/compiler/ir.lua` + `cache/version.lua` | 小 |
-| P6-C5 | plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠（§3.9） | `plugins/ai/ai.lua` | 重构 |
+| 编号 | 问题 | 文件 | 状态 |
+|------|------|------|------|
+| P6-C1 | lifecycle.observe 入口未暴露给外部（§3.5） | `runtime/api.lua` | ✅ 已完成 |
+| P6-C2 | cap_registry 副作用在 require 时执行（§3.6） | `runtime/adapters/cap_registry.lua` + `runtime/adapters/registry.lua` | ✅ 已完成 |
+| P6-C3 | pipeline spec PHASE_ORDER 硬编码断言（§3.11） | `lua/spec/runtime/pipeline_spec.lua` | ✅ 已完成 |
+| P6-C4 | IR 增加 ir_version 字段（§3.8） | `core/compiler/ir.lua` + `cache/version.lua` + `cache/policy.lua` | ✅ 已完成 |
+| P6-C5 | plugins/ai/ai.lua 与 modules/ai/copilot.lua 职责重叠（§3.9） | `plugins/ai/ai.lua` + `modules/ai/copilot.lua` + `runtime/adapters/ai_cap.lua` | ✅ 已完成 |
 
-### P6-D 演进项（非阻塞，面向未来）
+### P6-D 演进项 ✅ D1/D2 已完成，D3/D4/D5 为未来演进
 
-| 编号 | 方向 | 描述 |
-|------|------|------|
-| P6-D1 | Phase 声明式依赖 | PhaseRegistry 支持 `after`/`before` 而非纯 priority 数字 |
-| P6-D2 | Phase 输出验证 | 在 pass.run_phase() 中增加 `output_validate(ir)` 钩子 |
-| P6-D3 | IR 字段命名空间 | 第三方 phase 挂载 private 字段时有命名空间保护 |
-| P6-D4 | cap 模块 profile 过滤 | cap 模块支持 `profiles = {"full", "nix"}` 字段，collect_ext 按 profile 过滤 |
-| P6-D5 | 并行 sub-phase | collect 和 collect_ext 无数据依赖，理论可并行；需 pipeline SM 支持 fork/join |
+| 编号 | 方向 | 状态 | 描述 |
+|------|------|------|------|
+| P6-D1 | Phase 声明式依赖 | ✅ 已完成 | PhaseRegistry 支持 `after`/`before` 声明式依赖 + 拓扑排序 |
+| P6-D2 | Phase 输出验证 | ✅ 已完成 | 在 `pass.run_phase()` 中增加 `output_validate(ir)` 钩子 |
+| P6-D3 | IR 字段命名空间 | 🔶 未来演进 | 第三方 phase 挂载 private 字段时有命名空间保护 |
+| P6-D4 | cap 模块 profile 过滤 | 🔶 未来演进 | cap 模块支持 `profiles = {"full", "nix"}` 字段，collect_ext 按 profile 过滤 |
+| P6-D5 | 并行 sub-phase | 🔶 未来演进 | collect 和 collect_ext 无数据依赖，理论可并行；需 pipeline SM 支持 fork/join |
 
 ---
 

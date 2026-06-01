@@ -1,9 +1,11 @@
 -- lua/runtime/adapters/cap_registry.lua
 -- CapAdapterRegistry: cap_type → adapter module (Layer 4, read-only IR consumers).
+-- P6-C2: Default registration moved to explicit setup() — no require-time side effects.
 
 local M = {}
 
 local _adapters = {}
+local _setup_done = false
 
 ---@param cap_type string
 ---@param adapter_path string
@@ -36,11 +38,20 @@ end
 --- Reset registry (testing only).
 function M._reset()
   _adapters = {}
+  _setup_done = false
 end
 
-local defaults = require("runtime.defaults.cap_adapters")
-for _, entry in ipairs(defaults) do
-  M.register(entry.cap_type, entry.path)
+--- Bootstrap default cap adapters from defaults table.
+--- Must be called explicitly by runtime/init.lua — never executes on require.
+function M.setup()
+  if _setup_done then
+    return
+  end
+  _setup_done = true
+  local defaults = require("runtime.defaults.cap_adapters")
+  for _, entry in ipairs(defaults) do
+    M.register(entry.cap_type, entry.path)
+  end
 end
 
 return M

@@ -18,10 +18,15 @@
 -- v4.2 changes (P6-B1):
 --   • Diagnostic type moved to core/domain/diagnostic.lua (Layer 2)
 --   • Re-exported here for backward compatibility
+--
+-- v4.3 changes (Dependency Inversion):
+--   • Use abstract types interface via core.compiler.types
+--   • Concrete implementations injected from runtime layer
+--   • Maintains strict layer boundaries (compiler → domain)
 
 local M = {}
 local util = require("core.kernel.util") -- for unfreeze in ir.with()
-local diagnostic = require("core.domain.diagnostic")
+local types = require("core.compiler.types") -- abstract type interfaces
 
 -- ── Stage enum ────────────────────────────────────────────────────────────────
 
@@ -43,21 +48,15 @@ local STAGE_TRANSITIONS = {
 
 -- ── Diagnostic ────────────────────────────────────────────────────────────────
 
+--- Creates a Diagnostic using abstract type interface.
 ---@class Diagnostic
----@field code     string   machine-readable error code  e.g. "E001"
----@field stage    string   pipeline stage
----@field node     string   lang module or AST node identifier
----@field message  string
----@field severity "error"|"warn"|"info"
-
---- Creates a Diagnostic. Re-exported from core.domain.diagnostic.
 ---@param stage    string
 ---@param node     string
 ---@param message  string
 ---@param severity? "error"|"warn"|"info"
 ---@return Diagnostic
 function M.diag(stage, node, message, severity)
-  return diagnostic.new(stage, node, message, severity)
+  return types.diag(stage, node, message, severity)
 end
 
 -- Backward-compat alias
@@ -71,6 +70,7 @@ M.error = M.diag
 ---@field started_at    number
 ---@field content_hash? string              SHA-like hash of module file contents (TODO-7.1)
 ---@field module_hashes? table<string, string>  per-module content hashes for incremental cache
+---@field ir_version?   number              P6-C4: schema version for cache consistency
 
 ---@class IRResolved
 ---@field lsp   table<string, boolean>
@@ -144,7 +144,8 @@ local STAGE_REQUIRED = {
 ---@param profile?     string
 ---@return IR
 function M.new(lang_modules, profile)
-  local cap_types = require("core.domain.cap_types")
+  local cap_types = types.cap_types()
+  local schema_version = require("core.compiler.cache.version").SCHEMA_VERSION
   return {
     stage = "AST",
     caps = {},
@@ -153,6 +154,7 @@ function M.new(lang_modules, profile)
       lang_modules = lang_modules or {},
       cache_key = "",
       started_at = os.clock(),
+      ir_version = schema_version, -- P6-C4: embed schema version
     },
     profile = profile or "full",
     ext_caps = {

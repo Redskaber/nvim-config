@@ -1,5 +1,6 @@
 -- lua/runtime/passes/cap_resolve.lua
 -- P3: Resolves external capabilities into LazySpecs via CapAdapterRegistry.
+-- §3.10: Diagnostic warn message uses lowercase, consistent with all other messages.
 
 local M = {}
 
@@ -29,10 +30,11 @@ M.pass = {
 
       local adapter = cap_registry.get(cap_type)
       if not adapter then
+        -- §3.10: lowercase, consistent with other warn messages
         diagnostics[#diagnostics + 1] = ir_mod.diag(
           next_ir.stage,
           cap_type,
-          ("No capability adapter registered for cap_type '%s'."):format(cap_type),
+          ("no capability adapter registered for cap_type '%s'"):format(cap_type),
           "warn"
         )
         goto continue

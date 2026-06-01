@@ -11,11 +11,12 @@ local invariants = require("core.compiler.invariants")
 local M = {}
 
 ---@class Phase
----@field name         string
----@field input_state  string
----@field output_state string
----@field run          fun(ir: IR): IR
----@field validate?    fun(ir: IR): Diagnostic[]
+---@field name              string
+---@field input_state       string
+---@field output_state      string
+---@field run               fun(ir: IR): IR
+---@field validate?         fun(ir: IR): Diagnostic[]   pre-condition (input)
+---@field output_validate?  fun(ir: IR): Diagnostic[]   post-condition (output)  P6-D2
 
 local REQUIRED_FIELDS = { "name", "input_state", "output_state", "run" }
 
@@ -30,18 +31,25 @@ function M.assert_valid(phase)
   if phase.validate ~= nil then
     assert(type(phase.validate) == "function", "Phase.validate must be a function")
   end
+  -- P6-D2: output_validate is optional but must be a function if present
+  if phase.output_validate ~= nil then
+    assert(type(phase.output_validate) == "function", "Phase.output_validate must be a function")
+  end
 end
 
 M.assert_valid_pass = M.assert_valid
 
 --- Execute a phase with pre-condition validation and pcall protection.
 --- In debug mode, input IR is frozen to catch accidental mutation.
+--- P6-D2: Also runs output_validate hook after successful phase execution.
 ---@param phase Phase
 ---@param ir    IR
 ---@return IR, Diagnostic[]
 function M.run_phase(phase, ir)
   -- Debug mode: freeze input so any mutation attempt raises immediately
   local safe_ir = _G._ltos_debug_freeze and util.freeze(ir, phase.name) or ir
+
+  -- ── Pre-condition validation ─────────────────────────────────────────────
   local pre_diags = {}
   if phase.validate then
     local ok, result = pcall(phase.validate, safe_ir)
@@ -62,6 +70,7 @@ function M.run_phase(phase, ir)
     return acc, pre_diags
   end
 
+  -- ── Execute phase ────────────────────────────────────────────────────────
   local ok, next_ir = pcall(phase.run, safe_ir)
   if not ok then
     local d = ir_mod.diag(phase.name, "run", tostring(next_ir))
@@ -76,6 +85,28 @@ function M.run_phase(phase, ir)
     invariants.check_phase_output(ir, next_ir, phase.name)
   end
 
+  -- ── Post-condition validation (P6-D2) ────────────────────────────────────
+  local post_diags = {}
+  if phase.output_validate then
+    local ok2, result2 = pcall(phase.output_validate, next_ir)
+    if not ok2 then
+      post_diags[#post_diags + 1] = ir_mod.diag(phase.name, "output_validate", tostring(result2))
+    elseif type(result2) == "table" then
+      for _, d in ipairs(result2) do
+        post_diags[#post_diags + 1] = d
+      end
+    end
+  end
+
+  -- Post-condition failures are non-fatal: append as warn diagnostics and continue.
+  -- Fatal would block downstream; warn preserves pipeline liveness (pipeline-is-additive).
+  if #post_diags > 0 then
+    for _, d in ipairs(post_diags) do
+      -- Downgrade to warn if caller set severity=error on post-conditions
+      local warn_d = ir_mod.diag(phase.name, d.node or "output", "[post-condition] " .. (d.message or "?"), "warn")
+      next_ir = ir_mod.append_diag(next_ir, warn_d)
+    end
+  end
   return next_ir, {}
 end
 

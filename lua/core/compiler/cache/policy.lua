@@ -73,12 +73,45 @@ function M.load(tier, key)
     return nil
   end
 
-  if data.version ~= version.CACHE_VERSION or data.key ~= key then
-    debug_log(("[cache:%s] miss (version/key mismatch)"):format(tier))
+  -- P6-C4: validate cache version
+  if data.version ~= version.CACHE_VERSION then
+    debug_log(
+      ("[cache:%s] miss (cache version mismatch: got %s, want %s)"):format(
+        tier,
+        tostring(data.version),
+        tostring(version.CACHE_VERSION)
+      )
+    )
     M._stats = M._stats or {}
     M._stats[tier] = (M._stats[tier] or { hits = 0, misses = 0 })
     M._stats[tier].misses = M._stats[tier].misses + 1
     return nil
+  end
+
+  if data.key ~= key then
+    debug_log(("[cache:%s] miss (key mismatch)"):format(tier))
+    M._stats = M._stats or {}
+    M._stats[tier] = (M._stats[tier] or { hits = 0, misses = 0 })
+    M._stats[tier].misses = M._stats[tier].misses + 1
+    return nil
+  end
+
+  -- P6-C4: check IR schema version consistency (if embedded in payload)
+  local payload = data.payload
+  if payload and payload.meta and payload.meta.ir_version then
+    if payload.meta.ir_version ~= version.SCHEMA_VERSION then
+      debug_log(
+        ("[cache:%s] miss (IR schema version mismatch: got %s, want %s)"):format(
+          tier,
+          tostring(payload.meta.ir_version),
+          tostring(version.SCHEMA_VERSION)
+        )
+      )
+      M._stats = M._stats or {}
+      M._stats[tier] = (M._stats[tier] or { hits = 0, misses = 0 })
+      M._stats[tier].misses = M._stats[tier].misses + 1
+      return nil
+    end
   end
 
   M._stats = M._stats or {}

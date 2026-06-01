@@ -5,12 +5,14 @@
 --
 -- Version history:
 --   v5: P3 - cap modules introduced
---   v6: P6 - Diagnostic moved to domain layer, cap_types centralized,
---            keybind presets centralized, cap modules hash in cache key
+--   v6: P6-B - Diagnostic moved to domain layer, cap_types centralized,
+--              keybind presets centralized, cap modules hash in cache key
+--   v7: P6-C4 - ir_version field added to IR.meta; cache policy validates
+--               schema version consistency on load
 
 local M = {}
 
-M.CACHE_VERSION = 6
-M.SCHEMA_VERSION = 6
+M.CACHE_VERSION = 7
+M.SCHEMA_VERSION = 7
 
 return M

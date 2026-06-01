@@ -1,9 +1,16 @@
 -- ~/.config/nvim/lua/runtime/init.lua
 -- Compiler kernel: orchestrator.
+-- P6-C2: Explicitly calls registry.setup() and cap_registry.setup()
+--        instead of relying on require-time side effects.
 
 local M = {}
 
 require("runtime.ports_bootstrap").setup()
+require("runtime.types_bootstrap").setup() -- Configure abstract type interfaces
+
+-- P6-C2: Bootstrap registries explicitly before any pipeline use
+require("runtime.adapters.registry").setup()
+require("runtime.adapters.cap_registry").setup()
 
 local provider_registry = require("runtime.providers.registry")
 local build_request_mod = require("runtime.build_request")
