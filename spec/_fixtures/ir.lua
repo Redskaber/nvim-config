@@ -1,26 +1,32 @@
 -- spec/_fixtures/ir.lua
--- Shared IR construction helpers for all spec modules.
--- No side effects; returns a pure fixture factory.
-
-local ir_mod = require("core.compiler.ir")
-local util = require("core.kernel.util")
+-- Pure IR construction helpers.
+-- No side-effects; all functions return fresh value objects.
 
 local M = {}
 
---- Minimal AST IR (post-collect stage input shape)
+local function ir_mod()
+  return require("core.compiler.ir")
+end
+local function util()
+  return require("core.kernel.util")
+end
+
+-- ── IR stage constructors ─────────────────────────────────────────────────────
+
+--- Minimal AST IR (post-collect shape).
 ---@param caps? table<string, table>
 ---@param profile? string
 ---@return IR
 function M.ast(caps, profile)
-  local ir = ir_mod.new({}, profile or "full")
+  local ir = ir_mod().new({}, profile or "full")
   ir.caps = caps or {}
-  ir.meta = util.merge(ir.meta, { lang_modules = {}, cache_key = "", started_at = 0 })
   return ir
 end
 
---- Minimal HIR (post-normalize; has symbols placeholder for canonicalize input)
+--- Minimal HIR (post-normalize).
 ---@param caps?    table
 ---@param symbols? IRSymbols
+---@return IR
 function M.hir(caps, symbols)
   local ir = M.ast(caps)
   ir.stage = "HIR"
@@ -28,9 +34,10 @@ function M.hir(caps, symbols)
   return ir
 end
 
---- Minimal MIR (post-resolve)
+--- Minimal MIR (post-resolve).
 ---@param caps?     table
 ---@param resolved? IRResolved
+---@return IR
 function M.mir(caps, resolved)
   local ir = M.hir(caps)
   ir.stage = "MIR"
@@ -38,11 +45,12 @@ function M.mir(caps, resolved)
   return ir
 end
 
---- Minimal LIR (post-optimize; ready for codegen pre-condition)
+--- Minimal LIR (post-optimize; codegen-ready).
 ---@param caps?       table
 ---@param resolved?   IRResolved
 ---@param merged_lsp? table
 ---@param parsers?    string[]
+---@return IR
 function M.lir(caps, resolved, merged_lsp, parsers)
   local ir = M.mir(caps, resolved)
   ir.stage = "LIR"
@@ -52,8 +60,9 @@ function M.lir(caps, resolved, merged_lsp, parsers)
   return ir
 end
 
---- LIR with ext_caps populated (for cap_resolve testing)
+--- LIR seeded with ext_caps buckets.
 ---@param ext_caps table<string, table>
+---@return IR
 function M.lir_with_caps(ext_caps)
   local ir = M.lir()
   for cap_type, bucket in pairs(ext_caps) do
@@ -62,7 +71,8 @@ function M.lir_with_caps(ext_caps)
   return ir
 end
 
---- Standard lua_lang capability table (canonical fixture)
+-- ── Canonical capability fixtures ─────────────────────────────────────────────
+
 function M.lua_lang_cap()
   return {
     lsp = { lua_ls = { settings = { Lua = { workspace = { checkThirdParty = false } } } } },
@@ -73,7 +83,6 @@ function M.lua_lang_cap()
   }
 end
 
---- Standard python capability table
 function M.python_cap()
   return {
     lsp = { pyright = { settings = { pyright = { disableOrganizeImports = true } } } },
@@ -84,7 +93,6 @@ function M.python_cap()
   }
 end
 
---- Standard rust capability table (system tools)
 function M.rust_cap()
   return {
     lsp = { rust_analyzer = { settings = { ["rust-analyzer"] = {} } } },
@@ -95,7 +103,9 @@ function M.rust_cap()
   }
 end
 
---- Run a phase against an IR and assert no phase-level errors
+-- ── Phase execution helper ────────────────────────────────────────────────────
+
+--- Run a phase against an IR, asserting no phase-level errors.
 ---@param phase table
 ---@param ir    IR
 ---@return IR

@@ -1,18 +1,17 @@
 # justfile — LTOS development tasks
 # Usage: just check | just test | just test-suite core | just test-tags unit
 
-
 root := justfile_directory()
 
 # Layer boundary static check
 check:
   @bash {{root}}/scripts/check_layer_boundaries.sh
 
-# Run all spec suites
+# Run all spec suites (full catalogue)
 test:
   @bash {{root}}/scripts/run_ltos_tests.sh
 
-# Run a specific suite (core | modules | runtime | toolchain | integration)
+# Run a specific suite: core | modules | runtime | toolchain | integration
 test-suite suite:
   @nvim --headless \
     -u NONE \
@@ -21,7 +20,7 @@ test-suite suite:
     "+luafile {{root}}/scripts/ltos_tests.lua" \
     +qa
 
-# Run tests matching tags (comma-separated)
+# Run tests matching tags (unit | integration | slow | core | runtime | …)
 test-tags tags:
   @nvim --headless \
     -u NONE \
@@ -30,7 +29,7 @@ test-tags tags:
     "+luafile {{root}}/scripts/ltos_tests.lua" \
     +qa
 
-# Fail fast on first failure
+# Stop on first failure
 test-ff:
   @nvim --headless \
     -u NONE \
@@ -39,14 +38,35 @@ test-ff:
     "+luafile {{root}}/scripts/ltos_tests.lua" \
     +qa
 
-# Single spec file
+# Quiet mode (summary table only, no per-test lines)
+test-quiet:
+  @nvim --headless \
+    -u NONE \
+    --cmd "set rtp^={{root}}" \
+    "+lua _G.arg={'--quiet'}" \
+    "+luafile {{root}}/scripts/ltos_tests.lua" \
+    +qa
+
+# List all registered test modules
+test-list:
+  @nvim --headless \
+    -u NONE \
+    --cmd "set rtp^={{root}}" \
+    "+lua _G.arg={'--list'}" \
+    "+luafile {{root}}/scripts/ltos_tests.lua" \
+    +qa
+
+# Run a single spec file directly (headless)
 test-file file:
   @nvim --headless \
     -u NONE \
-    --cmd "set rtp^={{root}}" -l {{file}}
+    --cmd "set rtp^={{root}}" \
+    -l {{file}}
 
-# dump current project status
+# Layer check + full test suite (CI entry point)
+ci: check test
+
+# Dump current project file tree + concat to stored/
 dump:
   @bash {{root}}/scripts/grep_paths.sh -l -o stored/paths.txt \
     && bash {{root}}/scripts/concat_files.sh stored/paths.txt stored/terminal.txt
-

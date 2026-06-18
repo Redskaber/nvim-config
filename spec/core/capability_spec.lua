@@ -1,81 +1,96 @@
 -- spec/core/capability_spec.lua
--- core.domain.capability: immutable CapabilitySet (COW).
+-- core.domain.capability: immutable CapabilitySet (COW semantics).
 
 local R = require("spec._runner")
 
 R.describe("core.domain.capability", function()
-  local cap_mod = require("core.domain.capability")
+  local cap = require("core.domain.capability")
   local F = require("spec._fixtures.ir")
 
+  -- ── new() ─────────────────────────────────────────────────────────────────
+
   R.describe("new()", function()
-    R.it("returns empty table", function()
-      local s = cap_mod.new()
+    R.it("returns an empty table", function()
+      local s = cap.new()
       R.assert_type(s, "table")
       R.assert_true(next(s) == nil)
     end)
   end)
 
+  -- ── add() ─────────────────────────────────────────────────────────────────
+
   R.describe("add()", function()
     R.it("returns NEW set; input set is unchanged", function()
-      local s0 = cap_mod.new()
-      local s1, result = cap_mod.add(s0, "lua_lang", F.lua_lang_cap())
+      local s0 = cap.new()
+      local s1, result = cap.add(s0, "lua_lang", F.lua_lang_cap())
       R.assert_true(result.ok)
       R.assert_ne(s1, s0)
       R.assert_true(next(s0) == nil)
       R.assert_not_nil(s1.lua_lang)
     end)
 
-    R.it("merges treesitter lists across two adds", function()
-      local s0 = cap_mod.new()
-      local s1 = cap_mod.add(s0, "lang", { treesitter = { "lua" } })
-      local s2 = cap_mod.add(s1, "lang", { treesitter = { "python" } })
-      R.assert_eq(#s2.lang.treesitter, 2)
+    R.it("merges treesitter lists across two adds for same module", function()
+      local s = cap.new()
+      s = cap.add(s, "lang", { treesitter = { "lua" } })
+      s = cap.add(s, "lang", { treesitter = { "python" } })
+      R.assert_eq(#s.lang.treesitter, 2)
     end)
 
-    R.it("deep-merges LSP configs (right wins)", function()
-      local s0 = cap_mod.new()
-      local s1 = cap_mod.add(s0, "l", { lsp = { lua_ls = { settings = { a = 1 } } } })
-      local s2 = cap_mod.add(s1, "l", { lsp = { lua_ls = { settings = { b = 2 } } } })
-      R.assert_eq(s2.l.lsp.lua_ls.settings.a, 1)
-      R.assert_eq(s2.l.lsp.lua_ls.settings.b, 2)
+    R.it("deep-merges LSP configs (right wins on scalar conflict)", function()
+      local s = cap.new()
+      s = cap.add(s, "l", { lsp = { lua_ls = { settings = { a = 1 } } } })
+      s = cap.add(s, "l", { lsp = { lua_ls = { settings = { b = 2 } } } })
+      R.assert_eq(s.l.lsp.lua_ls.settings.a, 1)
+      R.assert_eq(s.l.lsp.lua_ls.settings.b, 2)
     end)
 
-    R.it("returns ok=false and unchanged set for invalid cap", function()
-      local s0 = cap_mod.new()
-      local s1, result = cap_mod.add(s0, "bad", "not_a_table")
+    R.it("returns ok=false and original set for invalid cap", function()
+      local s0 = cap.new()
+      local s1, result = cap.add(s0, "bad", "not_a_table")
       R.assert_false(result.ok)
       R.assert_eq(s1, s0)
     end)
-  end)
 
-  R.describe("snapshot()", function()
-    R.it("returns deep-copy; mutations don't affect the set", function()
-      local s0 = cap_mod.new()
-      local s1 = cap_mod.add(s0, "l", { treesitter = { "lua" } })
-      local snap = cap_mod.snapshot(s1)
-      snap.l.treesitter[1] = "MUTATED"
-      R.assert_eq(s1.l.treesitter[1], "lua")
+    R.it("appends formatter lists per filetype", function()
+      local s = cap.new()
+      s = cap.add(s, "l", { formatters = { lua = { "stylua" } } })
+      s = cap.add(s, "l", { formatters = { lua = { "lua_format" } } })
+      R.assert_eq(#s.l.formatters.lua, 2)
     end)
   end)
+
+  -- ── snapshot() ────────────────────────────────────────────────────────────
+
+  R.describe("snapshot()", function()
+    R.it("returns deep-copy; mutations don't affect the source set", function()
+      local s = cap.add(cap.new(), "l", { treesitter = { "lua" } })
+      local snap = cap.snapshot(s)
+      snap.l.treesitter[1] = "MUTATED"
+      R.assert_eq(s.l.treesitter[1], "lua")
+    end)
+  end)
+
+  -- ── reset() backward-compat ───────────────────────────────────────────────
 
   R.describe("reset() backward-compat", function()
     R.it("is a no-op (does not error)", function()
-      cap_mod.reset()
+      cap.reset()
     end)
   end)
 
+  -- ── golden: lua_lang DSL round-trip ───────────────────────────────────────
+
   R.describe("golden: lua_lang DSL", function()
-    R.it("produces expected capability shape", function()
+    R.it("produces expected capability shape from real module", function()
       local ok, lua_lang = pcall(require, "modules.lang.lua_lang")
-      R.assert_true(ok, "modules.lang.lua_lang must load")
-      local s0 = cap_mod.new()
-      local s1, result = cap_mod.add(s0, "lua_lang", lua_lang)
+      R.assert_true(ok, "modules.lang.lua_lang must load cleanly")
+      local s, result = cap.add(cap.new(), "lua_lang", lua_lang)
       R.assert_true(result.ok)
-      local cap = s1.lua_lang
-      R.assert_not_nil(cap)
-      R.assert_not_nil(cap.lsp and cap.lsp.lua_ls)
-      R.assert_not_nil(cap.formatters and cap.formatters.lua)
-      R.assert_true(cap.treesitter and #cap.treesitter > 0)
+      local c = s.lua_lang
+      R.assert_not_nil(c)
+      R.assert_not_nil(c.lsp and c.lsp.lua_ls)
+      R.assert_not_nil(c.formatters and c.formatters.lua)
+      R.assert_true(c.treesitter and #c.treesitter > 0)
     end)
   end)
 end)

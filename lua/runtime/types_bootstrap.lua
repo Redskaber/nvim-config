@@ -22,7 +22,7 @@ function M.setup()
   -- Get concrete implementations from domain layer
   local diagnostic = require("core.domain.diagnostic")
   local cap_types = require("core.domain.cap_types")
-  
+
   -- Configure abstract type interfaces in compiler layer
   local types = require("core.compiler.types")
   types.configure({

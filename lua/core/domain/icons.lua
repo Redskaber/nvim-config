@@ -187,5 +187,16 @@ return {
     ["lock"] = { glyph = "", hl = "MiniIconsGrey" },
     -- Images
     ["img"] = { glyph = " ", hl = "MiniIconsGrey" },
+    -- ===== 底层二进制 / 对象文件 =====
+    ["bin"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["o"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["obj"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["elf"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["exe"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["dll"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["so"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["a"] = { glyph = " ", hl = "MiniIconsGrey" },
+    ["out"] = { glyph = " ", hl = "MiniIconsGrey" }, -- a.out 等
+    ["class"] = { glyph = " ", hl = "MiniIconsGrey" }, -- Java 字节码
   },
 }

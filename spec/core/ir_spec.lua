@@ -1,235 +1,218 @@
 -- spec/core/ir_spec.lua
--- IR value type: immutability, COW, stage transitions, diagnostics, diff.
+-- core.compiler.ir: IR value type, COW, stage transitions, diagnostics, diff.
 
 local R = require("spec._runner")
 
 R.describe("core.compiler.ir", function()
-  local ir_mod = require("core.compiler.ir")
+  local ir = require("core.compiler.ir")
   local F = require("spec._fixtures.ir")
   local ver = require("core.compiler.cache.version")
 
-  -- ── ir.new() ───────────────────────────────────────────────────────────────
+  -- ── new() ──────────────────────────────────────────────────────────────────
 
   R.describe("new()", function()
     R.it("produces correct initial shape", function()
-      local ir = ir_mod.new({ "a", "b" }, "minimal")
-      R.assert_type(ir.caps, "table")
-      R.assert_type(ir.diagnostics, "table")
-      R.assert_eq(#ir.diagnostics, 0)
-      R.assert_eq(ir.profile, "minimal")
-      R.assert_eq(ir.meta.lang_modules[1], "a")
+      local i = ir.new({ "a", "b" }, "minimal")
+      R.assert_type(i.caps, "table")
+      R.assert_type(i.diagnostics, "table")
+      R.assert_eq(#i.diagnostics, 0)
+      R.assert_eq(i.profile, "minimal")
+      R.assert_eq(i.meta.lang_modules[1], "a")
+      R.assert_eq(i.stage, "AST")
     end)
 
     R.it("embeds ir_version = SCHEMA_VERSION in meta (P6-C4)", function()
-      local ir = ir_mod.new({}, "full")
-      R.assert_type(ir.meta.ir_version, "number")
-      R.assert_eq(ir.meta.ir_version, ver.SCHEMA_VERSION)
+      local i = ir.new({}, "full")
+      R.assert_type(i.meta.ir_version, "number")
+      R.assert_eq(i.meta.ir_version, ver.SCHEMA_VERSION)
     end)
 
-    R.it("initialises ext_caps with all known cap_type buckets", function()
+    R.it("initialises all ext_caps buckets as empty tables", function()
       local cap_types = require("core.domain.cap_types")
-      local ir = ir_mod.new({}, "full")
-      R.assert_type(ir.ext_caps, "table")
+      local i = ir.new({}, "full")
+      R.assert_type(i.ext_caps, "table")
       for _, ct in ipairs(cap_types.ALL) do
-        R.assert_type(ir.ext_caps[ct], "table", "ext_caps." .. ct .. " must be a table")
-        R.assert_true(next(ir.ext_caps[ct]) == nil, "ext_caps." .. ct .. " must be empty initially")
+        R.assert_type(i.ext_caps[ct], "table", "ext_caps." .. ct .. " must be a table")
+        R.assert_true(next(i.ext_caps[ct]) == nil, "ext_caps." .. ct .. " must be empty at construction")
       end
     end)
 
-    R.it("initialises cap_specs as empty table", function()
-      local ir = ir_mod.new({}, "full")
-      R.assert_type(ir.cap_specs, "table")
-      R.assert_true(next(ir.cap_specs) == nil)
+    R.it("cap_specs initialised as empty table", function()
+      local i = ir.new({}, "full")
+      R.assert_type(i.cap_specs, "table")
+      R.assert_true(next(i.cap_specs) == nil)
     end)
   end)
 
-  -- ── ir.clone() ─────────────────────────────────────────────────────────────
+  -- ── clone() ────────────────────────────────────────────────────────────────
 
   R.describe("clone()", function()
-    R.it("produces deep-independent copy", function()
-      local ir = ir_mod.new({ "mod" }, "full")
-      ir.caps = { python = { lsp = { pyright = {} } } }
-      local copy = ir_mod.clone(ir)
-      copy.caps.python.lsp.pyright.settings = { injected = true }
-      R.assert_nil(ir.caps.python.lsp.pyright.settings)
+    R.it("produces a deep-independent copy", function()
+      local i = ir.new({ "mod" }, "full")
+      i.caps = { python = { lsp = { pyright = {} } } }
+      local c = ir.clone(i)
+      c.caps.python.lsp.pyright.settings = { injected = true }
+      R.assert_nil(i.caps.python.lsp.pyright.settings)
+    end)
+    R.it("clone is a new table identity", function()
+      local i = ir.new({}, "full")
+      R.assert_ne(ir.clone(i), i)
     end)
   end)
 
-  -- ── ir.with() ──────────────────────────────────────────────────────────────
+  -- ── with() ─────────────────────────────────────────────────────────────────
 
   R.describe("with()", function()
-    R.it("patches fields without touching others", function()
-      local ir = ir_mod.new({ "m" }, "full")
-      ir.caps = { lua = {} }
-      local next_ir = ir_mod.with(ir, { resolved = { lsp = {}, tools = {} } })
-      R.assert_not_nil(next_ir.resolved)
-      R.assert_eq(next_ir.caps, ir.caps)
-      R.assert_nil(ir.resolved)
+    R.it("patches selected fields, leaves others intact", function()
+      local i = ir.new({ "m" }, "full")
+      i.caps = { lua = {} }
+      local n = ir.with(i, { resolved = { lsp = {}, tools = {} } })
+      R.assert_not_nil(n.resolved)
+      R.assert_eq(n.caps, i.caps)
+      R.assert_nil(i.resolved)
     end)
-
-    R.it("returns a new table (COW)", function()
-      local ir = ir_mod.new({}, "full")
-      local next_ir = ir_mod.with(ir, { stage = "HIR" })
-      R.assert_ne(next_ir, ir)
+    R.it("returns a new table (copy-on-write)", function()
+      local i = ir.new({}, "full")
+      R.assert_ne(ir.with(i, { stage = "HIR" }), i)
     end)
   end)
 
-  -- ── ir.append_diag() ───────────────────────────────────────────────────────
+  -- ── append_diag() ──────────────────────────────────────────────────────────
 
   R.describe("append_diag()", function()
     R.it("returns new IR; original unchanged", function()
-      local ir = ir_mod.new({}, "full")
-      local d = ir_mod.diag("collect", "mod.x", "failed to load")
-      local next_ir = ir_mod.append_diag(ir, d)
-      R.assert_eq(#ir.diagnostics, 0)
-      R.assert_eq(#next_ir.diagnostics, 1)
-      R.assert_eq(next_ir.diagnostics[1].stage, "collect")
+      local i = ir.new({}, "full")
+      local d = ir.diag("collect", "mod.x", "failed")
+      local n = ir.append_diag(i, d)
+      R.assert_eq(#i.diagnostics, 0)
+      R.assert_eq(#n.diagnostics, 1)
+      R.assert_eq(n.diagnostics[1].stage, "collect")
     end)
-
-    R.it("backward compat: append_error alias works", function()
-      local ir = ir_mod.new({}, "full")
-      local d = ir_mod.error("normalize", "python", "unknown strategy")
-      local n = ir_mod.append_error(ir, d)
+    R.it("append_error alias forwards correctly", function()
+      local i = ir.new({}, "full")
+      local n = ir.append_error(i, ir.error("normalize", "python", "unknown"))
       R.assert_eq(#n.diagnostics, 1)
     end)
   end)
 
-  -- ── ir.diag() ──────────────────────────────────────────────────────────────
+  -- ── diag() ────────────────────────────────────────────────────────────────
 
   R.describe("diag()", function()
     R.it("produces Diagnostic with all fields including code", function()
-      local d = ir_mod.diag("normalize", "python", "unknown strategy", "warn")
+      local d = ir.diag("normalize", "python", "unknown strategy", "warn")
       R.assert_eq(d.stage, "normalize")
       R.assert_eq(d.node, "python")
       R.assert_eq(d.message, "unknown strategy")
       R.assert_eq(d.severity, "warn")
       R.assert_type(d.code, "string")
-      R.assert_true(#d.code > 0)
       R.assert_match(d.code, "^[WEI]%x+")
     end)
-
-    R.it("is deterministic (same input → same code)", function()
-      local d1 = ir_mod.diag("collect", "mod.a", "same message", "error")
-      local d2 = ir_mod.diag("collect", "mod.a", "same message", "error")
+    R.it("code is deterministic", function()
+      local d1 = ir.diag("collect", "mod.a", "same", "error")
+      local d2 = ir.diag("collect", "mod.a", "same", "error")
       R.assert_eq(d1.code, d2.code)
     end)
   end)
 
-  -- ── ir.validate() ──────────────────────────────────────────────────────────
+  -- ── validate() ────────────────────────────────────────────────────────────
 
   R.describe("validate()", function()
     R.it("passes when required fields present for 'normalize'", function()
-      local ir = F.ast({})
-      local errs = ir_mod.validate(ir, "normalize")
+      local errs = ir.validate(F.ast({}), "normalize")
       R.assert_eq(#errs, 0)
     end)
-
-    R.it("returns Diagnostic for missing required field", function()
-      local ir = F.ast({})
-      ir.resolved = nil
-      local errs = ir_mod.validate(ir, "optimize")
+    R.it("returns Diagnostic for missing field before 'optimize'", function()
+      local i = F.ast({})
+      i.resolved = nil
+      local errs = ir.validate(i, "optimize")
       R.assert_true(#errs > 0)
       R.assert_match(errs[1].message, "resolved")
     end)
-
     R.it("returns error for unknown stage", function()
-      local ir = F.ast({})
-      local errs = ir_mod.validate(ir, "nonexistent")
+      local errs = ir.validate(F.ast({}), "nonexistent")
       R.assert_eq(#errs, 1)
       R.assert_match(errs[1].message, "unknown stage")
     end)
   end)
 
-  -- ── ir.diag_counts() ───────────────────────────────────────────────────────
+  -- ── diag_counts() ─────────────────────────────────────────────────────────
 
   R.describe("diag_counts()", function()
-    R.it("counts errors and warns correctly", function()
-      local ir = ir_mod.new({}, "full")
-      ir = ir_mod.append_diag(ir, ir_mod.diag("s", "n", "e1", "error"))
-      ir = ir_mod.append_diag(ir, ir_mod.diag("s", "n", "w1", "warn"))
-      ir = ir_mod.append_diag(ir, ir_mod.diag("s", "n", "e2", "error"))
-      local c = ir_mod.diag_counts(ir)
+    R.it("counts errors and warns accurately", function()
+      local i = ir.new({}, "full")
+      i = ir.append_diag(i, ir.diag("s", "n", "e1", "error"))
+      i = ir.append_diag(i, ir.diag("s", "n", "w1", "warn"))
+      i = ir.append_diag(i, ir.diag("s", "n", "e2", "error"))
+      local c = ir.diag_counts(i)
       R.assert_eq(c.errors, 2)
       R.assert_eq(c.warns, 1)
     end)
   end)
 
-  -- ── ir.transition() ────────────────────────────────────────────────────────
+  -- ── transition() ──────────────────────────────────────────────────────────
 
   R.describe("transition()", function()
-    R.it("advances AST → HIR → MIR → LIR → SPEC", function()
-      local ir = ir_mod.new({}, "full")
-      R.assert_eq(ir.stage, "AST")
-      ir = ir_mod.transition(ir)
-      R.assert_eq(ir.stage, "HIR")
-      ir = ir_mod.transition(ir)
-      R.assert_eq(ir.stage, "MIR")
-      ir = ir_mod.transition(ir)
-      R.assert_eq(ir.stage, "LIR")
-      ir = ir_mod.transition(ir)
-      R.assert_eq(ir.stage, "SPEC")
+    R.it("advances through all five stages AST→SPEC", function()
+      local i = ir.new({}, "full")
+      for _, expected in ipairs({ "HIR", "MIR", "LIR", "SPEC" }) do
+        i = ir.transition(i)
+        R.assert_eq(i.stage, expected)
+      end
     end)
-
-    R.it("throws on illegal transition from SPEC", function()
-      local ir = ir_mod.with(ir_mod.new({}, "full"), { stage = "SPEC" })
-      R.assert_false(pcall(ir_mod.transition, ir))
+    R.it("throws on illegal transition from SPEC (terminal)", function()
+      local i = ir.with(ir.new({}, "full"), { stage = "SPEC" })
+      R.assert_false(pcall(ir.transition, i))
     end)
-
     R.it("does not mutate input IR", function()
-      local ir = ir_mod.new({}, "full")
-      ir_mod.transition(ir)
-      R.assert_eq(ir.stage, "AST")
+      local i = ir.new({}, "full")
+      ir.transition(i)
+      R.assert_eq(i.stage, "AST")
     end)
   end)
 
-  -- ── ir.assert_stage() ──────────────────────────────────────────────────────
+  -- ── assert_stage() ────────────────────────────────────────────────────────
 
   R.describe("assert_stage()", function()
     R.it("passes when stage matches", function()
-      local ir = ir_mod.new({}, "full")
-      ir_mod.assert_stage(ir, "AST") -- must not throw
+      ir.assert_stage(ir.new({}, "full"), "AST")
     end)
-
     R.it("throws on mismatch", function()
-      local ir = ir_mod.new({}, "full")
-      R.assert_false(pcall(ir_mod.assert_stage, ir, "HIR"))
+      R.assert_false(pcall(ir.assert_stage, ir.new({}, "full"), "HIR"))
     end)
   end)
 
-  -- ── ir.ctx() ───────────────────────────────────────────────────────────────
+  -- ── ctx() ─────────────────────────────────────────────────────────────────
 
   R.describe("ctx()", function()
     R.it("produces CompilerContext with unique run_id per call", function()
-      local ir = ir_mod.new({}, "full")
-      local c1 = ir_mod.ctx(ir, "s", "k")
-      local c2 = ir_mod.ctx(ir, "s", "k")
+      local i = ir.new({}, "full")
+      local c1 = ir.ctx(i, "s", "k")
+      local c2 = ir.ctx(i, "s", "k")
       R.assert_type(c1.run_id, "string")
       R.assert_ne(c1.run_id, c2.run_id)
       R.assert_eq(c1.cache_key, "k")
     end)
   end)
 
-  -- ── ir.diff() ──────────────────────────────────────────────────────────────
+  -- ── diff() ────────────────────────────────────────────────────────────────
 
   R.describe("diff()", function()
-    R.it("returns empty list for structurally identical IRs (excluding timing)", function()
-      local ir = ir_mod.new({ "m" }, "full")
-      local changes = ir_mod.diff(ir, ir_mod.clone(ir))
-      local non_timing = {}
+    R.it("returns empty for structurally identical IRs (excluding timing)", function()
+      local i = ir.new({ "m" }, "full")
+      local changes = ir.diff(i, ir.clone(i))
+      local relevant = {}
       for _, c in ipairs(changes) do
         if not c.path:find("started_at") then
-          non_timing[#non_timing + 1] = c
+          relevant[#relevant + 1] = c
         end
       end
-      R.assert_eq(#non_timing, 0)
+      R.assert_eq(#relevant, 0)
     end)
-
     R.it("detects stage change", function()
-      local ir1 = ir_mod.new({}, "full")
-      local ir2 = ir_mod.with(ir1, { stage = "HIR" })
-      local changes = ir_mod.diff(ir1, ir2)
+      local i1 = ir.new({}, "full")
+      local i2 = ir.with(i1, { stage = "HIR" })
       local found = false
-      for _, c in ipairs(changes) do
+      for _, c in ipairs(ir.diff(i1, i2)) do
         if c.path:find("stage") and c.old == "AST" and c.new == "HIR" then
           found = true
           break
@@ -237,9 +220,8 @@ R.describe("core.compiler.ir", function()
       end
       R.assert_true(found)
     end)
-
     R.it("format_diff() returns '(no changes)' for empty list", function()
-      R.assert_eq(ir_mod.format_diff({}), "(no changes)")
+      R.assert_eq(ir.format_diff({}), "(no changes)")
     end)
   end)
 end)

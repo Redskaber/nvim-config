@@ -7,26 +7,26 @@ R.describe("core.kernel.util", function()
   local util = require("core.kernel.util")
 
   -- ── dedup ──────────────────────────────────────────────────────────────────
+
   R.describe("dedup()", function()
     R.it("empty list → empty list", function()
       R.assert_eq(#util.dedup({}), 0)
     end)
-    R.it("no duplicates → same order", function()
+    R.it("no duplicates → same order preserved", function()
       local r = util.dedup({ "a", "b", "c" })
       R.assert_eq(r[1], "a")
       R.assert_eq(r[2], "b")
       R.assert_eq(r[3], "c")
     end)
-    R.it("removes duplicates, keeps first", function()
+    R.it("removes duplicates, keeps first occurrence", function()
       local r = util.dedup({ "a", "b", "a", "c", "b" })
       R.assert_eq(#r, 3)
       R.assert_eq(r[1], "a")
       R.assert_eq(r[2], "b")
       R.assert_eq(r[3], "c")
     end)
-    R.it("works with integers", function()
-      local r = util.dedup({ 1, 2, 1, 3 })
-      R.assert_eq(#r, 3)
+    R.it("integer list deduped", function()
+      R.assert_eq(#util.dedup({ 1, 2, 1, 3 }), 3)
     end)
     R.it("does not mutate input", function()
       local input = { "x", "x", "y" }
@@ -36,6 +36,7 @@ R.describe("core.kernel.util", function()
   end)
 
   -- ── merge / deep_merge ─────────────────────────────────────────────────────
+
   R.describe("merge()", function()
     R.it("right wins on conflict", function()
       local r = util.merge({ a = 1, b = 2 }, { b = 99, c = 3 })
@@ -52,7 +53,7 @@ R.describe("core.kernel.util", function()
   end)
 
   R.describe("deep_merge()", function()
-    R.it("nested tables merged recursively", function()
+    R.it("nested tables merged recursively, right wins", function()
       local r = util.deep_merge({ s = { a = 1, b = 2 } }, { s = { b = 99, c = 3 } })
       R.assert_eq(r.s.a, 1)
       R.assert_eq(r.s.b, 99)
@@ -71,18 +72,19 @@ R.describe("core.kernel.util", function()
   end)
 
   -- ── deep_equal ─────────────────────────────────────────────────────────────
+
   R.describe("deep_equal()", function()
-    R.it("identical scalars", function()
+    R.it("identical scalars → true", function()
       R.assert_true(util.deep_equal(1, 1))
       R.assert_true(util.deep_equal("x", "x"))
     end)
-    R.it("different scalars", function()
+    R.it("different scalars → false", function()
       R.assert_false(util.deep_equal(1, 2))
     end)
-    R.it("identical nested tables", function()
+    R.it("identical nested tables → true", function()
       R.assert_true(util.deep_equal({ x = { y = 1 } }, { x = { y = 1 } }))
     end)
-    R.it("different nested tables", function()
+    R.it("different nested tables → false", function()
       R.assert_false(util.deep_equal({ x = { y = 1 } }, { x = { y = 2 } }))
     end)
     R.it("extra key in b → not equal", function()
@@ -91,8 +93,9 @@ R.describe("core.kernel.util", function()
   end)
 
   -- ── basename ───────────────────────────────────────────────────────────────
+
   R.describe("basename()", function()
-    R.it("extracts last segment", function()
+    R.it("extracts last dot-segment", function()
       R.assert_eq(util.basename("modules.lang.python"), "python")
       R.assert_eq(util.basename("core.compiler.ir"), "ir")
     end)
@@ -102,6 +105,7 @@ R.describe("core.kernel.util", function()
   end)
 
   -- ── hash ───────────────────────────────────────────────────────────────────
+
   R.describe("hash()", function()
     R.it("returns integer", function()
       local h = util.hash("hello")
@@ -110,12 +114,13 @@ R.describe("core.kernel.util", function()
     R.it("is deterministic", function()
       R.assert_eq(util.hash("test"), util.hash("test"))
     end)
-    R.it("different inputs → different hashes", function()
+    R.it("different inputs produce different hashes (collision unlikely)", function()
       R.assert_ne(util.hash("abc"), util.hash("xyz"))
     end)
   end)
 
   -- ── freeze / unfreeze ──────────────────────────────────────────────────────
+
   R.describe("freeze()", function()
     R.before_each(function()
       _G._ltos_debug_freeze = false
@@ -124,23 +129,20 @@ R.describe("core.kernel.util", function()
       _G._ltos_debug_freeze = false
     end)
 
-    R.it("no-op when _ltos_debug_freeze is false", function()
+    R.it("no-op when debug_freeze flag is off", function()
       local t = { a = 1 }
       R.assert_eq(util.freeze(t), t)
     end)
-
-    R.it("write to proxy raises error", function()
+    R.it("write to proxy raises when flag is on", function()
       _G._ltos_debug_freeze = true
       local proxy = util.freeze({ a = 1 }, "test")
       R.assert_false(pcall(function()
         proxy.a = 99
       end))
     end)
-
     R.it("read through proxy works", function()
       _G._ltos_debug_freeze = true
-      local t = { x = 42 }
-      local proxy = util.freeze(t)
+      local proxy = util.freeze({ x = 42 })
       R.assert_eq(proxy.x, 42)
     end)
   end)
@@ -158,7 +160,6 @@ R.describe("core.kernel.util", function()
       local proxy = util.freeze(t, "test")
       R.assert_eq(util.unfreeze(proxy), t)
     end)
-
     R.it("plain table passes through unchanged", function()
       local t = { a = 1 }
       R.assert_eq(util.unfreeze(t), t)
@@ -166,6 +167,7 @@ R.describe("core.kernel.util", function()
   end)
 
   -- ── deep_copy ──────────────────────────────────────────────────────────────
+
   R.describe("deep_copy()", function()
     R.it("nested table is deep-independent", function()
       local t = { x = { y = 1 } }
@@ -178,6 +180,38 @@ R.describe("core.kernel.util", function()
         return 1
       end
       R.assert_eq(util.deep_copy({ f = fn }).f, fn)
+    end)
+  end)
+
+  -- ── list_extend ────────────────────────────────────────────────────────────
+
+  R.describe("list_extend()", function()
+    R.it("appends src into dst and returns dst", function()
+      local dst = { 1, 2 }
+      local r = util.list_extend(dst, { 3, 4 })
+      R.assert_eq(r, dst)
+      R.assert_eq(#dst, 4)
+      R.assert_eq(dst[3], 3)
+      R.assert_eq(dst[4], 4)
+    end)
+    R.it("nil src is safe", function()
+      local dst = { 1 }
+      util.list_extend(dst, nil)
+      R.assert_eq(#dst, 1)
+    end)
+  end)
+
+  -- ── tbl_isempty ────────────────────────────────────────────────────────────
+
+  R.describe("tbl_isempty()", function()
+    R.it("nil → true", function()
+      R.assert_true(util.tbl_isempty(nil))
+    end)
+    R.it("{} → true", function()
+      R.assert_true(util.tbl_isempty({}))
+    end)
+    R.it("{1} → false", function()
+      R.assert_false(util.tbl_isempty({ 1 }))
     end)
   end)
 end)

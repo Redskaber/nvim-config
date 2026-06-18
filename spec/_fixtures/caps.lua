@@ -1,5 +1,5 @@
 -- spec/_fixtures/caps.lua
--- Shared capability DSL fixtures for ext_caps / cap adapter testing.
+-- Shared capability DSL fixtures for ext_caps / cap adapter tests.
 
 local M = {}
 
@@ -66,7 +66,7 @@ function M.keybind_cap(overrides)
   }, overrides or {})
 end
 
---- All four standard cap buckets (non-empty)
+--- All four standard cap buckets (non-empty).
 function M.all_caps()
   return {
     image = { image = M.image_cap() },
@@ -77,7 +77,7 @@ function M.all_caps()
   }
 end
 
---- Empty cap buckets (baseline)
+--- Empty cap buckets baseline.
 function M.empty_caps()
   return { image = {}, media = {}, ai = {}, keybind = {}, editor = {} }
 end

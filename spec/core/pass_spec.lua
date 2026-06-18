@@ -1,5 +1,5 @@
 -- spec/core/pass_spec.lua
--- core.compiler.pass: Phase interface + protected execution.
+-- core.compiler.pass: Phase interface contract + protected execution pipeline.
 
 local R = require("spec._runner")
 
@@ -8,18 +8,19 @@ R.describe("core.compiler.pass", function()
   local ir_mod = require("core.compiler.ir")
   local F = require("spec._fixtures.ir")
 
-  local function identity_phase()
+  local function identity_phase(name)
     return {
-      name = "identity",
+      name = name or "identity",
       input_state = "idle",
       output_state = "collecting",
-      run = function(ir)
-        return ir_mod.clone(ir)
+      run = function(i)
+        return ir_mod.clone(i)
       end,
     }
   end
 
   -- ── assert_valid ──────────────────────────────────────────────────────────
+
   R.describe("assert_valid()", function()
     R.it("accepts well-formed phase", function()
       pass_mod.assert_valid(identity_phase())
@@ -34,25 +35,42 @@ R.describe("core.compiler.pass", function()
       p.run = nil
       R.assert_false(pcall(pass_mod.assert_valid, p))
     end)
+    R.it("rejects phase without input_state", function()
+      local p = identity_phase()
+      p.input_state = nil
+      R.assert_false(pcall(pass_mod.assert_valid, p))
+    end)
+    R.it("rejects phase without output_state", function()
+      local p = identity_phase()
+      p.output_state = nil
+      R.assert_false(pcall(pass_mod.assert_valid, p))
+    end)
     R.it("rejects non-function validate", function()
       local p = identity_phase()
       p.validate = "bad"
       R.assert_false(pcall(pass_mod.assert_valid, p))
     end)
-    R.it("rejects non-function output_validate", function()
+    R.it("rejects non-function output_validate (P6-D2)", function()
       local p = identity_phase()
-      p.output_validate = "bad"
+      p.output_validate = 42
       R.assert_false(pcall(pass_mod.assert_valid, p))
+    end)
+    R.it("accepts optional output_validate as function", function()
+      local p = identity_phase()
+      p.output_validate = function(_)
+        return {}
+      end
+      pass_mod.assert_valid(p)
     end)
   end)
 
-  -- ── run_phase ─────────────────────────────────────────────────────────────
+  -- ── run_phase() ───────────────────────────────────────────────────────────
+
   R.describe("run_phase()", function()
-    R.it("identity pass returns same IR content", function()
-      local ir = F.ast({ python = {} })
-      local result, errs = pass_mod.run_phase(identity_phase(), ir)
+    R.it("identity pass returns same IR content, no errors", function()
+      local ir, errs = pass_mod.run_phase(identity_phase(), F.ast({ python = {} }))
       R.assert_eq(#errs, 0)
-      R.assert_not_nil(result.caps.python)
+      R.assert_not_nil(ir.caps.python)
     end)
 
     R.it("COW pass adds field without mutating input", function()
@@ -60,17 +78,17 @@ R.describe("core.compiler.pass", function()
         name = "adder",
         input_state = "idle",
         output_state = "collecting",
-        run = function(ir)
-          return ir_mod.with(ir, { resolved = { lsp = {}, tools = {} } })
+        run = function(i)
+          return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } })
         end,
       }
-      local ir = F.ast()
-      local result, _ = pass_mod.run_phase(adder, ir)
+      local input = F.ast()
+      local result = pass_mod.run_phase(adder, input)
       R.assert_not_nil(result.resolved)
-      R.assert_nil(ir.resolved)
+      R.assert_nil(input.resolved)
     end)
 
-    R.it("run error → Diagnostic appended (no crash)", function()
+    R.it("phase run error → Diagnostic appended, no crash", function()
       local broken = {
         name = "broken",
         input_state = "idle",
@@ -79,14 +97,26 @@ R.describe("core.compiler.pass", function()
           error("exploded")
         end,
       }
-      local ir = F.ast()
-      local result, errs = pass_mod.run_phase(broken, ir)
+      local result, errs = pass_mod.run_phase(broken, F.ast())
       R.assert_eq(#errs, 1)
       R.assert_match(errs[1].message, "exploded")
       R.assert_eq(#result.diagnostics, 1)
     end)
 
-    R.it("validate failure blocks run, appends diag", function()
+    R.it("phase returning non-table → Diagnostic appended", function()
+      local bad = {
+        name = "bad_return",
+        input_state = "idle",
+        output_state = "collecting",
+        run = function(_)
+          return "not a table"
+        end,
+      }
+      local _, errs = pass_mod.run_phase(bad, F.ast())
+      R.assert_true(#errs > 0)
+    end)
+
+    R.it("validate failure blocks run(), appends diag", function()
       local ran = false
       local blocked = {
         name = "blocked",
@@ -95,9 +125,9 @@ R.describe("core.compiler.pass", function()
         validate = function(_)
           return { ir_mod.diag("blocked", "pre", "precondition failed") }
         end,
-        run = function(ir)
+        run = function(i)
           ran = true
-          return ir
+          return i
         end,
       }
       local _, errs = pass_mod.run_phase(blocked, F.ast())
@@ -105,20 +135,39 @@ R.describe("core.compiler.pass", function()
       R.assert_eq(#errs, 1)
     end)
 
-    R.it("output_validate failures are non-fatal warn diags (P6-D2)", function()
-      local phase = {
-        name = "test_post",
+    R.it("validate exception → Diagnostic appended, run blocked", function()
+      local ran = false
+      local p = {
+        name = "val_err",
         input_state = "idle",
         output_state = "collecting",
-        run = function(ir)
-          return ir_mod.clone(ir)
+        validate = function(_)
+          error("validate exploded")
+        end,
+        run = function(i)
+          ran = true
+          return i
+        end,
+      }
+      local _, errs = pass_mod.run_phase(p, F.ast())
+      R.assert_false(ran, "run must not execute after validate error")
+      R.assert_true(#errs >= 1)
+    end)
+
+    R.it("output_validate failures are non-fatal warn diags (P6-D2)", function()
+      local phase = {
+        name = "post_val",
+        input_state = "idle",
+        output_state = "collecting",
+        run = function(i)
+          return ir_mod.clone(i)
         end,
         output_validate = function(_)
-          return { ir_mod.diag("test_post", "output", "post failed", "error") }
+          return { ir_mod.diag("post_val", "output", "post failed", "error") }
         end,
       }
       local result, errs = pass_mod.run_phase(phase, ir_mod.new({}, "full"))
-      R.assert_eq(#errs, 0, "output_validate failures must not be phase errors")
+      R.assert_eq(#errs, 0, "output_validate failures must be non-fatal")
       local has_warn = false
       for _, d in ipairs(result.diagnostics) do
         if d.severity == "warn" and (d.message or ""):find("post-condition") then
@@ -126,43 +175,44 @@ R.describe("core.compiler.pass", function()
           break
         end
       end
-      R.assert_true(has_warn)
+      R.assert_true(has_warn, "post-condition failure must appear as warn in diagnostics")
     end)
   end)
 
-  -- ── run_with_ctx ──────────────────────────────────────────────────────────
+  -- ── run_with_ctx() ────────────────────────────────────────────────────────
+
   R.describe("run_with_ctx()", function()
-    R.it("returns updated CompilerContext", function()
+    R.it("returns updated CompilerContext with new ir", function()
       local adder = {
         name = "ctx_adder",
         input_state = "idle",
         output_state = "collecting",
-        run = function(ir)
-          return ir_mod.with(ir, { resolved = { lsp = {}, tools = {} } })
+        run = function(i)
+          return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } })
         end,
       }
-      local ir = F.ast()
-      local ctx = ir_mod.ctx(ir, "idle", "test-key")
+      local ctx = ir_mod.ctx(F.ast(), "idle", "test-key")
       local nctx = pass_mod.run_with_ctx(adder, ctx)
       R.assert_not_nil(nctx.ir.resolved)
       R.assert_eq(nctx.run_id, ctx.run_id)
+      R.assert_eq(nctx.cache_key, "test-key")
     end)
 
-    R.it("timings are recorded per phase", function()
-      local phase = {
+    R.it("records timing for the phase", function()
+      local p = {
         name = "timed",
         input_state = "idle",
         output_state = "collecting",
-        run = function(ir)
-          return ir_mod.clone(ir)
+        run = function(i)
+          return ir_mod.clone(i)
         end,
       }
-      local nctx = pass_mod.run_with_ctx(phase, ir_mod.ctx(F.ast(), "idle", ""))
+      local nctx = pass_mod.run_with_ctx(p, ir_mod.ctx(F.ast(), "idle", ""))
       R.assert_type(nctx.timings["timed"], "number")
       R.assert_true(nctx.timings["timed"] >= 0)
     end)
 
-    R.it("diagnostics from phase are merged into ctx", function()
+    R.it("phase diagnostics merged into ctx.diagnostics", function()
       local failing = {
         name = "ctx_fail",
         input_state = "idle",
