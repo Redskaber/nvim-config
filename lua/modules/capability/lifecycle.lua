@@ -4,6 +4,11 @@
 local M = {}
 
 local util = require("core.kernel.util")
+-- FIX-AUDIT-P1-5 (2026-06-23): migrate to domain.diagnostic for consistent
+-- Diagnostic shape. Old code used inline {severity, message} tables, which
+-- is inconsistent with graph.lua (already migrated per AUDIT §3.2) and lacks
+-- the `code`/`stage`/`node` fields used by downstream consumers.
+local diagnostic = require("core.domain.diagnostic")
 
 ---@enum M.STATES
 M.STATES = {
@@ -52,8 +57,18 @@ end
 ---@param diag? table Optional diagnostic to add if transition fails or is an error state.
 ---@return LifecycleRecord  A new record if transition is valid, or the original if invalid/error.
 function M.transition(rec, next_state, diag)
-  if rec.state == M.STATES.ERROR or rec.state == M.STATES.RUNNING and next_state ~= M.STATES.RUNNING then
-    -- Terminal states cannot transition, except RUNNING to itself
+  -- FIX-AUDIT-P0-4 (2026-06-23): Operator-precedence bug.
+  --   Old: `if A == ERROR or A == RUNNING and B ~= RUNNING then return rec end`
+  --   Lua precedence `and` > `or` parses this as `(A == ERROR) or (A == RUNNING and B ~= RUNNING)`.
+  --   When state=RUNNING and next_state=ERROR, the guard was true, so RUNNING→ERROR
+  --   was wrongly rejected — contradicting the docstring "Any state can transition to ERROR"
+  --   (file header line 25). Running capabilities could never be marked ERROR after a crash.
+  --   Fix: explicitly exempt ERROR as a valid target from RUNNING.
+  if
+    rec.state == M.STATES.ERROR
+    or (rec.state == M.STATES.RUNNING and next_state ~= M.STATES.RUNNING and next_state ~= M.STATES.ERROR)
+  then
+    -- Terminal states cannot transition, except RUNNING to itself or to ERROR
     return rec
   end
 
@@ -82,10 +97,13 @@ function M.transition(rec, next_state, diag)
     end
   else
     -- Illegal transition, record an error and stay in current state or transition to ERROR
-    local error_diag = {
-      severity = "error",
-      message = ("Illegal lifecycle transition for '%s': %s -> %s"):format(rec.id, rec.state, next_state),
-    }
+    -- FIX-AUDIT-P1-5: use domain.diagnostic for consistent shape (code/stage/node/message/severity)
+    local error_diag = diagnostic.new(
+      "lifecycle",
+      rec.id,
+      ("Illegal lifecycle transition for '%s': %s -> %s"):format(rec.id, rec.state, next_state),
+      "error"
+    )
     table.insert(new_rec.diags, error_diag)
     new_rec.state = M.STATES.ERROR
     table.insert(new_rec.history, M.STATES.ERROR)

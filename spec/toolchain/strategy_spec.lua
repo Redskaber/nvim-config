@@ -47,9 +47,21 @@ R.describe("toolchain.rules", function()
       R.assert_eq(r.pkg, "ruff")
     end)
     R.it("clang-format → mapped package", function()
-      local r = rules.resolve("clang-format", {})
-      R.assert_true(r.use_mason)
-      R.assert_eq(r.pkg, "clang-format")
+      local env = require("core.kernel.env")
+      -- FIX-NIX-AWARE (2026-06-23): on NixOS with system clang-format,
+      -- nix_env_rule wins (use_mason=false). Only assert mason mapping
+      -- on non-Nix systems or when clang-format is not on PATH.
+      if env.is_nix and env.has("clang-format") then
+        -- Nix system binary takes precedence — assert system path
+        local r = rules.resolve("clang-format", {})
+        R.assert_false(r.use_mason, "on Nix with system clang-format, use_mason should be false")
+        R.assert_nil(r.pkg, "on Nix with system clang-format, pkg should be nil")
+      else
+        -- Non-Nix or no system clang-format — assert mason mapping
+        local r = rules.resolve("clang-format", {})
+        R.assert_true(r.use_mason)
+        R.assert_eq(r.pkg, "clang-format")
+      end
     end)
   end)
 
@@ -232,7 +244,9 @@ R.describe("toolchain.strategy.builtin", function()
   R.it("bootstrap() accepts a registry-like object", function()
     local registered = {}
     local fake_registry = {
-      register = function(_, s)
+      -- FIX-AUDIT-STRATEGY (2026-06-23): register is called as
+      -- registry.register(strategy) (function call, no self).
+      register = function(s)
         registered[#registered + 1] = s.name
       end,
     }
@@ -243,7 +257,7 @@ R.describe("toolchain.strategy.builtin", function()
   R.it("all built-in strategies have applies() function", function()
     local registered = {}
     builtin.bootstrap({
-      register = function(_, s)
+      register = function(s)
         registered[#registered + 1] = s
       end,
     })

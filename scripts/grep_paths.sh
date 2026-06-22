@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/grep_paths.sh
+# path: scripts/grep_paths.sh
 # 在指定项目目录下搜索文件，输出路径列表供 concat_files.sh 消耗。
 #
 # 用法:

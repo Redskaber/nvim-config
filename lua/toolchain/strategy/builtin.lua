@@ -11,7 +11,6 @@ function M.bootstrap(registry)
   -- ruff_or_black: prefer ruff_format; fall back to isort + black
   registry.register({
     name = "ruff_or_black",
-    -- applies: backward-compat field (interface contract); builtin strategies don't use it internally
     applies = function(tool)
       return tool == "ruff_or_black"
     end,

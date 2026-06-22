@@ -107,6 +107,16 @@ package.loaded["spec._runner"] = runner_or_err
 require("runtime.ports_bootstrap").setup()
 require("runtime.types_bootstrap").setup()
 
+-- FIX-AUDIT-P1-2a (2026-06-23): collect_ext.setup() registers default cap
+-- modules. Without this, cap_spec.lua "registered() >= 5 defaults" test fails.
+-- pipeline.lua does NOT need setup() — it keeps require-time init (orchestrator).
+require("runtime.passes.collect_ext").setup()
+
+-- FIX-DEPLOY-TEST (2026-06-23): also setup cap_registry and adapter_registry
+-- so cap_resolve tests can find registered adapters.
+require("runtime.adapters.registry").setup()
+require("runtime.adapters.cap_registry").setup()
+
 -- ── 5. Spec catalogue ────────────────────────────────────────────────────────
 -- Tags: unit | integration | slow | core | modules | runtime | toolchain
 

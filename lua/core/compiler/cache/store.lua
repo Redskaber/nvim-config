@@ -57,18 +57,36 @@ end
 ---@param data table
 ---@return boolean
 ---@return string|nil
+-- FIX-AUDIT-P1-3 (2026-06-23): atomic write via temp file + rename.
+-- Old code wrote directly to path — if nvim crashed mid-write, the cache
+-- file was truncated/corrupted, causing JSON decode failures on next load.
+-- New flow: write to path..".tmp", close, then os.rename (atomic on POSIX).
+-- On crash, only the .tmp file is orphaned; original cache stays intact.
 function M.write(path, data)
   ensure_dir()
   local ok, encoded = pcall(ports.json_encode, data)
   if not ok then
     return false, "JSON encode error: " .. tostring(encoded)
   end
-  local f = io.open(path, "w")
+  local tmp_path = path .. ".tmp"
+  local f = io.open(tmp_path, "w")
   if not f then
-    return false, "cannot open for write: " .. path
+    return false, "cannot open for write: " .. tmp_path
   end
-  f:write(encoded)
+  local write_ok, write_err = f:write(encoded)
   f:close()
+  if not write_ok then
+    -- Clean up orphaned tmp file
+    os.remove(tmp_path)
+    return false, "write failed: " .. tostring(write_err)
+  end
+  -- os.rename is atomic on POSIX (rename(2)); on Windows it may fail if
+  -- destination exists, but we already overwrote via "w" above so tmp is fresh.
+  local rename_ok, rename_err = os.rename(tmp_path, path)
+  if not rename_ok then
+    os.remove(tmp_path)
+    return false, "rename failed: " .. tostring(rename_err)
+  end
   return true, nil
 end
 

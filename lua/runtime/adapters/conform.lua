@@ -24,6 +24,11 @@ function M.build(ir)
           if type(v) == "string" then
             formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = v
           elseif type(v) == "table" and v.kind == "formatter" then
+            -- FIX-DEPLOY-CONFORM (2026-06-23): conform new version rejects
+            -- nested {} syntax. Only output valid formatter formats:
+            --   - string: "ruff"
+            --   - table with name+fn: { name = "x", fn = <closure> } (custom formatter)
+            -- Skip _ltos_warn/_ltos_error markers entirely (they would crash conform).
             if v.fn then
               formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = {
                 name = v.name or v.strategy or "ltos_dynamic",
@@ -31,15 +36,10 @@ function M.build(ir)
               }
             elseif v.name then
               formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = v.name
-            else
-              -- strategy present but fn not injected: normalize pass didn't run or unknown strategy
-              -- emit a _ltos_warn marker so emitter can surface it; do not silently drop
-              formatters_by_ft[ft][#formatters_by_ft[ft] + 1] = {
-                _ltos_warn = ("[ltos:conform] FormatterNode missing fn — strategy=%s not resolved"):format(
-                  tostring(v.strategy)
-                ),
-              }
             end
+            -- If neither fn nor name: silently skip (normalize pass issue).
+            -- Do NOT emit _ltos_warn marker into formatters_by_ft — conform
+            -- would try to parse it as a formatter spec and crash.
           end
         end
       end

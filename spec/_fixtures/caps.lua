@@ -23,7 +23,7 @@ function M.media_cap(overrides)
     version = 1,
     viewers = {
       { kind = "pdf", plugin = "pdf-view.nvim", filetypes = { "pdf" } },
-      { kind = "image", plugin = "nvim-image.lua", filetypes = { "png", "jpg" } },
+      { kind = "image", plugin = "3rd/image.nvim", filetypes = { "png", "jpg" } },
     },
     mason = {},
   }, overrides or {})

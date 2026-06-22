@@ -7,8 +7,11 @@ return {
   version = 1,
   -- Placeholder fields based on AUDIT.md
   viewers = {
-    { kind = "image", plugin = "nvim-image.lua", filetypes = { "png", "jpg" } },
-    { kind = "video", plugin = "some-video-plugin", filetypes = { "mp4", "mkv" } },
+    -- FIX-DEPLOY-1 (2026-06-23): replaced fake "nvim-image.lua" with real
+    -- "3rd/image.nvim" (the canonical neovim image plugin).
+    { kind = "image", plugin = "3rd/image.nvim", filetypes = { "png", "jpg" } },
+    -- FIX-DEPLOY-1: removed fake "some-video-plugin" — no quality neovim video
+    -- plugin exists. Users who need video support can add their own cap module.
   },
   mason = {},
 }

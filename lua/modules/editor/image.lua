@@ -6,9 +6,12 @@ return {
   cap_type = "image",
   version = 1,
   -- Placeholder fields based on AUDIT.md
-  plugins = {
-    { name = "some-editor-image-plugin", opts = {} },
-  },
+  -- FIX-DEPLOY-2 (2026-06-23): removed fake "some-editor-image-plugin".
+    -- The image adapter (runtime/adapters/image.lua) automatically outputs
+    -- 3rd/image.nvim as the default image plugin when no explicit plugins
+    -- are declared. This cap module only configures editor-specific image
+    -- behavior (drawio/plantuml filetypes, kitty/sixel backends).
+    plugins = {},
   backends = { "kitty", "sixel" },
   backend = "kitty",
   filetypes = { "drawio", "plantuml" },

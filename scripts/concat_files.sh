@@ -1,5 +1,5 @@
 #!/run/current-system/sw/bin/bash
-
+# path: scripts/concat_files.sh
 # 用法: ./concat_files.sh <path_list_file> <output_file>
 # 示例: ./concat_files.sh paths.txt terminal.txt
 

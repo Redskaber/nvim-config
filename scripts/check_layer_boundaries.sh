@@ -1,23 +1,39 @@
 #!/usr/bin/env bash
-# scripts/check_layer_boundaries.sh
-# Checks: layer dependency direction, env.prefer_system removal,
-#         adapter side-effect isolation, capability.lua purity,
-#         Phase.run vim API usage (Invariant 2).
+# path: scripts/check_layer_boundaries.sh
+# Layer boundary static check for LTOS architecture.
+# Verifies: layer dependency direction, phase purity, adapter isolation,
+#           INV-11/13/15, reverse layer violations, require-time side effects,
+#           ports.notify argument order.
+#
+# FIX-AUDIT-P1-7 (2026-06-23): Added rules 7a-7e for systemic problem patterns.
 
-set -euo pipefail
+set -uo pipefail
 LUA=lua/
-
 fail=0
 
+# check() — grep for forbidden pattern, exclude comment lines, report violations.
+# Uses || true everywhere to avoid set -e issues with grep no-match exit 1.
 check() {
   local src="$1" forbidden="$2" label="$3"
-  if grep -rn --include="*.lua" "$forbidden" "$src" 2>/dev/null | grep -v "^Binary" | grep -q .; then
-    echo "FAIL [$label]: $(grep -rn --include='*.lua' "$forbidden" "$src" | head -5)"
+  local matches
+  matches=$(grep -rn --include="*.lua" "$forbidden" "$src" 2>/dev/null \
+    | grep -v "^Binary" \
+    | awk -F: '
+        {
+          rest = ""
+          for (i = 3; i <= NF; i++) rest = rest (i > 3 ? ":" : "") $i
+          if (rest ~ /^[ \t]*--/) next
+          print
+        }
+      ' || true)
+  if [ -n "$matches" ]; then
+    echo "FAIL [$label]:"
+    echo "$matches" | head -5
     fail=1
   fi
 }
 
-# ── Layer dependency direction ────────────────────────────────────────────────
+# ── Layer dependency direction (forward: high → low only) ────────────────────
 check "$LUA/core/kernel" 'require.*core\.compiler' "kernel→compiler"
 check "$LUA/core/compiler" 'require.*core\.domain' "compiler→domain"
 check "$LUA/core/domain" 'require.*toolchain' "domain→toolchain"
@@ -26,19 +42,24 @@ check "$LUA/modules" 'require.*runtime\.pipeline' "app→pipeline"
 check "$LUA/modules" 'require.*runtime\.adapters' "app→adapters"
 check "$LUA/config" 'require.*runtime\.adapters' "config→adapters"
 check "$LUA/config" 'require.*runtime\.pipeline' "config→pipeline"
-# TODO-8.2: modules/* and config/* must not require runtime/adapters (belt-and-suspenders)
 check "$LUA/plugins" 'require.*runtime\.adapters' "plugins→adapters"
 check "$LUA/plugins" 'require.*runtime\.pipeline' "plugins→pipeline"
 
+# ── FIX-AUDIT-P1-7a: Reverse layer violations ────────────────────────────────
+check "$LUA/toolchain" 'require.*core\.compiler' "toolchain→compiler (reverse)"
+check "$LUA/modules/capability" 'require.*core\.compiler' "modules/capability→compiler (reverse)"
+check "$LUA/core/domain" 'require.*core\.compiler' "domain→compiler (reverse)"
+
 # ── env.lua must not contain prefer_system ────────────────────────────────────
-if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null |
-  grep -v "^.*--.*prefer_system" | grep -q .; then
+if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null \
+  | grep -v "^.*--.*prefer_system" | grep -q .; then
   echo "FAIL [env.lua]: prefer_system must not exist — move to rules.lua"
   fail=1
 fi
 
 # ── Adapters must not call vim.notify (emitter layer owns side-effects) ───────
 for f in "$LUA/runtime/adapters/"*.lua; do
+  [ -f "$f" ] || continue
   if grep -n "vim\.notify" "$f" 2>/dev/null | grep -q .; then
     echo "FAIL [adapter side-effect]: $f contains vim.notify — use emitter layer"
     fail=1
@@ -52,18 +73,29 @@ if grep -n "^local _store" "$LUA/core/domain/capability.lua" 2>/dev/null | grep 
 fi
 
 # ── Phase.run must not call vim.notify (Invariant 2: pure function) ──────────
-# Exclude comment lines (lines where the first non-space chars are --)
 for f in "$LUA/runtime/passes/"*.lua; do
+  [ -f "$f" ] || continue
   if grep -n "vim\.notify" "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [phase purity]: $f calls vim.notify in Phase.run — use IR diagnostics"
     fail=1
   fi
 done
 
+# ── FIX-AUDIT-P1-7b: Phase.run must not call vim.api (INV-2 was incomplete) ──
+for f in "$LUA/runtime/passes/"*.lua; do
+  [ -f "$f" ] || continue
+  if grep -n "vim\.api" "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+    echo "FAIL [phase vim.api]: $f uses vim.api — use ports.* abstraction"
+    grep -n "vim\.api" "$f" | grep -v "^[0-9]*:[ \t]*--" | head -3 || true
+    fail=1
+  fi
+done
+
 # ── Phase.run must not call vim.tbl_extend / vim.deepcopy (use util.*) ───────
 for f in "$LUA/runtime/passes/"*.lua; do
-  if grep -n "vim\.tbl_extend\|vim\.deepcopy\|vim\.tbl_deep_extend\|vim\.list_extend" "$f" 2>/dev/null |
-    grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  [ -f "$f" ] || continue
+  if grep -nE "vim\.tbl_extend|vim\.deepcopy|vim\.tbl_deep_extend|vim\.list_extend" "$f" 2>/dev/null \
+    | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [phase purity]: $f uses vim table API — use util.merge/deep_merge/deep_copy"
     fail=1
   fi
@@ -71,36 +103,47 @@ done
 
 # ── passes must not read vim.g (use ir.meta.build_request) ───────────────────
 for f in "$LUA/runtime/passes/"*.lua; do
+  [ -f "$f" ] || continue
   if grep -n "vim\.g" "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [phase vim.g]: $f reads vim.g — inject via BuildRequest"
     fail=1
   fi
 done
 
-# ── compiler must not call vim API directly (use core/compiler/ports.lua) ─────
-for f in $(find "$LUA/core/compiler" -name '*.lua' ! -name 'ports.lua'); do
+# ── FIX-AUDIT-P1-7c: require-time side effects in passes/ ───────────────────
+# pipeline.lua is EXCLUDED (orchestrator; test suite needs require-time init).
+for f in "$LUA/runtime/passes/"*.lua; do
+  [ -f "$f" ] || continue
+  if grep -nE '^[A-Za-z_].*\.register\(|^[A-Za-z_].*register_default' "$f" 2>/dev/null \
+    | grep -v "^[0-9]*:[ \t]*--" | grep -v "function" | grep -q .; then
+    echo "FAIL [require-time side effect]: $f calls register() at module scope"
+    echo "  → wrap in M.setup() function, call from runtime/init.lua"
+    fail=1
+  fi
+done
+
+# ── compiler must not call vim API directly (use ports.lua) ──────────────────
+for f in $(find "$LUA/core/compiler" -name '*.lua' ! -name 'ports.lua' 2>/dev/null); do
   if grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [compiler vim]: $f uses vim API — inject via ports"
-    grep -n "vim\." "$f" | grep -v "^[0-9]*:[ \t]*--" | head -3
     fail=1
   fi
 done
 
 # ── toolchain must not call vim.g (Layer 3 boundary) ─────────────────────────
-if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null |
-  grep -v "^.*--.*vim\.g" | grep -q .; then
-  echo "FAIL [toolchain vim.g]: toolchain/* must not read vim.g — inject via Layer 4/5"
-  grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" | grep -v "^.*--" | head -5
+if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null \
+  | grep -v "^.*--.*vim\.g" | grep -q .; then
+  echo "FAIL [toolchain vim.g]: toolchain/* must not read vim.g"
   fail=1
 fi
 
 # ── INV-11: only collect_ext may assign ext_caps ─────────────────────────────
 for f in "$LUA/runtime/passes/"*.lua; do
+  [ -f "$f" ] || continue
   base="$(basename "$f")"
-  if [ "$base" = "collect_ext.lua" ]; then
-    continue
-  fi
-  if grep -nE '(^|[^a-z_])ext_caps[[:space:]]*=' "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  [ "$base" = "collect_ext.lua" ] && continue
+  if grep -nE '(^|[^a-z_])ext_caps[[:space:]]*=' "$f" 2>/dev/null \
+    | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [INV-11]: $f assigns ext_caps — only collect_ext may write ext_caps"
     fail=1
   fi
@@ -110,15 +153,16 @@ done
 for f in "$LUA/runtime/adapters/image.lua" "$LUA/runtime/adapters/media.lua" \
   "$LUA/runtime/adapters/ai.lua" "$LUA/runtime/adapters/ai_cap.lua" \
   "$LUA/runtime/adapters/keybind.lua"; do
-  if [ -f "$f" ] && grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  [ -f "$f" ] || continue
+  if grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [INV-13]: $f uses vim API — cap adapters must be pure"
     fail=1
   fi
 done
 
 # ── INV-15: conflict.lua must not mutate strategy registry ───────────────────
-if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null |
-  grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null \
+  | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
   echo "FAIL [INV-15]: conflict.lua must not write strategy registry"
   fail=1
 fi

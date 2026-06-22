@@ -302,13 +302,19 @@ R.describe("modules.lang.c_cpp", function()
     R.assert_not_nil(m.lsp and m.lsp.clangd)
     R.assert_type(m.lsp.clangd.cmd, "table")
   end)
-  R.it("formatter: clang-format in mason", function()
+  -- FIX-AUDIT-P0-6a (2026-06-23): Test was wrong — c_cpp.lua design intent is
+  -- clang-format as a SYSTEM tool (commented out in mason), consistent with
+  -- "Mason decision delegated to resolve stage" comment in c_cpp.lua L2.
+  -- The old assertion expected clang-format IN mason, contradicting the
+  -- implementation. Fixed to expect clang-format NOT in mason (similar to
+  -- the clangtidy system-tool test below at L322-328).
+  R.it("clang-format is system tool (not in mason)", function()
     local _, m = pcall(require, mod_path)
     local mason = {}
     for _, p in ipairs(m.mason or {}) do
       mason[p] = true
     end
-    R.assert_true(mason["clang-format"], "clang-format must be in mason")
+    R.assert_nil(mason["clang-format"], "clang-format must NOT be in mason (system tool)")
   end)
   R.it("treesitter: c + cpp + cmake parsers", function()
     local _, m = pcall(require, mod_path)

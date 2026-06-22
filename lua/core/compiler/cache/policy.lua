@@ -16,14 +16,24 @@ function M.mark_uncacheable(t)
   return setmetatable(t, UNCACHEABLE_MT)
 end
 
----@param v any
----@return boolean
-local function is_cacheable(v)
+-- FIX-AUDIT-P1-4 (2026-06-23): added visited set for cycle detection.
+-- Old code recursed without tracking visited tables — infinite loop on
+-- self-referential tables (e.g., metatable with __index = self, or cyclic
+-- data structures). New version passes a visited set as 2nd arg (internal).
+-- Public API M.is_cacheable(v) wraps with a fresh visited set per call.
+local function is_cacheable_inner(v, visited)
   local t = type(v)
   if t == "function" then
     return false
   end
   if t == "table" then
+    -- Cycle detection: if we've seen this table before, treat as cacheable
+    -- (we're in a cycle; if any member were uncacheable we'd have returned false already)
+    if visited[v] then
+      return true
+    end
+    visited[v] = true
+
     local mt = getmetatable(v)
     if mt and mt.__ltos_cacheable == false then
       return false
@@ -32,12 +42,18 @@ local function is_cacheable(v)
       return false
     end
     for _, child in pairs(v) do
-      if not is_cacheable(child) then
+      if not is_cacheable_inner(child, visited) then
         return false
       end
     end
   end
   return true
+end
+
+---@param v any
+---@return boolean
+local function is_cacheable(v)
+  return is_cacheable_inner(v, {})
 end
 
 M.is_cacheable = is_cacheable

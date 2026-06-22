@@ -2,31 +2,38 @@
 -- adapter: copilot
 -- AI coding assistant: codecompanion.nvim
 
+-- FIX-AUDIT-P0-2 (2026-06-23): LIVE plugin specs commented out per AUDIT.md §3.9
+-- promise ("plugins/ai/ai.lua 中所有插件声明被注释，成为占位符"). Previously this file
+-- shipped copilot.vim + codecompanion.nvim as LIVE specs, duplicating
+-- modules/ai/copilot.lua DSL declarations with INCONSISTENT fields (dependencies /
+-- keys format / cmd list). lazy.nvim merge behavior was order-dependent.
+-- The canonical AI capability declaration now lives in modules/ai/copilot.lua
+-- (cap_type="ai"), driven through runtime/adapters/ai_cap.lua via cap_resolve.
 return {
-  {
-    "github/copilot.vim",
-    cmd = "Copilot",
-  },
-  {
-    "olimorris/codecompanion.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-treesitter/nvim-treesitter",
-    },
-    cmd = {
-      "CodeCompanion",
-      "CodeCompanionChat",
-      "CodeCompanionActions",
-    },
-    keys = {
-      { "<leader>ai", "<cmd>CodeCompanionChat Toggle<cr>", desc = "AI: toggle chat" },
-      { "<leader>aa", "<cmd>CodeCompanionActions<cr>", desc = "AI: actions", mode = { "n", "v" } },
-      { "<leader>ac", "<cmd>CodeCompanion<cr>", desc = "AI: inline", mode = { "n", "v" } },
-    },
-    opts = {
-      log_level = "ERROR",
-    },
-  },
+  -- {
+  --   "github/copilot.vim",
+  --   cmd = "Copilot",
+  -- },
+  -- {
+  --   "olimorris/codecompanion.nvim",
+  --   dependencies = {
+  --     "nvim-lua/plenary.nvim",
+  --     "nvim-treesitter/nvim-treesitter",
+  --   },
+  --   cmd = {
+  --     "CodeCompanion",
+  --     "CodeCompanionChat",
+  --     "CodeCompanionActions",
+  --   },
+  --   keys = {
+  --     { "<leader>ai", "<cmd>CodeCompanionChat Toggle<cr>", desc = "AI: toggle chat" },
+  --     { "<leader>aa", "<cmd>CodeCompanionActions<cr>", desc = "AI: actions", mode = { "n", "v" } },
+  --     { "<leader>ac", "<cmd>CodeCompanion<cr>", desc = "AI: inline", mode = { "n", "v" } },
+  --   },
+  --   opts = {
+  --     log_level = "ERROR",
+  --   },
+  -- },
   --
   -- {
   --   "yetone/avante.nvim",

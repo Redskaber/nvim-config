@@ -14,6 +14,12 @@
 local ir_mod = require("core.compiler.ir")
 local cap_mod = require("core.domain.capability")
 local util = require("core.kernel.util")
+-- FIX-AUDIT-P1-1 (2026-06-23): use ports abstraction for file resolution.
+-- Old code called vim.api.nvim_get_runtime_file directly, violating INV-2
+-- (Phase purity — passes must not call vim API) and INV-10 (compiler/passes
+-- host IO must go through ports). Consistent with collect_ext.lua:33 which
+-- already uses ports.resolve_runtime_file.
+local ports = require("core.compiler.ports")
 
 ---@type Phase
 local collect_pass = {
@@ -69,8 +75,11 @@ local collect_pass = {
         diags[#diags + 1] = ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
       else
         local name = mod:match("([^.]+)$") or mod
-        -- Compute per-module content hash for incremental tracking
-        local path = vim.api.nvim_get_runtime_file(mod:gsub("%.", "/") .. ".lua", false)[1]
+        -- FIX-AUDIT-P1-1: use ports.resolve_runtime_file (returns string|nil)
+        -- instead of vim.api.nvim_get_runtime_file(...)[1] (violates INV-2/INV-10).
+        -- ports.resolve_runtime_file returns the first match or nil, equivalent
+        -- to the old [1] indexing but with no vim API call in pass hot path.
+        local path = ports.resolve_runtime_file(mod:gsub("%.", "/") .. ".lua")
         if path then
           module_hashes[mod] = util.file_content_hash(path) or "?"
         end

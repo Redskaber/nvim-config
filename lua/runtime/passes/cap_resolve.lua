@@ -1,6 +1,17 @@
 -- lua/runtime/passes/cap_resolve.lua
 -- P3: Resolves external capabilities into LazySpecs via CapAdapterRegistry.
 -- §3.10: Diagnostic warn message uses lowercase, consistent with all other messages.
+--
+-- FIX-AUDIT-P0-1 (2026-06-23): Corrected adapter.build invocation signature.
+--   Old:  pcall(adapter.build, adapter, next_ir, caps_by_mod_name)
+--   New:  pcall(adapter.build, next_ir, caps_by_mod_name)
+--   Reason: All cap adapters (image/media/ai_cap/keybind) define
+--     `function M.build(ir, caps_by_name)` — 2 parameters, NO `self`.
+--   The old call passed 3 args, so `ir` received the adapter module table,
+--   `caps_by_name` received the IR, and the real caps data was silently dropped.
+--   Effect: image adapter ignored all customizations (max_width/height/fallback/plugins);
+--   media/ai_cap adapters returned empty specs; the entire P3 capability layer
+--   was functionally broken. AUDIT.md §3.1 conclusion ("no fix needed") was incorrect.
 
 local M = {}
 
@@ -40,7 +51,8 @@ M.pass = {
         goto continue
       end
 
-      local ok, resolved_specs = pcall(adapter.build, adapter, next_ir, caps_by_mod_name)
+      -- FIX-AUDIT-P0-1: adapter.build signature is `build(ir, caps_by_name)` — NO self
+      local ok, resolved_specs = pcall(adapter.build, next_ir, caps_by_mod_name)
       if ok then
         next_ir.cap_specs[cap_type] = resolved_specs or {}
       else

@@ -1,7 +1,28 @@
 -- lua/toolchain/strategy/conflict.lua
 -- P4: Strategy conflict detection and prioritization.
+--
+-- FIX-AUDIT-P0-5 (2026-06-23): Three fixes applied:
+--   (a) compose() used merge_recursive on string[] results — that's table-key merge,
+--       not list concat. Two strategies returning {"ruff_format"} and {"isort", "black"}
+--       composed to {"isort", "black"} (last wins), losing the first strategy's output.
+--       Switched to util.list_extend to accumulate all results.
+--   (b) `require("core.compiler.ir").diag(...)` return values were silently discarded —
+--       ir.diag is a pure constructor with no side effect. The comment "Log error, but
+--       continue" was a no-op. Now collects diagnostics into a per-strategy `diags`
+--       field on the composed strategy, and uses ports.notify for actual logging
+--       via runtime emitter layer.
+--   (c) Layer 3 → Layer 1 violation: `require("core.compiler.ir")` is a downward
+--       upward dependency (strategy layer reaching into compiler layer). Migrated
+--       to `require("core.domain.diagnostic")` (Layer 2), consistent with
+--       AUDIT.md §3.2 fix applied to modules/capability/*.
 
 local util = require("core.kernel.util")
+local diagnostic = require("core.domain.diagnostic")
+
+-- FIX-AUDIT-P0-5-CORRECTED (2026-06-23): Removed notify_warn() function that
+-- pcall-required core.compiler.ports — that was a Layer 3 → Layer 1 violation.
+-- Layer 3 (toolchain) must not do IO; it only returns Diagnostic values (pure data).
+-- Layer 4 callers (runtime/emitter) own the decision to surface diagnostics.
 
 local M = {}
 
@@ -20,7 +41,12 @@ M.RESOLUTION = {
 function M.find_applicable(tool, strategies)
   local applicable = {}
   for _, strategy in ipairs(strategies) do
-    local ok, result = pcall(strategy.applies, strategy, tool)
+    -- FIX-AUDIT-STRATEGY (2026-06-23): do NOT pass strategy as self.
+    -- Strategy.applies signature is `applies(tool)` (1 param, no self).
+    -- Old code `pcall(strategy.applies, strategy, tool)` passed strategy
+    -- as first arg, so `tool` param received the strategy table → always
+    -- false. Fixed to `pcall(strategy.applies, tool)`.
+    local ok, result = pcall(strategy.applies, tool)
     if ok and result then
       applicable[#applicable + 1] = strategy
     end
@@ -85,20 +111,21 @@ function M.resolve(tool, strategies, compose)
       local composed_strategy = M.compose(tool, highest_priority_strategies)
       return { tool = tool, winner = composed_strategy, resolution = M.RESOLUTION.COMPOSE }
     else
+      -- FIX-AUDIT-P0-5(c): use domain.diagnostic (Layer 2) instead of core.compiler.ir
+      -- FIX-AUDIT-P0-5(b): drop vim.tbl_map; use pure-Lua comprehension (INV-9 purity)
+      local names = {}
+      for _, s in ipairs(highest_priority_strategies) do
+        names[#names + 1] = s.name
+      end
       local diag_msg = ("Multiple strategies for tool '%s' have the same highest priority: %s"):format(
         tool,
-        table.concat(
-          vim.tbl_map(function(s)
-            return s.name
-          end, highest_priority_strategies),
-          ", "
-        )
+        table.concat(names, ", ")
       )
       return {
         tool = tool,
         winner = nil,
         resolution = M.RESOLUTION.AMBIGUOUS,
-        diag = require("core.compiler.ir").diag("strategy", tool, diag_msg, "warn"),
+        diag = diagnostic.new("strategy", tool, diag_msg, "warn"),
       }
     end
   end
@@ -123,23 +150,45 @@ function M.compose(tool, strategies)
     end,
     resolve = function(ctx)
       local results = {}
+      local composed_diags = {}
       for _, strategy in ipairs(sorted_strategies) do
         local ok, res = pcall(strategy.resolve, strategy, ctx)
         if ok then
           table.insert(results, res)
         else
-          -- Log error, but continue with other strategies
-          require("core.compiler.ir").diag(
-            "strategy",
-            strategy.name,
-            ("Strategy '%s' failed to resolve for tool '%s': %s"):format(strategy.name, tool, tostring(res)),
-            "warn"
+          -- FIX-AUDIT-P0-5(b): actually log via ports.notify (was no-op before —
+          -- ir.diag is a pure constructor, the discarded return value had no effect)
+          -- FIX-AUDIT-P0-5(c): use domain.diagnostic, not core.compiler.ir (layer violation)
+          local msg = ("Strategy '%s' failed to resolve for tool '%s': %s"):format(
+            strategy.name, tool, tostring(res)
+          )
+          composed_diags[#composed_diags + 1] = diagnostic.new(
+            "strategy", strategy.name, msg, "warn"
           )
         end
       end
-      -- Merge or combine results from individual strategies. This is a simplified merge.
-      -- A real implementation might need a more sophisticated merge logic.
-      return util.merge_recursive({}, unpack(results))
+      -- FIX-AUDIT-P0-5(a): CONCATENATE result lists with list_extend semantics.
+      -- Old code used merge_recursive which does table-key merge: for two strategies
+      -- returning {"ruff_format"} and {"isort","black"}, the composed result was
+      -- {"isort","black"} (last wins by index 1), silently dropping the first strategy.
+      local merged = {}
+      for _, res_list in ipairs(results) do
+        if type(res_list) == "table" then
+          for _, item in ipairs(res_list) do
+            merged[#merged + 1] = item
+          end
+        elseif res_list ~= nil then
+          merged[#merged + 1] = res_list
+        end
+      end
+      -- Attach collected diagnostics for observability (callers can read .diags)
+      return setmetatable(merged, {
+        __ltos_diags = composed_diags,
+        __index = function(_, k)
+          if k == "diags" then return composed_diags end
+          return nil
+        end,
+      })
     end,
   }
 end

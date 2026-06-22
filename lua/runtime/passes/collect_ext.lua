@@ -149,7 +149,21 @@ M.pass = {
   end,
 }
 
+-- FIX-AUDIT-P1-2a (2026-06-23, CORRECTED 2026-06-23):
+-- Moved require-time side effect into setup(). Unlike pipeline.lua (which
+-- stays at require-time for orchestrator reasons), collect_ext.lua is a
+-- pluggable pass module and should follow P6-C2 pattern.
+-- NOTE: _setup_done flag was REMOVED because collect_ext.register() REPLACES
+-- the module list (not appends), so setup() is naturally idempotent.
+-- This also handles test scenarios where register() is called to override
+-- defaults, then setup() needs to restore them.
 local cap_defaults = require("runtime.defaults.caps")
-M.register(cap_defaults.modules)
+
+--- Re-register default cap modules. Safe to call multiple times (register() replaces).
+---@return boolean always true
+function M.setup()
+  M.register(cap_defaults.modules)
+  return true
+end
 
 return M

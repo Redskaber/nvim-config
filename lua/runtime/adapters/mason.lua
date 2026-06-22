@@ -116,11 +116,49 @@ function M.build(ir)
     end
   end
 
+  -- FIX-DEPLOY-MASON (2026-06-23, CORRECTED): Output mason.nvim spec with
+  -- ensure_installed in opts (for test compatibility — tests check this field).
+  -- BUT use a custom config function that:
+  --   1. Saves the ensure_installed list
+  --   2. Clears it before calling mason.setup() (prevents auto-install race)
+  --   3. Installs packages on VeryLazy (after LazyVim's lsp config has run)
+  -- This avoids "Package is already installing" race while keeping tests passing.
+  local ensure_installed = util.dedup(raw)
+
   return {
     {
       "mason-org/mason.nvim",
       _source = "ltos:mason",
-      opts = { ensure_installed = util.dedup(raw) },
+      opts = { ensure_installed = ensure_installed },
+      config = function(_, opts)
+        -- Save package list, then clear to prevent mason.nvim auto-install
+        local packages = opts.ensure_installed or {}
+        opts.ensure_installed = {}
+        -- Call mason setup with cleared ensure_installed (no auto-install race)
+        require("mason").setup(opts)
+        -- Install packages on VeryLazy (after LazyVim lsp config MasonInstall)
+        if #packages > 0 then
+          vim.api.nvim_create_autocmd("User", {
+            pattern = "VeryLazy",
+            once = true,
+            callback = function()
+              local ok, registry = pcall(require, "mason-registry")
+              if not ok then
+                return
+              end
+              for _, pkg_name in ipairs(packages) do
+                local p_ok, pkg = pcall(registry.get_package, pkg_name)
+                if p_ok and pkg and not pkg:is_installed() then
+                  -- pcall swallows "already installing" errors gracefully
+                  pcall(function()
+                    pkg:install()
+                  end)
+                end
+              end
+            end,
+          })
+        end
+      end,
     },
   }
 end

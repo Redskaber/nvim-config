@@ -82,7 +82,7 @@ local function validate_image(mod_name, cap, diags)
   -- validate backends list
   if cap.backends then
     if type(cap.backends) ~= "table" then
-      err(diags, mod_name .. ".backends", (path_prefix .. ": 'backends' must be a list"))
+      err(diags, mod_name .. ".backends", (path_prefix .. ": expected list for 'backends'"))
     else
       for i, b in ipairs(cap.backends) do
         if type(b) ~= "string" then
@@ -113,7 +113,7 @@ local function validate_image(mod_name, cap, diags)
           err(
             diags,
             ("%s.filetypes[%d]"):format(mod_name, i),
-            (path_prefix .. ": filetypes entry must be a string, got %s"):format(type(ft))
+            (path_prefix .. ": expected string in filetypes, got " .. type(ft))
           )
         end
       end
@@ -147,7 +147,7 @@ local function validate_media(mod_name, cap, diags)
   local path_prefix = ("media capability for '%s'"):format(mod_name)
 
   if not cap.viewers or type(cap.viewers) ~= "table" then
-    err(diags, mod_name .. ".viewers", (path_prefix .. ": missing 'viewers' — expected a list"))
+    err(diags, mod_name .. ".viewers", (path_prefix .. ": expected list for 'viewers'"))
     return
   end
 
@@ -197,7 +197,7 @@ local function validate_ai(mod_name, cap, diags)
   -- completion
   if cap.completion ~= nil then
     if type(cap.completion) ~= "table" then
-      err(diags, mod_name .. ".completion", (path_prefix .. ": 'completion' must be a table"))
+      err(diags, mod_name .. ".completion", (path_prefix .. ": expected table for 'completion'"))
     else
       if cap.completion.provider and not KNOWN_AI_PROVIDERS[cap.completion.provider] then
         warn(
@@ -269,7 +269,7 @@ local function validate_keybind(mod_name, cap, diags)
   -- groups validation
   if cap.groups ~= nil then
     if type(cap.groups) ~= "table" then
-      err(diags, mod_name .. ".groups", (path_prefix .. ": 'groups' must be a list"))
+      err(diags, mod_name .. ".groups", (path_prefix .. ": expected list for 'groups'"))
     else
       for i, g in ipairs(cap.groups) do
         local gpath = ("%s.groups[%d]"):format(mod_name, i)

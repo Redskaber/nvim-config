@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/run_ltos_tests.sh
+# path: scripts/run_ltos_tests.sh
 # LTOS unified test runner shell entry point.
 #
 # Usage:

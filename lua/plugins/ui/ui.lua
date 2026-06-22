@@ -225,6 +225,9 @@ return {
     ---@type snacks.Config
     opts = {
       bigfile = { enabled = true },
+      -- FIX-DEPLOY-EXPLORER (2026-06-23): enabled Snacks explorer.
+      -- This is the primary file explorer (vim.g.lazyvim_file_explorer = "snacks").
+      -- <leader>e (root dir) and <leader>E (cwd) keymaps defined in keys below.
       explorer = { enabled = true },
       indent = { enabled = true },
       input = { enabled = true },
@@ -274,7 +277,12 @@ return {
       { "<leader>,",       function() Snacks.picker.buffers()         end, desc = "Buffers" },
       { "<leader>/",       function() Snacks.picker.grep()            end, desc = "Grep" },
       { "<leader>:",       function() Snacks.picker.command_history()  end, desc = "Command history" },
-      { "<leader>e",       function() Snacks.explorer()               end, desc = "File explorer" },
+      -- FIX-DEPLOY-EXPLORER (2026-06-23): Snacks explorer keymaps.
+      -- <leader>e  → Snacks.explorer (root dir — LazyVim detects git root)
+      -- <leader>E  → Snacks.explorer (cwd — explicit current working dir)
+      -- <leader>fe → Snacks.picker.files (find files, not explorer)
+      { "<leader>e",  function() Snacks.explorer()                              end, desc = "Explorer (Root Dir)" },
+      { "<leader>E",  function() Snacks.explorer({ cwd = vim.fn.getcwd() })    end, desc = "Explorer (cwd)" },
       -- find
       { "<leader>fb",      function() Snacks.picker.buffers()         end, desc = "Buffers" },
       { "<leader>fc",      function() Snacks.picker.files({ cwd = vim.fn.stdpath("config") }) end, desc = "Find config file" },
@@ -376,6 +384,10 @@ return {
           else
             vim.print = _G.dd
           end
+
+          -- FIX-DEPLOY-UI (2026-06-23): register Snacks.picker as vim.ui.select.
+          -- LazyVim healthcheck expects this to be set.
+          vim.ui.select = Snacks.picker.select
 
           -- ── Toggles ────────────────────────────────────────────────
           Snacks.toggle.option("spell", { name = "Spelling" }):map("<leader>us")

@@ -2,6 +2,10 @@
 -- Compiler kernel: orchestrator.
 -- P6-C2: Explicitly calls registry.setup() and cap_registry.setup()
 --        instead of relying on require-time side effects.
+-- FIX-AUDIT-P1-2 (2026-06-23): Calls collect_ext.setup() to register
+-- default cap modules (P6-C2 pattern). pipeline.lua keeps require-time init
+-- (orchestrator, not pluggable registry; test suite relies on package.loaded
+-- reload pattern).
 
 local M = {}
 
@@ -11,6 +15,11 @@ require("runtime.types_bootstrap").setup() -- Configure abstract type interfaces
 -- P6-C2: Bootstrap registries explicitly before any pipeline use
 require("runtime.adapters.registry").setup()
 require("runtime.adapters.cap_registry").setup()
+
+-- FIX-AUDIT-P1-2a: collect_ext uses explicit setup() pattern (P6-C2).
+-- pipeline.lua KEEPS require-time init (orchestrator, not pluggable registry;
+-- test suite relies on package.loaded reload pattern — see pipeline.lua comment).
+require("runtime.passes.collect_ext").setup()
 
 local provider_registry = require("runtime.providers.registry")
 local build_request_mod = require("runtime.build_request")

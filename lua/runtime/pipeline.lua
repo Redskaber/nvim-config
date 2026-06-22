@@ -39,6 +39,18 @@ local function register_default_phases()
   phase_registry.register_codegen(codegen)
 end
 
+-- FIX-AUDIT-P1-2b (2026-06-23, CORRECTED 2026-06-23):
+-- REVERTED to require-time register_default_phases(). Original P1-2b fix broke
+-- the test suite's module-reload pattern: tests do
+--   package.loaded["runtime.pipeline"] = nil; require("runtime.pipeline")
+-- to reset state, which relies on require-time side effect to re-register
+-- default phases. Also phase_registry.register() does NOT deduplicate (appends
+-- to array), so setup() with _setup_done flag would leave phases empty after
+-- pr._reset() (called in 11+ test cases).
+-- Design decision: pipeline.lua is the ORCHESTRATOR (Layer 4), not a pluggable
+-- registry (like cap_registry/adapter_registry which ARE P6-C2 targets).
+-- Require-time initialization is acceptable for the orchestrator.
+-- check_layer_boundaries.sh rule 7c excludes pipeline.lua for this reason.
 register_default_phases()
 
 local function PHASES()
