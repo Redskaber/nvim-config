@@ -4,10 +4,11 @@
 
 return {
   -- FIX-DEPLOY-EXPLORER (2026-06-23): explicitly disable neo-tree.
-  -- Even with vim.g.lazyvim_file_explorer = "snacks" set in init.lua,
-  -- LazyVim may still load neo-tree spec on some versions. This spec
-  -- sets enabled = false to ensure neo-tree is never loaded, so our
-  -- Snacks.explorer keymaps (<leader>e, <leader>E) are never overridden.
+  -- vim.g.lazyvim_file_explorer = "snacks" is set in core/kernel/bootstrap.lua
+  -- (Layer 0, before lazy.setup()). This should prevent LazyVim from loading
+  -- neo-tree, but we add enabled = false as a belt-and-suspenders safeguard
+  -- — if any LazyVim version still loads neo-tree, this ensures it stays off
+  -- and our Snacks.explorer keymaps (<leader>e, <leader>E) are never overridden.
   { "nvim-neo-tree/neo-tree.nvim", enabled = false },
 
   {

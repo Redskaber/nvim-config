@@ -1,4 +1,4 @@
--- scripts/ltos_tests.lua
+-- path: scripts/ltos_tests.lua
 -- LTOS Unified Test Entry Point v4
 --
 -- FIX for E5113 "loop or previous error loading module 'spec._runner'":

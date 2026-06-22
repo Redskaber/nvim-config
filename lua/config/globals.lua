@@ -2,16 +2,16 @@
 -- All vim.g.* runtime globals. Loaded by options.lua so the order is clear.
 -- Keep this file ONLY for globals; vim.opt.* lives in config/options.lua.
 
+-- fallback for systems without trash/gio/kioclient.
 -- Snacks.image checks for trash commands; if none found, healthcheck errors.
 -- Default to "rm" (permanent delete) to avoid the error. Users with trash-cli
 -- can override: vim.g.image_doc_trash_cmd = "trash"
 vim.g.image_doc_trash_cmd = "rm"
 
--- Snacks explorer is faster and simpler than neo-tree.
--- <leader>e  → Snacks.explorer (root dir — follows git root via LazyVim)
--- <leader>E  → Snacks.explorer (cwd) — custom keymap in ui.lua
--- To auto-open on startup, see config/autocmds.lua SnacksExplorerAutoOpen.
-vim.g.lazyvim_file_explorer = "snacks"
+-- NOTE: vim.g.lazyvim_file_explorer = "snacks" is set in
+-- core/kernel/bootstrap.lua (Layer 0), NOT here. It must be set before
+-- lazy.setup() reads it, and globals.lua loads inside lazy.setup().
+-- See bootstrap.lua for the actual setting and rationale.
 
 -- ── LazyVim feature flags ─────────────────────────────────────────────────
 vim.g.autoformat = true

@@ -16,9 +16,9 @@ fail=0
 check() {
   local src="$1" forbidden="$2" label="$3"
   local matches
-  matches=$(grep -rn --include="*.lua" "$forbidden" "$src" 2>/dev/null \
-    | grep -v "^Binary" \
-    | awk -F: '
+  matches=$(grep -rn --include="*.lua" "$forbidden" "$src" 2>/dev/null |
+    grep -v "^Binary" |
+    awk -F: '
         {
           rest = ""
           for (i = 3; i <= NF; i++) rest = rest (i > 3 ? ":" : "") $i
@@ -51,8 +51,8 @@ check "$LUA/modules/capability" 'require.*core\.compiler' "modules/capability→
 check "$LUA/core/domain" 'require.*core\.compiler' "domain→compiler (reverse)"
 
 # ── env.lua must not contain prefer_system ────────────────────────────────────
-if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null \
-  | grep -v "^.*--.*prefer_system" | grep -q .; then
+if grep -n "prefer_system" "$LUA/core/kernel/env.lua" 2>/dev/null |
+  grep -v "^.*--.*prefer_system" | grep -q .; then
   echo "FAIL [env.lua]: prefer_system must not exist — move to rules.lua"
   fail=1
 fi
@@ -94,8 +94,8 @@ done
 # ── Phase.run must not call vim.tbl_extend / vim.deepcopy (use util.*) ───────
 for f in "$LUA/runtime/passes/"*.lua; do
   [ -f "$f" ] || continue
-  if grep -nE "vim\.tbl_extend|vim\.deepcopy|vim\.tbl_deep_extend|vim\.list_extend" "$f" 2>/dev/null \
-    | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  if grep -nE "vim\.tbl_extend|vim\.deepcopy|vim\.tbl_deep_extend|vim\.list_extend" "$f" 2>/dev/null |
+    grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [phase purity]: $f uses vim table API — use util.merge/deep_merge/deep_copy"
     fail=1
   fi
@@ -114,8 +114,8 @@ done
 # pipeline.lua is EXCLUDED (orchestrator; test suite needs require-time init).
 for f in "$LUA/runtime/passes/"*.lua; do
   [ -f "$f" ] || continue
-  if grep -nE '^[A-Za-z_].*\.register\(|^[A-Za-z_].*register_default' "$f" 2>/dev/null \
-    | grep -v "^[0-9]*:[ \t]*--" | grep -v "function" | grep -q .; then
+  if grep -nE '^[A-Za-z_].*\.register\(|^[A-Za-z_].*register_default' "$f" 2>/dev/null |
+    grep -v "^[0-9]*:[ \t]*--" | grep -v "function" | grep -q .; then
     echo "FAIL [require-time side effect]: $f calls register() at module scope"
     echo "  → wrap in M.setup() function, call from runtime/init.lua"
     fail=1
@@ -131,8 +131,8 @@ for f in $(find "$LUA/core/compiler" -name '*.lua' ! -name 'ports.lua' 2>/dev/nu
 done
 
 # ── toolchain must not call vim.g (Layer 3 boundary) ─────────────────────────
-if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null \
-  | grep -v "^.*--.*vim\.g" | grep -q .; then
+if grep -rn --include="*.lua" 'vim\.g' "$LUA/toolchain" 2>/dev/null |
+  grep -v "^.*--.*vim\.g" | grep -q .; then
   echo "FAIL [toolchain vim.g]: toolchain/* must not read vim.g"
   fail=1
 fi
@@ -142,8 +142,8 @@ for f in "$LUA/runtime/passes/"*.lua; do
   [ -f "$f" ] || continue
   base="$(basename "$f")"
   [ "$base" = "collect_ext.lua" ] && continue
-  if grep -nE '(^|[^a-z_])ext_caps[[:space:]]*=' "$f" 2>/dev/null \
-    | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+  if grep -nE '(^|[^a-z_])ext_caps[[:space:]]*=' "$f" 2>/dev/null |
+    grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
     echo "FAIL [INV-11]: $f assigns ext_caps — only collect_ext may write ext_caps"
     fail=1
   fi
@@ -161,8 +161,8 @@ for f in "$LUA/runtime/adapters/image.lua" "$LUA/runtime/adapters/media.lua" \
 done
 
 # ── INV-15: conflict.lua must not mutate strategy registry ───────────────────
-if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null \
-  | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null |
+  grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
   echo "FAIL [INV-15]: conflict.lua must not write strategy registry"
   fail=1
 fi

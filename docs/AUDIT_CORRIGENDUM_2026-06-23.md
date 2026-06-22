@@ -17,11 +17,13 @@
 > "经验证，所有 cap adapter 的 `build` 函数签名一致... `pcall(adapter.build, adapter, next_ir, caps_by_name)` 使用方法调用语义，第一个参数 `adapter` 作为 `self` 传入... **无需修复**。"
 
 **实际验证**：
+
 - 所有 cap adapter 签名为 `function M.build(ir, caps_by_name)` — **2 参数，无 `self`**
 - 调用 `pcall(adapter.build, adapter, next_ir, caps_by_mod_name)` 传 3 个参数
 - 结果：`ir` 参数收到 `adapter` 表（错误）；`caps_by_name` 参数收到 `next_ir`（IR，错误）；真正 caps 数据 `caps_by_mod_name` **被静默丢弃**
 
 **影响**：
+
 - `image.lua` adapter：输出默认 `{3rd/image.nvim}` spec，忽略所有 cap 定制（max_width/max_height/fallback=chafa/plugins 全部失效）
 - `media.lua` adapter：返回空 `{}`
 - `ai_cap.lua` adapter：返回空 `{}`
@@ -37,6 +39,7 @@
 > "`plugins/ai/ai.lua` 中所有插件声明被注释，成为占位符"
 
 **实际验证**：
+
 - 文件仍含 2 个 LIVE LazySpec：
   - `github/copilot.vim`（含 `cmd = "Copilot"`）
   - `olimorris/codecompanion.nvim`（含 `dependencies`/`cmd`/`keys`/`opts` 完整字段）
@@ -53,6 +56,7 @@
 > "spec/ 目录（headless 运行，共 48 文件）"
 
 **实际验证**：
+
 - 实际只有 **30 个 spec 文件**（879 个 R.it 用例）
 - 缺口 18 个文件
 
@@ -66,6 +70,7 @@
 > "modules/capability/* 改用 core.domain.diagnostic — 已实施"
 
 **实际验证**：
+
 - `graph.lua` ✅ 已迁移（`require("core.domain.diagnostic")`）
 - `lifecycle.lua` ❌ 未迁移（仍用内联 `{severity, message}` 表）
 - `toolchain/strategy/conflict.lua` ❌ 仍越层调用 `require("core.compiler.ir").diag(...)`（Layer 3 → Layer 1 违反）
@@ -80,6 +85,7 @@
 > "ext_schema.lua 和 modules/capability/defaults/keybind_presets.lua 均从该文件读取"
 
 **实际验证**：
+
 - `ext_schema.lua` ✅ 引用 `core.domain.keybind_presets_data`
 - `defaults/keybind_presets.lua` ❌ 未引用（硬编码 "vim"/"helix"/"emacs" 字符串作为 key）
 
@@ -94,10 +100,12 @@
 **文件**：`lua/runtime/passes/cap_resolve.lua`
 **行号**：43
 **修复**：
+
 ```diff
 - local ok, resolved_specs = pcall(adapter.build, adapter, next_ir, caps_by_mod_name)
 + local ok, resolved_specs = pcall(adapter.build, next_ir, caps_by_mod_name)
 ```
+
 **影响**：恢复整个 P3 能力抽象层功能（image/media/ai cap 定制生效）
 
 ---
@@ -124,17 +132,21 @@
 **文件**：`lua/modules/capability/lifecycle.lua`
 **行号**：55
 **原代码**：
+
 ```lua
 if rec.state == M.STATES.ERROR or rec.state == M.STATES.RUNNING and next_state ~= M.STATES.RUNNING then
 ```
+
 **问题**：Lua `and` > `or` 优先级，解析为 `(ERROR) or (RUNNING and next ~= RUNNING)`。当 state=RUNNING, next_state=ERROR 时条件为 true，**早返回**，与文档注释 "Any state can transition to ERROR" 矛盾。
 **修复**：
+
 ```lua
 if
   rec.state == M.STATES.ERROR
   or (rec.state == M.STATES.RUNNING and next_state ~= M.STATES.RUNNING and next_state ~= M.STATES.ERROR)
 then
 ```
+
 **影响**：运行中能力崩溃后可正确标记为 ERROR，lifecycle 观察者收到通知
 
 ---
@@ -144,16 +156,19 @@ then
 **文件**：`lua/toolchain/strategy/conflict.lua`
 
 **5a. compose() 合并语义错误（L142）**
+
 - 原代码：`return util.merge_recursive({}, unpack(results))`
 - 问题：`merge_recursive` 对数组表是按 key 合并（last wins），两个策略返回 `{"ruff_format"}` 和 `{"isort","black"}` 合成 `{"isort","black"}`（丢失前者）
 - 修复：改用 list 拼接累积所有结果
 
 **5b. ir.diag 返回值被丢弃（L132-138）**
+
 - 原代码：`require("core.compiler.ir").diag(...)` 返回值未赋值
 - 问题：`ir.diag` 是纯构造器，无副作用。注释 "Log error, but continue" 实际无效果
 - 修复：改用 `ports.notify` 真正打日志 + 收集到 `composed_diags`
 
 **5c. 越层依赖 core.compiler.ir（L101, L132）**
+
 - 问题：Layer 3 → Layer 1 反模式
 - 修复：改用 `require("core.domain.diagnostic")`（Layer 2），与 AUDIT §3.2 一致
 
@@ -162,11 +177,13 @@ then
 ### P0-AUDIT-6: 测试与实现不一致 ✅ 已修复
 
 **6a. c_cpp.lua clang-format（TEST 错误，非实现错误）**
+
 - 原测试 `lang_spec.lua:311` 期望 `mason["clang-format"]` 为 truthy
 - 实际 `c_cpp.lua` 设计意图：clang-format 是系统工具，不在 mason（注释 "Mason decision delegated to resolve stage"）
 - 修复：更新测试为期望 clang-format **不**在 mason（与 clangtidy 测试一致）
 
 **6b. python.lua formatter strategy（实现错误）**
+
 - 原实现 `python = { "ruff" }`（字符串形式）
 - 测试 `lang_spec.lua:112` 期望 FormatterNode 表形式（`type(f) == "table" and f.strategy`）
 - 修复：改为 `python = { { kind = "formatter", strategy = "ruff_or_black" } }`（与 typescript.lua 一致）
@@ -193,7 +210,7 @@ then
 ## 四、修正后的不变量合规矩阵
 
 | INV | 描述 | 原评分 | 修正后评分 | 备注 |
-|-----|------|--------|-----------|------|
+| ----- | ------ | -------- | ----------- | ------ |
 | INV-1 | IR 不可变 / COW | ✅ | ✅ | — |
 | INV-2 | Phase 纯函数 | ✅ | 🟡 | collect.lua:73 用 vim.api（未修复） |
 | INV-3 | emitter 唯一 vim.notify | ✅ | 🟡 | pipeline.lua 在 codegen 期间有 DEBUG vim.notify |
@@ -215,7 +232,7 @@ then
 ## 五、修复文件清单
 
 | 文件 | 修复 | 状态 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `lua/runtime/passes/cap_resolve.lua` | P0-AUDIT-1 调用签名 | ✅ |
 | `lua/plugins/ai/ai.lua` | P0-AUDIT-2 注释 LIVE spec | ✅ |
 | `lua/modules/capability/lifecycle.lua` | P0-AUDIT-4 运算符优先级 | ✅ |
@@ -261,6 +278,7 @@ then
 ### 7.1 "✅ 已验证无问题" 条目需交叉验证
 
 原 AUDIT.md §3.1 标记为 "✅ 已验证无问题"，但实际是 P0 bug。建议：
+
 - 所有 "✅ 已验证无问题" 条目必须有可复现的验证脚本
 - 集成测试必须验证**内容**而非仅**类型**
 - 审查报告应附验证证据（grep 输出 / 测试断言）
@@ -272,6 +290,7 @@ then
 ### 7.3 终端显示陷阱
 
 P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议：
+
 - 审查代码时用 `od -c` 或 Python `repr()` 验证关键字节
 - 不要依赖 `cat`/`grep` 的可视化输出做关键判断
 
@@ -295,6 +314,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 **文件**：`lua/runtime/passes/collect_ext.lua:152-153` + `lua/runtime/pipeline.lua:42`
 **问题**：两处都在模块加载时执行 `register()`/`register_default_phases()`，违反 P6-C2 模式（cap_registry/registry 已修复但这两处漏网）。
 **修复**：
+
 - 两处都包装进 `M.setup()` 函数，用 `_setup_done` 标志保证幂等
 - `runtime/init.lua` 新增显式调用 `collect_ext.setup()` 和 `pipeline.setup()`
 - `pipeline.lua` 的 `M.PHASE_ORDER` 从 require-time 快照改为 metatable live view，避免 commands.lua 拿到陈旧数据
@@ -325,7 +345,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 #### 新增 5 个 layer boundary check 规则
 
 | 规则 | 检测内容 | 防止的问题模式 |
-|------|---------|---------------|
+| ------ | --------- | --------------- |
 | **7a** 反向越层 | `toolchain/` `modules/capability/` `core/domain/` 不得 require `core.compiler` | 模式 4（越层依赖反复出现） |
 | **7b** vim.api in passes | `runtime/passes/*.lua` 不得调用 `vim.api.*` | INV-2 检测不全（原只查 vim.notify/tbl_*/g） |
 | **7c** require-time 副作用 | `runtime/passes/*.lua` + `pipeline.lua` 不得在模块作用域调 register() | 模式 3（require-time 副作用） |
@@ -333,6 +353,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 | **7e** ports.notify 参数顺序 | 检测 `ports.notify("string", ...)` 反序调用 | 防止 P0-5 修复引入的参数反序 bug |
 
 **自我对抗测试结果**：
+
 - ✓ 规则 7a 成功捕获 conflict.lua 越层（Layer 3 → Layer 1）
 - ✓ 规则 7b 成功捕获 collect.lua vim.api 调用
 - ✓ 规则 7c 成功捕获 collect_ext.lua require-time register
@@ -342,7 +363,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 ### 8.4 修复后的不变量合规矩阵（含 P1 修复）
 
 | INV | 修复前 | P0 修复后 | P1 修复后 | 变化 |
-|-----|--------|----------|----------|------|
+| ----- | -------- | ---------- | ---------- | ------ |
 | INV-1 | ✅ | ✅ | ✅ | — |
 | INV-2 | 🟡 | 🟡 | ✅ | **P1-1 修复 collect.lua vim.api** |
 | INV-3 | 🟡 | 🟡 | 🟡 | — |
@@ -364,7 +385,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 ### 8.5 本轮修复文件清单（追加到第五节）
 
 | 文件 | 修复 | 优先级 |
-|------|------|--------|
+| ------ | ------ | -------- |
 | `lua/runtime/passes/collect.lua` | P1-1 vim.api → ports | 高 |
 | `lua/runtime/passes/collect_ext.lua` | P1-2a require-time → setup() | 高 |
 | `lua/runtime/pipeline.lua` | P1-2b require-time → setup() + live PHASE_ORDER | 高 |
@@ -383,6 +404,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 P1-2b 修复（pipeline.lua require-time → setup()）是**语义破坏变更**，会导致整个测试套件失败：
 
 **根因 1**：测试套件使用 `package.loaded` 重载模式重置状态：
+
 ```lua
 R.after_each(function()
   pr._reset()
@@ -390,6 +412,7 @@ R.after_each(function()
   require("runtime.pipeline")               -- 重新触发 register_default_phases()
 end)
 ```
+
 该模式依赖 require 时执行 `register_default_phases()`。P1-2b 把它移入 `setup()` 且用 `_setup_done` 标志做幂等，导致重载后 setup() 不再注册 → phases 为空 → 所有 `pipeline.run()` 失败。
 
 **根因 2**：`phase_registry.register()` **不去重**（直接 append 到 `_phases` 数组），所以 `pipeline.setup()` 多次调用会注册重复 phase。即使去掉 `_setup_done` 标志，重复注册也会产生问题。
@@ -399,7 +422,7 @@ end)
 ### 9.2 修正方案
 
 | 修复 | 原方案 | 修正后 | 理由 |
-|------|--------|--------|------|
+| ------ | -------- | -------- | ------ |
 | **P1-2b** pipeline.lua | 移入 setup() | **回退**为 require-time init | pipeline 是编排器（非可插拔注册表）；测试套件依赖 package.loaded 重载模式 |
 | **P1-2a** collect_ext.lua | setup() + `_setup_done` | setup() **无** `_setup_done` | register() 是 replace 语义，setup() 天然幂等；移除标志后可反复调用恢复默认值 |
 | **ltos_tests.lua** | 未修改 | 新增 `collect_ext.setup()` 调用 | 测试入口需要初始化默认 cap 模块 |
@@ -411,7 +434,7 @@ end)
 修正后验证了所有测试场景的兼容性：
 
 | 测试场景 | 原行为 | P1-2b 后（破坏） | 修正后 |
-|---------|--------|-----------------|--------|
+| --------- | -------- | ----------------- | -------- |
 | `phase_registry_spec` after_each | reset + 重载 pipeline → 默认 phases 恢复 | reset + 重载 → phases 为空 | reset + 重载 → 默认 phases 恢复 ✓ |
 | `cap_spec` "registered() >= 5" | 5 defaults（require-time 注册） | 0（setup 未调用） | 5 defaults（ltos_tests 调 setup）✓ |
 | `cap_spec` "register() updates list" | save/replace/restore | 同上 | 同上 ✓ |
@@ -432,7 +455,7 @@ P1-2b 在架构层面是正确的（P6-C2 一致性），但在实践层面破�
 ### 9.5 修正后的 P1 修复清单
 
 | 文件 | 修复 | 状态 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `lua/runtime/passes/collect.lua` | P1-1 vim.api → ports | ✅ 保留 |
 | `lua/runtime/passes/collect_ext.lua` | P1-2a require-time → setup() | ✅ 保留（简化：移除 _setup_done） |
 | `lua/runtime/pipeline.lua` | P1-2b require-time → setup() | ❌ **回退**为 require-time init |
