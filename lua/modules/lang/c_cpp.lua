@@ -16,8 +16,8 @@ return {
     },
   },
   formatters = {
-    c = { "clang-format" },
-    cpp = { "clang-format" },
+    -- c = { "clang-format" },
+    -- cpp = { "clang-format" },
   },
   linters = {
     c = { "clangtidy" },
