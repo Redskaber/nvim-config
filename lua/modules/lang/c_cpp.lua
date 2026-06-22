@@ -16,12 +16,18 @@ return {
     },
   },
   formatters = {
-    -- c = { "clang-format" },
-    -- cpp = { "clang-format" },
+    c = {
+      -- "clang-format"
+    },
+    cpp = {
+      -- "clang-format"
+    },
   },
   linters = {
     c = { "clangtidy" },
     cpp = { "clangtidy" },
   },
-  mason = { "clang-format" }, -- clangd resolved via mappings.lsp_pkg("clangd")
+  mason = {
+    -- "clang-format"
+  }, -- clangd resolved via mappings.lsp_pkg("clangd")
 }
