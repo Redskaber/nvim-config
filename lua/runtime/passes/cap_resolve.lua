@@ -51,7 +51,7 @@ M.pass = {
         goto continue
       end
 
-      -- FIX-AUDIT-P0-1: adapter.build signature is `build(ir, caps_by_name)` — NO self
+      -- adapter.build signature is `build(ir, caps_by_name)` — NO self
       local ok, resolved_specs = pcall(adapter.build, next_ir, caps_by_mod_name)
       if ok then
         next_ir.cap_specs[cap_type] = resolved_specs or {}

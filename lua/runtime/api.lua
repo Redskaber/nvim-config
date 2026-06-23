@@ -10,9 +10,18 @@ local M = {}
 
 --- Register a callback to run when LTOS reaches READY state.
 --- Useful for plugins that need to execute logic after full initialization.
+--- if already READY when called, execute immediately.
+--- Previously, calling on_ready() after READY was reached would never fire
+--- the callback (observer only fires on future transitions).
 ---@param fn function  Callback function to execute on READY
 function M.on_ready(fn)
   local lifecycle = require("runtime.lifecycle")
+  -- If already READY, execute immediately
+  if lifecycle.is_ready() then
+    pcall(fn)
+    return
+  end
+  -- Otherwise, observe for future READY transition
   lifecycle.observe(function(state, _)
     if state == "READY" then
       pcall(fn)

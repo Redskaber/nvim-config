@@ -6,6 +6,24 @@ local M = {}
 
 local DEFAULT_BASE_TOOLS = { "codespell" }
 
+-- Debug flags read from vim.g once in BuildRequest,
+-- then passed through IR.meta.build_request. Pipeline reads these from
+-- build_request instead of touching vim.g directly (INV-9 compliance).
+---@class DebugFlags
+---@field enabled boolean  vim.g.ltos_debug
+---@field cache   boolean  vim.g.ltos_debug_cache
+---@field perf    boolean  vim.g.ltos_debug_perf
+---@field trace   boolean  vim.g.ltos_debug_trace
+
+local function read_debug_flags()
+  return {
+    enabled = vim.g.ltos_debug == true,
+    cache = vim.g.ltos_debug_cache == true,
+    perf = vim.g.ltos_debug_perf == true,
+    trace = vim.g.ltos_debug_trace == true,
+  }
+end
+
 ---@class BuildRequest
 ---@field profile         string
 ---@field modules         string[]
@@ -13,6 +31,7 @@ local DEFAULT_BASE_TOOLS = { "codespell" }
 ---@field prefer_system   boolean   true when profile == "nix"
 ---@field base_tools      string[]
 ---@field base_parsers?   string[]|nil  nil → adapter uses DEFAULT_BASE_PARSERS
+---@field debug?          DebugFlags  debug knobs (Opt-G)
 
 --- Construct a BuildRequest from vim globals (call only from runtime/init.lua).
 ---@param profile string
@@ -41,6 +60,8 @@ function M.from_vim(profile, modules)
     prefer_system = profile == "nix",
     base_tools = base_tools,
     base_parsers = base_parsers,
+    -- OPT-G: read debug flags once here, pass through IR.meta.build_request
+    debug = read_debug_flags(),
   }
 end
 

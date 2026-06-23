@@ -14,6 +14,9 @@ local _ports = {
   json_decode = function(_s)
     error("compiler ports: json_decode not configured")
   end,
+  read_file = function(_path)
+    return nil
+  end,
   resolve_runtime_file = function(_rel)
     return nil
   end,
@@ -56,6 +59,13 @@ end
 
 function M.json_decode(s)
   return _ports.json_decode(s)
+end
+
+--- Read file contents (pure text). Returns string or nil.
+---@param path string
+---@return string|nil
+function M.read_file(path)
+  return _ports.read_file(path)
 end
 
 function M.resolve_runtime_file(rel)

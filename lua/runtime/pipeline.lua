@@ -7,10 +7,16 @@
 
 local M = {}
 
+-- module-level storage for last build timings.
+-- Replaces vim.g.ltos_last_build_timings — pipeline no longer writes vim.g.
+-- M.timings() returns this value.
+local _last_build_timings = {}
+
 local ir_mod = require("core.compiler.ir")
 local pass_mod = require("core.compiler.pass")
 local util = require("core.kernel.util")
 local phase_registry = require("runtime.phase_registry")
+local ports = require("core.compiler.ports")  -- OPT-J: for notify
 
 -- Load default phases and register them
 --- Resolve a phase from a module path.
@@ -39,7 +45,6 @@ local function register_default_phases()
   phase_registry.register_codegen(codegen)
 end
 
--- FIX-AUDIT-P1-2b (2026-06-23, CORRECTED 2026-06-23):
 -- REVERTED to require-time register_default_phases(). Original P1-2b fix broke
 -- the test suite's module-reload pattern: tests do
 --   package.loaded["runtime.pipeline"] = nil; require("runtime.pipeline")
@@ -102,7 +107,7 @@ local function new_sm()
       sm.timestamps[next_state] = os.clock()
       return true
     end
-    vim.notify(("[pipeline] illegal transition: %s → %s"):format(sm.state, next_state), vim.log.levels.ERROR)
+    ports.notify(vim.log.levels.ERROR, ("[pipeline] illegal transition: %s → %s"):format(sm.state, next_state))  -- OPT-J
     sm.state = STATES.ERROR
     return false
   end
@@ -132,12 +137,24 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
   if ast_seed then
     meta_patch.ast_seed = ast_seed
   end
+  -- FIX-DEPLOY-TEST (2026-06-23): auto-inject build_request when not passed.
+  -- This ensures ir.meta.build_request is always populated after pipeline.run(),
+  -- which full_pipeline_spec tests expect. Previously build_request was only
+  -- injected when explicitly passed as 5th arg.
+  if not build_request then
+    local ok, br_mod = pcall(require, "runtime.build_request")
+    if ok and br_mod and br_mod.from_vim then
+      build_request = br_mod.from_vim(profile or "full", lang_modules)
+    end
+  end
   if build_request then
     meta_patch.build_request = build_request
   end
   if next(meta_patch) ~= nil then
     ir = ir_mod.with(ir, { meta = util.merge(ir.meta or {}, meta_patch) })
   end
+  -- OPT-G: extract debug flags from build_request (not vim.g)
+  local dbg = (build_request and build_request.debug) or {}
   local timings = {}
 
   local phases = PHASES()
@@ -152,8 +169,8 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     ir = ir_mod.with(ir, { stage = "AST", caps = cached_caps, ext_caps = ext_caps })
     timings["collect"] = 0
     timings["collect_ext"] = 0
-    if vim.g.ltos_debug or vim.g.ltos_debug_cache then
-      vim.notify("[pipeline] AST cache hit — collect/collect_ext skipped", vim.log.levels.DEBUG)
+    if dbg.enabled or dbg.cache then
+      ports.notify(vim.log.levels.DEBUG, "[pipeline] AST cache hit — collect/collect_ext skipped")  -- OPT-J
     end
     -- Honor stop_after="collect" even when skipping the phase
     if stop_after == "collect" then
@@ -184,14 +201,14 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     end
 
     local counts = ir_mod.diag_counts(ir)
-    if counts.errors > 0 and vim.g.ltos_debug then
-      vim.notify(("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors), vim.log.levels.DEBUG)
+    if counts.errors > 0 and dbg.enabled then
+      ports.notify(vim.log.levels.DEBUG, ("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors))  -- OPT-J
     end
-    if vim.g.ltos_debug_perf then
-      vim.notify(
-        ("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000),
-        vim.log.levels.DEBUG
-      )
+    if dbg.perf then
+      ports.notify(
+        vim.log.levels.DEBUG,
+        ("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000)
+      )  -- OPT-J
     end
     ::continue::
   end
@@ -209,7 +226,7 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     if ok then
       specs = result
     else
-      vim.notify("[pipeline.codegen] build failed: " .. tostring(result), vim.log.levels.ERROR)
+      ports.notify(vim.log.levels.ERROR, "[pipeline.codegen] build failed: " .. tostring(result))  -- OPT-J
       sm.fail()
     end
   else
@@ -260,18 +277,20 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
     sm.transition(STATES.DONE)
   end
 
-  vim.g.ltos_last_build_timings = timings
+  -- OPT-G: store in module var instead of vim.g
+  _last_build_timings = timings
 
   local counts = ir_mod.diag_counts(ir)
   if counts.errors > 0 or counts.warns > 0 then
-    vim.notify(
-      ("[pipeline] %d error(s), %d warning(s):\n%s"):format(counts.errors, counts.warns, ir_mod.format_diagnostics(ir)),
-      counts.errors > 0 and vim.log.levels.WARN or vim.log.levels.INFO
-    )
+    ports.notify(
+      counts.errors > 0 and vim.log.levels.WARN or vim.log.levels.INFO,
+      ("[pipeline] %d error(s), %d warning(s):\n%s"):format(counts.errors, counts.warns, ir_mod.format_diagnostics(ir))
+    )  -- OPT-J
   end
 
-  -- TODO-0.3: structured debug output (JSON lines) when LTOS_DEBUG=trace
-  if vim.g.ltos_debug_trace then
+  -- OPT-G: read debug flags from IR meta (set by execute via build_request)
+  local run_dbg = (ir.meta and ir.meta.build_request and ir.meta.build_request.debug) or {}
+  if run_dbg.trace then
     local ok, encoded = pcall(vim.json.encode, {
       event = "pipeline.done",
       run_id = sm.timestamps and tostring(sm.timestamps.collecting) or "?",
@@ -283,7 +302,7 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
       warns = counts.warns,
     })
     if ok then
-      vim.notify("[ltos:trace] " .. encoded, vim.log.levels.DEBUG)
+      ports.notify(vim.log.levels.DEBUG, "[ltos:trace] " .. encoded)  -- OPT-J
     end
   end
 
@@ -319,7 +338,8 @@ end
 
 ---@return table<string, number>|nil
 function M.timings()
-  return vim.g.ltos_last_build_timings
+  -- OPT-G: return module-level var instead of vim.g
+  return _last_build_timings
 end
 
 return M

@@ -169,7 +169,7 @@ end)
 -- ── modules.capability.schema ─────────────────────────────────────────────────
 
 R.describe("modules.capability.schema", function()
-  local schema = require("modules.capability.schema")
+  local schema = require("modules.capability._schema")
 
   -- ── validate() shape ─────────────────────────────────────────────────────
 

@@ -30,10 +30,9 @@ return {
     lua = { "stylua" },
   },
   linters = {
-    -- FIX-DEPLOY-LUACHECK (2026-06-23): removed luacheck — it's a system binary
     -- that may not be installed, causing ENOENT errors. Users who want luacheck
     -- can install it (luarocks install luacheck) and add it back here.
-    -- lua = { "luacheck" },
+    lua = { "luacheck" },
   },
   mason = { "stylua" },
 }

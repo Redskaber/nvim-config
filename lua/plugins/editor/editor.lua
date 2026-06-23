@@ -3,7 +3,7 @@
 -- datetime: 2025-12-12
 
 return {
-  -- FIX-DEPLOY-EXPLORER (2026-06-23): explicitly disable neo-tree.
+  -- explicitly disable neo-tree.
   -- vim.g.lazyvim_file_explorer = "snacks" is set in core/kernel/bootstrap.lua
   -- (Layer 0, before lazy.setup()). This should prevent LazyVim from loading
   -- neo-tree, but we add enabled = false as a belt-and-suspenders safeguard

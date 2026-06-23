@@ -3,7 +3,7 @@
 -- custom_highlights are kept in a dedicated features/transparency.lua table
 -- and merged here to keep this file manageable.
 
-local transparency = require("plugins.theme.transparency")
+local transparency = require("plugins.theme._transparency")
 
 return {
   -- ── Tell LazyVim which colorscheme to activate ────────────────────────

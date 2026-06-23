@@ -57,7 +57,7 @@ end
 ---@param diag? table Optional diagnostic to add if transition fails or is an error state.
 ---@return LifecycleRecord  A new record if transition is valid, or the original if invalid/error.
 function M.transition(rec, next_state, diag)
-  -- FIX-AUDIT-P0-4 (2026-06-23): Operator-precedence bug.
+  -- Operator-precedence bug.
   --   Old: `if A == ERROR or A == RUNNING and B ~= RUNNING then return rec end`
   --   Lua precedence `and` > `or` parses this as `(A == ERROR) or (A == RUNNING and B ~= RUNNING)`.
   --   When state=RUNNING and next_state=ERROR, the guard was true, so RUNNING→ERROR

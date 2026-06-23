@@ -116,7 +116,7 @@ function M.build(ir)
     end
   end
 
-  -- FIX-DEPLOY-MASON (2026-06-23, CORRECTED): Output mason.nvim spec with
+  -- Output mason.nvim spec with
   -- ensure_installed in opts (for test compatibility — tests check this field).
   -- BUT use a custom config function that:
   --   1. Saves the ensure_installed list

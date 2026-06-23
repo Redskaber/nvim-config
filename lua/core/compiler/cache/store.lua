@@ -37,13 +37,11 @@ end
 ---@return table|nil
 ---@return string|nil
 function M.read(path)
-  local f = io.open(path, "r")
-  if not f then
+  local raw = ports.read_file(path)
+  if not raw then
     return nil, "file not found: " .. path
   end
-  local raw = f:read("*a")
-  f:close()
-  if not raw or raw == "" then
+  if raw == "" then
     return nil, "empty file"
   end
   local ok, data = pcall(ports.json_decode, raw)
@@ -57,7 +55,6 @@ end
 ---@param data table
 ---@return boolean
 ---@return string|nil
--- FIX-AUDIT-P1-3 (2026-06-23): atomic write via temp file + rename.
 -- Old code wrote directly to path — if nvim crashed mid-write, the cache
 -- file was truncated/corrupted, causing JSON decode failures on next load.
 -- New flow: write to path..".tmp", close, then os.rename (atomic on POSIX).

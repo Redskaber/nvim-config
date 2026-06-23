@@ -146,7 +146,11 @@ R.describe("runtime.init", function()
         R.assert_true(true, "skipped: no modules discovered in test env")
       else
         R.assert_true(#mods > 0, "lang_modules() should return modules")
-        R.assert_true(#runtime.LANG_MODULES > 0, "LANG_MODULES proxy should work")
+        -- FIX-DEPLOY-TEST (2026-06-23): test proxy via __index instead of __len.
+        -- The # operator on metatables with __len may not work reliably in LuaJIT.
+        -- Accessing LANG_MODULES[1] triggers __index which delegates to lang_modules().
+        local first_via_index = runtime.LANG_MODULES[1]
+        R.assert_eq(first_via_index, mods[1], "LANG_MODULES[1] should match lang_modules()[1]")
       end
     end)
   end)

@@ -6,7 +6,7 @@ local M = {}
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
 local ports = require("core.compiler.ports")
-local cap_schema = require("modules.capability.schema")
+-- removed modules.capability.schema — ext_schema covers all validation
 local ext_schema = require("core.domain.ext_schema")
 local cap_graph = require("modules.capability.graph")
 local cap_registry = require("modules.capability.registry")
@@ -81,24 +81,22 @@ local function validate_cap(mod_path, cap, diagnostics, stage)
     return false
   end
 
-  local validation_res = cap_schema.validate(mod_path, cap)
-  if not validation_res.ok then
-    for _, msg in ipairs(validation_res.diags) do
-      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg)
-    end
-    return false
-  end
-
+  -- unified validation via ext_schema only.
+  -- Previously called both modules.capability.schema (basic) and
+  -- core.domain.ext_schema (per-type). The latter covers all checks
+  -- the former did, so the duplicate is removed to avoid double diagnostics.
   local ext_res = ext_schema.validate(cap.cap_type, mod_path, cap)
   if not ext_res.ok then
-    for _, msg in ipairs(ext_res.diags) do
-      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg)
+    -- extract .message and .severity from Diagnostic objects.
+    -- Previously passed entire table as message → tostring(table) in format_diagnostics.
+    for _, d in ipairs(ext_res.diags) do
+      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, d.message or "?", d.severity or "error")
     end
     return false
   end
 
-  for _, msg in ipairs(ext_res.diags) do
-    diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, msg, "warn")
+  for _, d in ipairs(ext_res.diags) do
+    diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, d.message or "?", "warn")
   end
 
   return true
@@ -149,7 +147,6 @@ M.pass = {
   end,
 }
 
--- FIX-AUDIT-P1-2a (2026-06-23, CORRECTED 2026-06-23):
 -- Moved require-time side effect into setup(). Unlike pipeline.lua (which
 -- stays at require-time for orchestrator reasons), collect_ext.lua is a
 -- pluggable pass module and should follow P6-C2 pattern.

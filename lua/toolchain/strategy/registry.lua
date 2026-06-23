@@ -76,7 +76,12 @@ function M.list()
   if not _bootstrapped then
     M.bootstrap()
   end
-  local names = vim.tbl_keys(_registry)
+  -- OPT-C (2026-06-23): pure Lua instead of vim.tbl_keys (INV-9 purity)
+  local names = {}
+  for k in pairs(_registry) do
+    names[#names + 1] = k
+  end
+  table.sort(names)
   table.sort(names)
   return names
 end

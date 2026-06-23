@@ -90,7 +90,15 @@ function M.run_phase(phase, ir)
   if phase.output_validate then
     local ok2, result2 = pcall(phase.output_validate, next_ir)
     if not ok2 then
-      post_diags[#post_diags + 1] = ir_mod.diag(phase.name, "output_validate", tostring(result2))
+      -- use pcall for ir_mod.diag, fallback to plain table
+      local err_diag
+      local e_ok, e_result = pcall(ir_mod.diag, phase.name, "output_validate", tostring(result2), "error")
+      if e_ok and type(e_result) == "table" then
+        err_diag = e_result
+      else
+        err_diag = { stage = phase.name, node = "output_validate", message = tostring(result2), severity = "error" }
+      end
+      post_diags[#post_diags + 1] = err_diag
     elseif type(result2) == "table" then
       for _, d in ipairs(result2) do
         post_diags[#post_diags + 1] = d
@@ -103,7 +111,23 @@ function M.run_phase(phase, ir)
   if #post_diags > 0 then
     for _, d in ipairs(post_diags) do
       -- Downgrade to warn if caller set severity=error on post-conditions
-      local warn_d = ir_mod.diag(phase.name, d.node or "output", "[post-condition] " .. (d.message or "?"), "warn")
+      -- use pcall to protect ir_mod.diag call.
+      -- If types bootstrap hasn't configured the diagnostic factory yet,
+      -- ir_mod.diag() will throw. Use pcall + fallback plain table to ensure
+      -- the warn diagnostic is always appended.
+      local warn_d
+      local diag_ok, diag_result = pcall(ir_mod.diag, phase.name, d.node or "output", "[post-condition] " .. (d.message or "?"), "warn")
+      if diag_ok and type(diag_result) == "table" then
+        warn_d = diag_result
+      else
+        -- Fallback: plain table diag (no types dependency)
+        warn_d = {
+          stage = phase.name,
+          node = d.node or "output",
+          message = "[post-condition] " .. (d.message or "?"),
+          severity = "warn",
+        }
+      end
       next_ir = ir_mod.append_diag(next_ir, warn_d)
     end
   end

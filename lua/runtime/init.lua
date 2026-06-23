@@ -16,7 +16,7 @@ require("runtime.types_bootstrap").setup() -- Configure abstract type interfaces
 require("runtime.adapters.registry").setup()
 require("runtime.adapters.cap_registry").setup()
 
--- FIX-AUDIT-P1-2a: collect_ext uses explicit setup() pattern (P6-C2).
+-- collect_ext uses explicit setup() pattern (P6-C2).
 -- pipeline.lua KEEPS require-time init (orchestrator, not pluggable registry;
 -- test suite relies on package.loaded reload pattern — see pipeline.lua comment).
 require("runtime.passes.collect_ext").setup()
@@ -164,8 +164,13 @@ function M.lang_modules()
 end
 
 M.LANG_MODULES = setmetatable({}, {
-  __index = function()
-    return M.lang_modules()
+  -- FIX-DEPLOY-TEST (2026-06-23): __index should return the k-th element
+  -- of lang_modules(), not the whole array. Previously __index ignored
+  -- the key and returned the entire array, so LANG_MODULES[1] returned
+  -- the array instead of the first module name.
+  __index = function(_, k)
+    local mods = M.lang_modules()
+    return mods[k]
   end,
   __len = function()
     return #M.lang_modules()

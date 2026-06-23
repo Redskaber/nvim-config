@@ -16,7 +16,6 @@ function M.mark_uncacheable(t)
   return setmetatable(t, UNCACHEABLE_MT)
 end
 
--- FIX-AUDIT-P1-4 (2026-06-23): added visited set for cycle detection.
 -- Old code recursed without tracking visited tables — infinite loop on
 -- self-referential tables (e.g., metatable with __index = self, or cyclic
 -- data structures). New version passes a visited set as 2nd arg (internal).

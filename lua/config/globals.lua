@@ -2,7 +2,6 @@
 -- All vim.g.* runtime globals. Loaded by options.lua so the order is clear.
 -- Keep this file ONLY for globals; vim.opt.* lives in config/options.lua.
 
--- fallback for systems without trash/gio/kioclient.
 -- Snacks.image checks for trash commands; if none found, healthcheck errors.
 -- Default to "rm" (permanent delete) to avoid the error. Users with trash-cli
 -- can override: vim.g.image_doc_trash_cmd = "trash"

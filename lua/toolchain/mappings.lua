@@ -8,23 +8,37 @@
 --   • resolve() priority: user overrides → system_tools → Nix → mappings → identity.
 --   • Tool resolution: use toolchain.rules.resolve() — not here (avoids circular require).
 -- P2: Uses externalized defaults from toolchain.defaults.mappings
+-- FIX-OPT-C (2026-06-23): replaced vim.tbl_deep_extend with pure-Lua shallow copy.
+-- strategy layer (Layer 3) should have zero vim.* dependency (INV-9 purity).
+-- These are flat string→string/bool tables, so shallow copy is sufficient.
 
 local M = {}
 
 -- Load default mappings
 local defaults = require("toolchain.defaults.mappings")
+local util = require("core.kernel.util")
+
+-- ── Pure-Lua shallow copy (replaces vim.tbl_deep_extend) ──────────────────────
+
+local function copy_table(t)
+  local out = {}
+  for k, v in pairs(t) do
+    out[k] = v
+  end
+  return out
+end
 
 -- ── LSP server → mason package ────────────────────────────────────────────────
 
-M.lsp_to_mason = vim.tbl_deep_extend("force", {}, defaults.lsp_to_mason)
+M.lsp_to_mason = copy_table(defaults.lsp_to_mason)
 
 -- ── Formatter / linter tool → mason package ──────────────────────────────────
 
-M.tool_to_mason = vim.tbl_deep_extend("force", {}, defaults.tool_to_mason)
+M.tool_to_mason = copy_table(defaults.tool_to_mason)
 
 -- ── System-only tools (never via mason) ──────────────────────────────────────
 
-M.system_tools = vim.tbl_deep_extend("force", {}, defaults.system_tools)
+M.system_tools = copy_table(defaults.system_tools)
 
 -- ── User-defined overrides (runtime-injected via register_override) ──────────
 

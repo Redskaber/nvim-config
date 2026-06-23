@@ -19,7 +19,7 @@ return {
     },
   },
   formatters = {
-    -- FIX-AUDIT-P0-6b: use strategy FormatterNode form to match
+    -- use strategy FormatterNode form to match
     -- spec/modules/lang_spec.lua expectation (strategy field required).
     -- Pattern consistent with typescript.lua using prettierd_or_prettier.
     python = { { kind = "formatter", strategy = "ruff_or_black" } },

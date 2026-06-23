@@ -145,14 +145,30 @@ end
 ---@param set CapabilitySet
 ---@return string
 function M.dump(set)
-  -- Pure Lua serialization (no vim.inspect dependency in domain layer)
-  local ok, result = pcall(function()
-    return require("vim").inspect(set)
-  end)
-  if ok then
-    return result
+  -- pure Lua serialization — no vim.inspect dependency.
+  -- Previously used pcall(require("vim").inspect) which still touched vim.*
+  -- in the domain layer (violating layer purity). Now uses a simple
+  -- recursive table serializer that's sufficient for debug output.
+  local seen = {}
+  local function serialize(val, depth)
+    depth = depth or 0
+    if depth > 3 then return "..." end -- prevent deep recursion
+    if type(val) == "string" then return '"' .. val .. '"'
+    elseif type(val) == "number" or type(val) == "boolean" then return tostring(val)
+    elseif type(val) == "nil" then return "nil"
+    elseif type(val) == "function" then return "<fn>"
+    elseif type(val) == "table" then
+      if seen[val] then return "<cyclic>" end
+      seen[val] = true
+      local parts = {}
+      for k, v in pairs(val) do
+        parts[#parts + 1] = tostring(k) .. "=" .. serialize(v, depth + 1)
+      end
+      return "{ " .. table.concat(parts, ", ") .. " }"
+    end
+    return tostring(val)
   end
-  return tostring(set)
+  return serialize(set)
 end
 
 -- Backward-compat: M.reset() is a no-op; call M.new() instead.

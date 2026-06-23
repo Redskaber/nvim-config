@@ -5,7 +5,7 @@
 return {
   cap_type = "ai",
   version = 1,
-  -- FIX-DEPLOY-3 (2026-06-23): This module is a MINIMAL AI capability marker.
+  -- This module is a MINIMAL AI capability marker.
   -- The authoritative AI plugin declarations live in modules/ai/copilot.lua
   -- (P6-C5 single source of truth). Previously this module duplicated
   -- copilot.vim, causing lazy.nvim spec conflicts. plugins field is now empty.

@@ -7,14 +7,11 @@ local ports = require("core.compiler.ports")
 
 local M = {}
 
+-- This maintains INV-10 (compiler IO via ports) and allows mocking
+-- in tests without filesystem access.
 local function read_file(path)
-  local f = io.open(path, "r")
-  if not f then
-    return ""
-  end
-  local s = f:read("*a") or ""
-  f:close()
-  return s
+  local content = ports.read_file(path)
+  return content or ""
 end
 
 ---@param mod string

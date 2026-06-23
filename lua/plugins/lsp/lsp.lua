@@ -107,7 +107,7 @@ return {
 
   {
     "mason-org/mason.nvim",
-    -- FIX-DEPLOY-MASON (2026-06-23): opts_extend ensures ensure_installed lists
+    -- opts_extend ensures ensure_installed lists
     -- from runtime/adapters/mason.lua are merged (not replaced) with any
     -- LazyVim defaults. This prevents the "Package is already installing" race
     -- by ensuring a single merged opts table.

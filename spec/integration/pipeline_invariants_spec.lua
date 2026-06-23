@@ -78,8 +78,16 @@ R.describe("integration: IR as pipeline communication protocol", function()
     end
 
     R.it("validate() fails when required field is nil", function()
+      -- FIX-DEPLOY-TEST (2026-06-23): ir_mod.with({caps=nil}) doesn't remove
+      -- caps because Lua table merge ignores nil values. Create a proper IR
+      -- without caps by copying all fields except caps.
       local ir_ast = pipeline.debug_run({ "modules.lang.lua_lang" }, "collect")
-      local ir_bad = ir_mod.with(ir_ast, { caps = nil })
+      local ir_bad = {}
+      for k, v in pairs(ir_ast) do
+        if k ~= "caps" then
+          ir_bad[k] = v
+        end
+      end
       local errs = ir_mod.validate(ir_bad, "normalize")
       R.assert_true(#errs > 0, "missing caps must fail normalize pre-condition")
     end)
@@ -320,6 +328,12 @@ end)
 R.describe("integration: strategy rule chain execution order", function()
   local rules = require("toolchain.rules")
   local mappings = require("toolchain.mappings")
+  -- FIX-DEPLOY-TEST (2026-06-23): pipeline is required here because the
+  -- "complete pipeline through canonicalize" sub-describe uses it. Previously
+  -- pipeline was only local in the first describe block (line 14), so this
+  -- block referenced a nil global → test failed with "attempt to index global
+  -- 'pipeline' (a nil value)".
+  local pipeline = require("runtime.pipeline")
 
   R.describe("rule priority chain", function()
     R.it("user override takes highest priority (Rule 1)", function()

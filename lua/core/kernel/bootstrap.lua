@@ -19,6 +19,7 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
 -- File explorer: use Snacks explorer (not neo-tree).
+-- this MUST be set here in bootstrap,
 -- before lazy.setup() reads it. Previously this was in config/globals.lua
 -- which loads inside lazy.setup() — too late, LazyVim had already built
 -- the neo-tree spec. Moving to bootstrap ensures LazyVim sees "snacks"

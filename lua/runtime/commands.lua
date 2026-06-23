@@ -160,7 +160,7 @@ end
 -- ── :LtosTrace ───────────────────────────────────────────────────────────────
 
 local function cmd_trace()
-  local timings = vim.g.ltos_last_build_timings
+  local timings = require("runtime.pipeline").timings()  -- OPT-H: use API instead of vim.g
   if not timings then
     vim.notify("[LtosTrace] no build timings available — run :LtosDebug first", vim.log.levels.WARN)
     return
@@ -354,7 +354,7 @@ local function cmd_info()
   local ir = pipeline.debug_run(modules, "collect")
   local caps = ir.caps or {}
 
-  local profile = vim.g.ltos_profile or "full"
+  local profile = vim.g.ltos_profile or "full"  -- UI display, not compilation knob
   local state = pipeline.state()
 
   -- Collect unique tool names
@@ -407,7 +407,7 @@ local function cmd_info()
   end
 
   -- Per-stage timings
-  local timings = vim.g.ltos_last_build_timings
+  local timings = require("runtime.pipeline").timings()  -- OPT-H: use API instead of vim.g
   if timings then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "Last build timings:"

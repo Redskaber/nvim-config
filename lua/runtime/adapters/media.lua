@@ -50,7 +50,7 @@ function M.build(ir, caps_by_name)
     table.insert(ensure_installed_mason, pkg)
   end
   if #ensure_installed_mason > 0 then
-    -- FIX-DEPLOY-5 (2026-06-23): use full repo name "mason-org/mason.nvim"
+    -- use full repo name "mason-org/mason.nvim"
     -- to match mason.lua adapter. Short name "mason.nvim" caused lazy.nvim
     -- to treat it as a separate plugin, triggering "Package is already
     -- installing" race condition.

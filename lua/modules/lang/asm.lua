@@ -8,6 +8,10 @@ return {
   lsp = {
     asm_lsp = {},
   },
+  formatters = {
+    asm = { "asmfmt" },
+  },
+  linters = {},
   -- No formatters or linters: no widely-available mason-installable tools for asm.
   -- asm-lsp is installed via the LSP adapter (lsp_to_mason["asm_lsp"] = "asm-lsp").
   mason = {},

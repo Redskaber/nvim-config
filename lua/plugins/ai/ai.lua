@@ -2,7 +2,7 @@
 -- adapter: copilot
 -- AI coding assistant: codecompanion.nvim
 
--- FIX-AUDIT-P0-2 (2026-06-23): LIVE plugin specs commented out per AUDIT.md §3.9
+-- LIVE plugin specs commented out per AUDIT.md §3.9
 -- promise ("plugins/ai/ai.lua 中所有插件声明被注释，成为占位符"). Previously this file
 -- shipped copilot.vim + codecompanion.nvim as LIVE specs, duplicating
 -- modules/ai/copilot.lua DSL declarations with INCONSISTENT fields (dependencies /

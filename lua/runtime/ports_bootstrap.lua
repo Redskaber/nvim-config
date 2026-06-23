@@ -21,6 +21,13 @@ function M.setup()
     json_decode = function(s)
       return vim.json.decode(s)
     end,
+    read_file = function(path)
+      local f = io.open(path, "r")
+      if not f then return nil end
+      local content = f:read("*a")
+      f:close()
+      return content
+    end,
     resolve_runtime_file = function(rel)
       local results = vim.api.nvim_get_runtime_file(rel, false)
       return results and results[1]

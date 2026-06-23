@@ -106,7 +106,9 @@ local function topo_sort(entries)
 
   if #order < n then
     -- Cycle detected — fall back to priority-only sort and emit a warning
-    vim.notify("[phase_registry] dependency cycle detected — falling back to priority order", vim.log.levels.WARN)
+    -- OPT-J (2026-06-23): use ports.notify instead of vim.notify (INV-3)
+    local ports = require("core.compiler.ports")
+    ports.notify(vim.log.levels.WARN, "[phase_registry] dependency cycle detected — falling back to priority order")
     table.sort(entries, function(a, b)
       return a.priority < b.priority
     end)

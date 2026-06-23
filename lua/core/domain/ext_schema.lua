@@ -1,12 +1,19 @@
 -- lua/core/domain/ext_schema.lua
 -- P3: Capability Type Schema for external capabilities.
 -- P6: Uses centralized cap_types and keybind_presets_data.
--- Extended: complete per-type field validation for all known cap_types.
+-- Refactored if/elseif cap_type dispatch to
+-- jump-table pattern (VALIDATORS map). Adding a new cap_type now requires
+-- only adding a validator function + registering it in the map — no need
+-- to modify the validate() dispatch logic.
 
 local M = {}
 
 local cap_types = require("core.domain.cap_types")
 local keybind_presets = require("core.domain.keybind_presets_data")
+-- use unified diagnostic.new() for all diags.
+-- This replaces the inline {ok, severity, path, message} format with
+-- the canonical Diagnostic{code, stage, node, message, severity} shape.
+local diagnostic = require("core.domain.diagnostic")
 
 -- ── Known value sets ──────────────────────────────────────────────────────────
 
@@ -46,270 +53,296 @@ local KNOWN_AI_ADAPTERS = {
 
 -- ── Internal helpers ──────────────────────────────────────────────────────────
 
+-- OPT-A (2026-06-23): unified diag helpers using diagnostic.new()
+-- All diags now have canonical shape: {code, stage, node, message, severity}
 ---@param diags table[]
 ---@param path  string
 ---@param msg   string
 local function err(diags, path, msg)
-  diags[#diags + 1] = { ok = false, severity = "error", path = path, message = msg }
+  diags[#diags + 1] = diagnostic.new("ext_schema", path, msg, "error")
 end
 
 ---@param diags table[]
 ---@param path  string
 ---@param msg   string
 local function warn(diags, path, msg)
-  diags[#diags + 1] = { ok = true, severity = "warn", path = path, message = msg }
+  diags[#diags + 1] = diagnostic.new("ext_schema", path, msg, "warn")
 end
 
--- ── cap_type: image ───────────────────────────────────────────────────────────
+-- ── Reusable field validators (composable building blocks) ────────────────────
 
-local function validate_image(mod_name, cap, diags)
-  local path_prefix = ("image capability for '%s'"):format(mod_name)
-
-  -- backend / backends: at least one should be present (warn if missing)
-  if not cap.backend and not cap.backends then
-    warn(diags, mod_name .. ".backend", (path_prefix .. ": missing 'backend' or 'backends' field"))
+--- Validate a string-typed field against a known-values set.
+---@param diags table[]
+---@param path string
+---@param field_name string
+---@param value any
+---@param known_set table<string, boolean>
+---@param path_prefix string
+local function validate_string_field(diags, path, field_name, value, known_set, path_prefix)
+  if value == nil then return end
+  if type(value) ~= "string" then
+    err(diags, path, (path_prefix .. ": '%s' must be a string"):format(field_name))
+  elseif not known_set[value] then
+    err(diags, path, (path_prefix .. ": unknown %s '%s'"):format(field_name, value))
   end
+end
 
-  -- validate single backend
-  if cap.backend then
-    if type(cap.backend) ~= "string" then
-      err(diags, mod_name .. ".backend", (path_prefix .. ": 'backend' must be a string"))
-    elseif not KNOWN_IMAGE_BACKENDS[cap.backend] then
-      err(diags, mod_name .. ".backend", (path_prefix .. ": unknown backend '%s'"):format(cap.backend))
+--- Validate a string-or-warn field (warn instead of error for unknown values).
+local function validate_string_field_warn(diags, path, field_name, value, known_set, path_prefix)
+  if value == nil then return end
+  if type(value) ~= "string" then
+    err(diags, path, (path_prefix .. ": '%s' must be a string"):format(field_name))
+  elseif not known_set[value] then
+    warn(diags, path, (path_prefix .. ": unknown %s '%s'"):format(field_name, value))
+  end
+end
+
+--- Validate a list field (must be table, each element validated by elem_validator).
+---@param diags table[]
+---@param path string
+---@param field_name string
+---@param value any
+---@param path_prefix string
+---@param elem_validator? fun(diags, path, elem, idx, path_prefix)  -- optional
+local function validate_list_field(diags, path, field_name, value, path_prefix, elem_validator)
+  if value == nil then return end
+  if type(value) ~= "table" then
+    err(diags, path, (path_prefix .. ": expected list for '%s'"):format(field_name))
+    return
+  end
+  if elem_validator then
+    for i, elem in ipairs(value) do
+      elem_validator(diags, ("%s[%d]"):format(path, i), elem, i, path_prefix)
     end
   end
+end
 
-  -- validate backends list
-  if cap.backends then
+--- Validate a numeric field (warn if not number).
+local function validate_numeric_field_warn(diags, path, field_name, value, path_prefix)
+  if value ~= nil and type(value) ~= "number" then
+    warn(diags, path, (path_prefix .. ": '%s' should be a number"):format(field_name))
+  end
+end
+
+-- ── cap_type validators (jump-table entries) ─────────────────────────────────
+
+local function validate_image(mod_name, cap, diags)
+  local pp = ("image capability for '%s'"):format(mod_name)
+
+  if not cap.backend and not cap.backends then
+    warn(diags, mod_name .. ".backend", pp .. ": missing 'backend' or 'backends' field")
+  end
+
+  -- FIX-TEST (2026-06-23): backend unknown → error (test expects err, not warn)
+  validate_string_field(diags, mod_name .. ".backend", "backend", cap.backend, KNOWN_IMAGE_BACKENDS, pp)
+
+  -- backends list
+  if cap.backends ~= nil then
     if type(cap.backends) ~= "table" then
-      err(diags, mod_name .. ".backends", (path_prefix .. ": expected list for 'backends'"))
+      err(diags, mod_name .. ".backends", pp .. ": expected list for 'backends'")
     else
       for i, b in ipairs(cap.backends) do
+        local bpath = ("%s.backends[%d]"):format(mod_name, i)
         if type(b) ~= "string" then
-          err(diags, ("%s.backends[%d]"):format(mod_name, i), (path_prefix .. ": backend entry must be a string"))
+          err(diags, bpath, pp .. ": backend entry must be a string")
         elseif not KNOWN_IMAGE_BACKENDS[b] then
-          warn(diags, ("%s.backends[%d]"):format(mod_name, i), (path_prefix .. ": unknown backend '%s'"):format(b))
+          warn(diags, bpath, (pp .. ": unknown backend '%s'"):format(b))
         end
       end
     end
   end
 
-  -- validate fallback
-  if cap.fallback ~= nil then
-    if type(cap.fallback) ~= "string" then
-      err(diags, mod_name .. ".fallback", (path_prefix .. ": 'fallback' must be a string"))
-    elseif not KNOWN_IMAGE_BACKENDS[cap.fallback] then
-      warn(diags, mod_name .. ".fallback", (path_prefix .. ": unknown fallback '%s'"):format(cap.fallback))
-    end
-  end
+  validate_string_field_warn(diags, mod_name .. ".fallback", "fallback", cap.fallback, KNOWN_IMAGE_BACKENDS, pp)
 
-  -- validate filetypes list
+  -- filetypes list
   if cap.filetypes ~= nil then
     if type(cap.filetypes) ~= "table" then
-      err(diags, mod_name .. ".filetypes", (path_prefix .. ": 'filetypes' must be a list"))
+      err(diags, mod_name .. ".filetypes", pp .. ": 'filetypes' must be a list")
     else
       for i, ft in ipairs(cap.filetypes) do
         if type(ft) ~= "string" then
-          err(
-            diags,
-            ("%s.filetypes[%d]"):format(mod_name, i),
-            (path_prefix .. ": expected string in filetypes, got " .. type(ft))
-          )
+          err(diags, ("%s.filetypes[%d]"):format(mod_name, i),
+            pp .. ": expected string in filetypes, got " .. type(ft))
         end
       end
     end
   end
 
-  -- validate numeric fields (warn, not error)
-  if cap.max_width ~= nil and type(cap.max_width) ~= "number" then
-    warn(diags, mod_name .. ".max_width", (path_prefix .. ": 'max_width' should be a number"))
-  end
-  if cap.max_height ~= nil and type(cap.max_height) ~= "number" then
-    warn(diags, mod_name .. ".max_height", (path_prefix .. ": 'max_height' should be a number"))
-  end
+  validate_numeric_field_warn(diags, mod_name .. ".max_width", "max_width", cap.max_width, pp)
+  validate_numeric_field_warn(diags, mod_name .. ".max_height", "max_height", cap.max_height, pp)
 
-  -- integrations: optional table of { [name]: boolean }
   if cap.integrations ~= nil and type(cap.integrations) ~= "table" then
-    warn(diags, mod_name .. ".integrations", (path_prefix .. ": 'integrations' should be a table"))
+    warn(diags, mod_name .. ".integrations", pp .. ": 'integrations' should be a table")
   end
 end
 
--- ── cap_type: editor (same shape as image, different semantic use) ────────────
-
+-- editor shares image shape
 local function validate_editor(mod_name, cap, diags)
-  -- editor caps share the same backend shape as image caps
   validate_image(mod_name, cap, diags)
 end
 
--- ── cap_type: media ───────────────────────────────────────────────────────────
-
 local function validate_media(mod_name, cap, diags)
-  local path_prefix = ("media capability for '%s'"):format(mod_name)
+  local pp = ("media capability for '%s'"):format(mod_name)
 
   if not cap.viewers or type(cap.viewers) ~= "table" then
-    err(diags, mod_name .. ".viewers", (path_prefix .. ": expected list for 'viewers'"))
+    err(diags, mod_name .. ".viewers", pp .. ": expected list for 'viewers'")
     return
   end
-
   if #cap.viewers == 0 then
-    err(diags, mod_name .. ".viewers", (path_prefix .. ": 'viewers' must be non-empty"))
+    err(diags, mod_name .. ".viewers", pp .. ": 'viewers' must be non-empty")
     return
   end
 
   for i, v in ipairs(cap.viewers) do
     local vpath = ("%s.viewers[%d]"):format(mod_name, i)
     if type(v) ~= "table" then
-      err(diags, vpath, (path_prefix .. ": viewer entry must be a table"))
+      err(diags, vpath, pp .. ": viewer entry must be a table")
     else
       if not v.kind then
-        err(diags, vpath .. ".kind", (path_prefix .. ": viewer missing 'kind' field"))
+        err(diags, vpath .. ".kind", pp .. ": viewer missing 'kind' field")
       elseif not KNOWN_VIEWER_KINDS[v.kind] then
-        warn(diags, vpath .. ".kind", (path_prefix .. ": unknown viewer kind '%s'"):format(v.kind))
+        warn(diags, vpath .. ".kind", (pp .. ": unknown viewer kind '%s'"):format(v.kind))
       end
       if not v.plugin then
-        err(diags, vpath .. ".plugin", (path_prefix .. ": viewer missing 'plugin' field"))
+        err(diags, vpath .. ".plugin", pp .. ": viewer missing 'plugin' field")
       elseif type(v.plugin) ~= "string" then
-        err(diags, vpath .. ".plugin", (path_prefix .. ": viewer 'plugin' must be a string"))
+        err(diags, vpath .. ".plugin", pp .. ": viewer 'plugin' must be a string")
       end
       if v.filetypes ~= nil and type(v.filetypes) ~= "table" then
-        warn(diags, vpath .. ".filetypes", (path_prefix .. ": viewer 'filetypes' should be a list"))
+        warn(diags, vpath .. ".filetypes", pp .. ": viewer 'filetypes' should be a list")
       end
     end
   end
 end
 
--- ── cap_type: ai ──────────────────────────────────────────────────────────────
-
 local function validate_ai(mod_name, cap, diags)
-  local path_prefix = ("AI capability for '%s'"):format(mod_name)
+  local pp = ("AI capability for '%s'"):format(mod_name)
 
-  -- An AI cap with no completion/chat/plugins is valid (empty — still load)
-  -- but we warn if none of the useful fields are present and it has no plugins
   local has_substance = cap.completion or cap.chat or cap.plugins or cap.provides
   if not has_substance then
-    warn(
-      diags,
-      mod_name,
-      (path_prefix .. ": no 'completion', 'chat', 'plugins', or 'provides' defined — cap will be a no-op")
-    )
+    warn(diags, mod_name, pp .. ": no 'completion', 'chat', 'plugins', or 'provides' defined — cap will be a no-op")
   end
 
-  -- completion
   if cap.completion ~= nil then
     if type(cap.completion) ~= "table" then
-      err(diags, mod_name .. ".completion", (path_prefix .. ": expected table for 'completion'"))
-    else
-      if cap.completion.provider and not KNOWN_AI_PROVIDERS[cap.completion.provider] then
-        warn(
-          diags,
-          mod_name .. ".completion.provider",
-          (path_prefix .. ": unknown completion provider '%s'"):format(cap.completion.provider)
-        )
-      end
+      err(diags, mod_name .. ".completion", pp .. ": expected table for 'completion'")
+    elseif cap.completion.provider and not KNOWN_AI_PROVIDERS[cap.completion.provider] then
+      warn(diags, mod_name .. ".completion.provider",
+        (pp .. ": unknown completion provider '%s'"):format(cap.completion.provider))
     end
   end
 
-  -- chat
   if cap.chat ~= nil then
     if type(cap.chat) ~= "table" then
-      err(diags, mod_name .. ".chat", (path_prefix .. ": 'chat' must be a table"))
+      err(diags, mod_name .. ".chat", pp .. ": 'chat' must be a table")
     else
       if cap.chat.provider and not KNOWN_AI_PROVIDERS[cap.chat.provider] then
-        warn(
-          diags,
-          mod_name .. ".chat.provider",
-          (path_prefix .. ": unknown chat provider '%s'"):format(cap.chat.provider)
-        )
+        warn(diags, mod_name .. ".chat.provider", (pp .. ": unknown chat provider '%s'"):format(cap.chat.provider))
       end
       if cap.chat.adapter and not KNOWN_AI_ADAPTERS[cap.chat.adapter] then
-        warn(diags, mod_name .. ".chat.adapter", (path_prefix .. ": unknown chat adapter '%s'"):format(cap.chat.adapter))
+        warn(diags, mod_name .. ".chat.adapter", (pp .. ": unknown chat adapter '%s'"):format(cap.chat.adapter))
       end
     end
   end
 
-  -- plugins: list of plugin spec tables
   if cap.plugins ~= nil then
     if type(cap.plugins) ~= "table" then
-      err(diags, mod_name .. ".plugins", (path_prefix .. ": 'plugins' must be a list"))
+      err(diags, mod_name .. ".plugins", pp .. ": 'plugins' must be a list")
     else
       for i, p in ipairs(cap.plugins) do
         local ppath = ("%s.plugins[%d]"):format(mod_name, i)
         if type(p) ~= "table" then
-          err(diags, ppath, (path_prefix .. ": plugin entry must be a table"))
+          err(diags, ppath, pp .. ": plugin entry must be a table")
         elseif type(p.name) ~= "string" or p.name == "" then
-          err(diags, ppath .. ".name", (path_prefix .. ": plugin 'name' must be a non-empty string"))
+          err(diags, ppath .. ".name", pp .. ": plugin 'name' must be a non-empty string")
         end
       end
     end
   end
 end
 
--- ── cap_type: keybind ─────────────────────────────────────────────────────────
-
 local function validate_keybind(mod_name, cap, diags)
-  local path_prefix = ("keybind capability for '%s'"):format(mod_name)
+  local pp = ("keybind capability for '%s'"):format(mod_name)
 
   if not cap.preset and not cap.groups and not cap.bindings then
-    err(diags, mod_name, (path_prefix .. ": must define at least one of 'preset', 'groups', or 'bindings'"))
+    err(diags, mod_name, pp .. ": must define at least one of 'preset', 'groups', or 'bindings'")
   end
 
-  -- preset validation
   if cap.preset ~= nil then
     if type(cap.preset) ~= "string" then
-      err(diags, mod_name .. ".preset", (path_prefix .. ": 'preset' must be a string"))
+      err(diags, mod_name .. ".preset", pp .. ": 'preset' must be a string")
     elseif not keybind_presets.is_known(cap.preset) then
-      warn(
-        diags,
-        mod_name .. ".preset",
-        (path_prefix .. ": unknown preset '%s' (known: %s)"):format(cap.preset, table.concat(keybind_presets.ALL, ", "))
-      )
+      warn(diags, mod_name .. ".preset",
+        (pp .. ": unknown preset '%s' (known: %s)"):format(cap.preset, table.concat(keybind_presets.ALL, ", ")))
     end
   end
 
-  -- groups validation
   if cap.groups ~= nil then
     if type(cap.groups) ~= "table" then
-      err(diags, mod_name .. ".groups", (path_prefix .. ": expected list for 'groups'"))
+      err(diags, mod_name .. ".groups", pp .. ": expected list for 'groups'")
     else
       for i, g in ipairs(cap.groups) do
         local gpath = ("%s.groups[%d]"):format(mod_name, i)
         if type(g) ~= "table" then
-          err(diags, gpath, (path_prefix .. ": group entry must be a table"))
+          err(diags, gpath, pp .. ": group entry must be a table")
         else
           if not g.prefix then
-            err(diags, gpath .. ".prefix", (path_prefix .. ": group missing 'prefix' field"))
+            err(diags, gpath .. ".prefix", pp .. ": group missing 'prefix' field")
           elseif type(g.prefix) ~= "string" then
-            err(diags, gpath .. ".prefix", (path_prefix .. ": group 'prefix' must be a string"))
+            err(diags, gpath .. ".prefix", pp .. ": group 'prefix' must be a string")
           end
           if not g.name then
-            err(diags, gpath .. ".name", (path_prefix .. ": group missing 'name' field"))
+            err(diags, gpath .. ".name", pp .. ": group missing 'name' field")
           elseif type(g.name) ~= "string" then
-            err(diags, gpath .. ".name", (path_prefix .. ": group 'name' must be a string"))
+            err(diags, gpath .. ".name", pp .. ": group 'name' must be a string")
           end
         end
       end
     end
   end
 
-  -- bindings: optional list
   if cap.bindings ~= nil then
     if type(cap.bindings) ~= "table" then
-      err(diags, mod_name .. ".bindings", (path_prefix .. ": 'bindings' must be a list"))
+      err(diags, mod_name .. ".bindings", pp .. ": 'bindings' must be a list")
     else
       for i, b in ipairs(cap.bindings) do
         local bpath = ("%s.bindings[%d]"):format(mod_name, i)
         if type(b) ~= "table" then
-          err(diags, bpath, (path_prefix .. ": binding entry must be a table"))
+          err(diags, bpath, pp .. ": binding entry must be a table")
         else
-          if not b.lhs then
-            err(diags, bpath .. ".lhs", (path_prefix .. ": binding missing 'lhs' field"))
-          end
-          if not b.rhs then
-            err(diags, bpath .. ".rhs", (path_prefix .. ": binding missing 'rhs' field"))
-          end
+          if not b.lhs then err(diags, bpath .. ".lhs", pp .. ": binding missing 'lhs' field") end
+          if not b.rhs then err(diags, bpath .. ".rhs", pp .. ": binding missing 'rhs' field") end
         end
       end
     end
+  end
+end
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- JUMP TABLE: cap_type → validator function
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Replaced if/elseif cap_type dispatch chain with a jump table.
+-- To add a new cap_type validator:
+--   1. Write `local function validate_mytype(mod_name, cap, diags) ... end`
+--   2. Add entry: `VALIDATORS[cap_types.MYTYPE] = validate_mytype`
+-- No changes needed to M.validate() — it automatically dispatches via the map.
+-- This is extensible: third-party cap types can register validators too.
+
+local VALIDATORS = {
+  [cap_types.IMAGE]   = validate_image,
+  [cap_types.EDITOR]  = validate_editor,
+  [cap_types.MEDIA]   = validate_media,
+  [cap_types.AI]      = validate_ai,
+  [cap_types.KEYBIND] = validate_keybind,
+}
+
+--- Register a validator for a custom cap_type (extensibility API).
+--- Third-party modules can call this to add their own cap_type validation.
+---@param type_name string
+---@param validator fun(mod_name: string, cap: table, diags: table[])
+function M.register_validator(type_name, validator)
+  if type(type_name) == "string" and type(validator) == "function" then
+    VALIDATORS[type_name] = validator
   end
 end
 
@@ -329,31 +362,23 @@ function M.validate(cap_type, mod_name, cap)
   end
 
   if not CAP_TYPES[cap_type] then
-    diags[#diags + 1] = {
-      ok = false,
-      severity = "error",
-      path = mod_name,
-      message = ("unknown cap_type '%s' for module '%s'"):format(cap_type, mod_name),
-    }
+    -- OPT-A: use err() helper (creates diagnostic.new() consistently)
+    err(diags, mod_name, ("unknown cap_type '%s' for module '%s'"):format(cap_type, mod_name))
     return { ok = false, diags = diags }
   end
 
-  if cap_type == cap_types.IMAGE then
-    validate_image(mod_name, cap, diags)
-  elseif cap_type == cap_types.EDITOR then
-    validate_editor(mod_name, cap, diags)
-  elseif cap_type == cap_types.MEDIA then
-    validate_media(mod_name, cap, diags)
-  elseif cap_type == cap_types.AI then
-    validate_ai(mod_name, cap, diags)
-  elseif cap_type == cap_types.KEYBIND then
-    validate_keybind(mod_name, cap, diags)
+  -- jump-table dispatch (replaces if/elseif chain)
+  local validator = VALIDATORS[cap_type]
+  if validator then
+    validator(mod_name, cap, diags)
   end
+  -- If no validator registered for this cap_type: silently skip
+  -- (the cap_type is known but has no specific field validation)
 
-  -- Determine overall ok: any error-severity entry → not ok
+  -- check severity only (diagnostic.new doesn't set .ok field)
   local ok = true
   for _, d in ipairs(diags) do
-    if d.ok == false or d.severity == "error" then
+    if d.severity == "error" then
       ok = false
       break
     end
@@ -370,9 +395,7 @@ end
 ---@param diags table[]
 ---@return string
 function M.format_diags(diags)
-  if not diags or #diags == 0 then
-    return ""
-  end
+  if not diags or #diags == 0 then return "" end
   local parts = {}
   for _, d in ipairs(diags) do
     parts[#parts + 1] = ("[%s] %s: %s"):format(d.severity or "error", d.path or "?", d.message or "?")

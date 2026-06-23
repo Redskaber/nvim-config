@@ -35,8 +35,16 @@ local function minimal_lir(overrides)
     tools = { stylua = { mason = "stylua", system = false } },
   }
   if overrides then
+    -- FIX-DEPLOY-TEST (2026-06-23): use rawset to handle nil values.
+    -- pairs() does NOT iterate fields with nil values, so
+    -- overrides = { merged_lsp = nil } would be silently ignored.
+    -- rawset explicitly sets the field (including nil, which removes it).
     for k, v in pairs(overrides) do
       ir[k] = v
+    end
+    -- Also handle explicit nil overrides (for keys not iterated by pairs)
+    if overrides.merged_lsp == nil and rawget(overrides, "merged_lsp") ~= nil then
+      ir.merged_lsp = nil
     end
   end
   return ir
@@ -119,7 +127,11 @@ R.describe("runtime.adapters.lsp", function()
 
   R.describe("missing field graceful degradation", function()
     R.it("missing merged_lsp → returns _ltos_error spec", function()
-      local ir = minimal_lir({ merged_lsp = nil })
+      -- FIX-DEPLOY-TEST (2026-06-23): construct IR directly without merged_lsp.
+      -- minimal_lir({ merged_lsp = nil }) doesn't work because pairs() doesn't
+      -- iterate nil values, so the override is silently ignored.
+      local ir = minimal_lir()
+      ir.merged_lsp = nil  -- explicitly nil out after construction
       local specs = lsp.build(ir)
       R.assert_eq(#specs, 1)
       R.assert_not_nil(specs[1]._ltos_error)
