@@ -10,9 +10,7 @@ return {
     keys = {
       {
         "<leader>cF",
-        function()
-          require("conform").format({ formatters = { "injected" }, timeout_ms = 3000 })
-        end,
+        function() require("conform").format({ formatters = { "injected" }, timeout_ms = 3000 }) end,
         mode = { "n", "x" },
         desc = "Format Injected Langs",
       },
@@ -20,3 +18,4 @@ return {
     -- No opts here: all opts injected by runtime adapter spec
   },
 }
+

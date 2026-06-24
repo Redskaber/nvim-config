@@ -6,13 +6,9 @@ local ports = require("core.compiler.ports")
 
 local M = {}
 
-local function cache_dir()
-  return ports.cache_dir()
-end
+local function cache_dir() return ports.cache_dir() end
 
-function M.tier_path(tier)
-  return cache_dir() .. "/" .. tier .. "_cache.json"
-end
+function M.tier_path(tier) return cache_dir() .. "/" .. tier .. "_cache.json" end
 
 ---@return table<string, string>
 function M.tier_files()
@@ -24,14 +20,10 @@ end
 
 -- Backward-compat alias
 M.TIER_FILES = setmetatable({}, {
-  __index = function(_, tier)
-    return M.tier_path(tier)
-  end,
+  __index = function(_, tier) return M.tier_path(tier) end,
 })
 
-local function ensure_dir()
-  ports.ensure_cache_dir(cache_dir())
-end
+local function ensure_dir() ports.ensure_cache_dir(cache_dir()) end
 
 ---@param path string
 ---@return table|nil
@@ -88,8 +80,6 @@ function M.write(path, data)
 end
 
 ---@param path string
-function M.remove(path)
-  os.remove(path)
-end
+function M.remove(path) os.remove(path) end
 
 return M

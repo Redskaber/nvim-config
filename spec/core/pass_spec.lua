@@ -13,18 +13,14 @@ R.describe("core.compiler.pass", function()
       name = name or "identity",
       input_state = "idle",
       output_state = "collecting",
-      run = function(i)
-        return ir_mod.clone(i)
-      end,
+      run = function(i) return ir_mod.clone(i) end,
     }
   end
 
   -- ── assert_valid ──────────────────────────────────────────────────────────
 
   R.describe("assert_valid()", function()
-    R.it("accepts well-formed phase", function()
-      pass_mod.assert_valid(identity_phase())
-    end)
+    R.it("accepts well-formed phase", function() pass_mod.assert_valid(identity_phase()) end)
     R.it("rejects phase without name", function()
       local p = identity_phase()
       p.name = nil
@@ -57,9 +53,7 @@ R.describe("core.compiler.pass", function()
     end)
     R.it("accepts optional output_validate as function", function()
       local p = identity_phase()
-      p.output_validate = function(_)
-        return {}
-      end
+      p.output_validate = function(_) return {} end
       pass_mod.assert_valid(p)
     end)
   end)
@@ -78,9 +72,7 @@ R.describe("core.compiler.pass", function()
         name = "adder",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } })
-        end,
+        run = function(i) return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } }) end,
       }
       local input = F.ast()
       local result = pass_mod.run_phase(adder, input)
@@ -93,9 +85,7 @@ R.describe("core.compiler.pass", function()
         name = "broken",
         input_state = "idle",
         output_state = "collecting",
-        run = function(_)
-          error("exploded")
-        end,
+        run = function(_) error("exploded") end,
       }
       local result, errs = pass_mod.run_phase(broken, F.ast())
       R.assert_eq(#errs, 1)
@@ -108,9 +98,7 @@ R.describe("core.compiler.pass", function()
         name = "bad_return",
         input_state = "idle",
         output_state = "collecting",
-        run = function(_)
-          return "not a table"
-        end,
+        run = function(_) return "not a table" end,
       }
       local _, errs = pass_mod.run_phase(bad, F.ast())
       R.assert_true(#errs > 0)
@@ -122,9 +110,7 @@ R.describe("core.compiler.pass", function()
         name = "blocked",
         input_state = "idle",
         output_state = "collecting",
-        validate = function(_)
-          return { ir_mod.diag("blocked", "pre", "precondition failed") }
-        end,
+        validate = function(_) return { ir_mod.diag("blocked", "pre", "precondition failed") } end,
         run = function(i)
           ran = true
           return i
@@ -141,9 +127,7 @@ R.describe("core.compiler.pass", function()
         name = "val_err",
         input_state = "idle",
         output_state = "collecting",
-        validate = function(_)
-          error("validate exploded")
-        end,
+        validate = function(_) error("validate exploded") end,
         run = function(i)
           ran = true
           return i
@@ -159,9 +143,7 @@ R.describe("core.compiler.pass", function()
         name = "post_val",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return ir_mod.clone(i)
-        end,
+        run = function(i) return ir_mod.clone(i) end,
         output_validate = function(_)
           -- FIX-DEPLOY-TEST (2026-06-23): use plain table diag instead of
           -- ir_mod.diag() to avoid types bootstrap dependency issues.
@@ -222,9 +204,7 @@ R.describe("core.compiler.pass", function()
         name = "ctx_adder",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } })
-        end,
+        run = function(i) return ir_mod.with(i, { resolved = { lsp = {}, tools = {} } }) end,
       }
       local ctx = ir_mod.ctx(F.ast(), "idle", "test-key")
       local nctx = pass_mod.run_with_ctx(adder, ctx)
@@ -238,9 +218,7 @@ R.describe("core.compiler.pass", function()
         name = "timed",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return ir_mod.clone(i)
-        end,
+        run = function(i) return ir_mod.clone(i) end,
       }
       local nctx = pass_mod.run_with_ctx(p, ir_mod.ctx(F.ast(), "idle", ""))
       R.assert_type(nctx.timings["timed"], "number")
@@ -252,9 +230,7 @@ R.describe("core.compiler.pass", function()
         name = "ctx_fail",
         input_state = "idle",
         output_state = "collecting",
-        run = function(_)
-          error("ctx error")
-        end,
+        run = function(_) error("ctx error") end,
       }
       local nctx = pass_mod.run_with_ctx(failing, ir_mod.ctx(F.ast(), "idle", ""))
       R.assert_true(#nctx.diagnostics > 0)
@@ -262,3 +238,4 @@ R.describe("core.compiler.pass", function()
     end)
   end)
 end)
+

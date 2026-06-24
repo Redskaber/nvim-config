@@ -13,18 +13,13 @@ R.describe("runtime.lifecycle", function()
   -- ── initial state ──────────────────────────────────────────────────────────
 
   R.describe("initial state", function()
-    R.it("starts in BOOT state", function()
-      R.assert_eq(fresh().state(), "BOOT")
-    end)
-    R.it("is_ready() = false initially", function()
-      R.assert_false(fresh().is_ready())
-    end)
-    R.it("is_error() = false initially", function()
-      R.assert_false(fresh().is_error())
-    end)
-    R.it("last_fail_reason() = nil initially", function()
-      R.assert_nil(fresh().last_fail_reason())
-    end)
+    R.it("starts in BOOT state", function() R.assert_eq(fresh().state(), "BOOT") end)
+    R.it("is_ready() = false initially", function() R.assert_false(fresh().is_ready()) end)
+    R.it("is_error() = false initially", function() R.assert_false(fresh().is_error()) end)
+    R.it(
+      "last_fail_reason() = nil initially",
+      function() R.assert_nil(fresh().last_fail_reason()) end
+    )
   end)
 
   -- ── happy path ────────────────────────────────────────────────────────────
@@ -123,21 +118,15 @@ R.describe("runtime.lifecycle", function()
     R.it("multiple observers all invoked", function()
       local lc = fresh()
       local count = 0
-      lc.observe(function()
-        count = count + 1
-      end)
-      lc.observe(function()
-        count = count + 1
-      end)
+      lc.observe(function() count = count + 1 end)
+      lc.observe(function() count = count + 1 end)
       lc.transition(lc.STATES.SCHEMA_LOAD)
       R.assert_eq(count, 2)
     end)
 
     R.it("observer error does not abort the transition", function()
       local lc = fresh()
-      lc.observe(function()
-        error("boom")
-      end)
+      lc.observe(function() error("boom") end)
       R.assert_true(lc.transition(lc.STATES.SCHEMA_LOAD))
       R.assert_eq(lc.state(), lc.STATES.SCHEMA_LOAD)
     end)
@@ -158,9 +147,10 @@ R.describe("runtime.lifecycle", function()
   -- ── timestamps ────────────────────────────────────────────────────────────
 
   R.describe("timestamps()", function()
-    R.it("contains boot entry as number", function()
-      R.assert_type(fresh().timestamps().boot, "number")
-    end)
+    R.it(
+      "contains boot entry as number",
+      function() R.assert_type(fresh().timestamps().boot, "number") end
+    )
     R.it("schema_load timestamp added after transition", function()
       local lc = fresh()
       lc.transition(lc.STATES.SCHEMA_LOAD)
@@ -172,9 +162,10 @@ R.describe("runtime.lifecycle", function()
       R.assert_type(e, "number")
       R.assert_true(e >= 0)
     end)
-    R.it("elapsed() returns nil for future (not-yet-visited) state", function()
-      R.assert_nil(fresh().elapsed("READY"))
-    end)
+    R.it(
+      "elapsed() returns nil for future (not-yet-visited) state",
+      function() R.assert_nil(fresh().elapsed("READY")) end
+    )
   end)
 
   -- ── STATES enum ───────────────────────────────────────────────────────────
@@ -204,9 +195,7 @@ R.describe("runtime.lifecycle", function()
       local lc = require("runtime.lifecycle")
       local api = require("runtime.api")
       local fired = false
-      api.on_ready(function()
-        fired = true
-      end)
+      api.on_ready(function() fired = true end)
       for _, s in ipairs({
         lc.STATES.SCHEMA_LOAD,
         lc.STATES.COMPILE,
@@ -223,9 +212,7 @@ R.describe("runtime.lifecycle", function()
       local lc = require("runtime.lifecycle")
       local api = require("runtime.api")
       local count = 0
-      api.on_lifecycle_change(function()
-        count = count + 1
-      end)
+      api.on_lifecycle_change(function() count = count + 1 end)
       lc.transition(lc.STATES.SCHEMA_LOAD)
       lc.transition(lc.STATES.COMPILE)
       R.assert_true(count >= 2)
@@ -239,8 +226,9 @@ R.describe("runtime.lifecycle", function()
       local lc = fresh()
       local pipeline = require("runtime.pipeline")
       local before = lc.state()
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_eq(lc.state(), before, "pipeline.run must not advance the lifecycle SM")
     end)
   end)
 end)
+

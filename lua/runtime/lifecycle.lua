@@ -35,9 +35,7 @@ local function notify_observers(next_state, prev_state)
 end
 
 ---@return string
-function M.state()
-  return _state
-end
+function M.state() return _state end
 
 ---@param next_state string
 ---@return boolean
@@ -64,24 +62,16 @@ function M.fail(reason)
 end
 
 ---@return boolean
-function M.is_ready()
-  return _state == M.STATES.READY
-end
+function M.is_ready() return _state == M.STATES.READY end
 
 ---@return boolean
-function M.is_error()
-  return _state == M.STATES.ERROR
-end
+function M.is_error() return _state == M.STATES.ERROR end
 
 ---@param fn fun(new_state: string, prev_state: string)
-function M.observe(fn)
-  _observers[#_observers + 1] = fn
-end
+function M.observe(fn) _observers[#_observers + 1] = fn end
 
 ---@return table<string, number>
-function M.timestamps()
-  return _timestamps
-end
+function M.timestamps() return _timestamps end
 
 ---@param state string
 ---@return number|nil
@@ -95,9 +85,7 @@ end
 
 --- Last failure reason (testing / diagnostics).
 ---@return string|nil
-function M.last_fail_reason()
-  return _last_fail_reason
-end
+function M.last_fail_reason() return _last_fail_reason end
 
 --- Reset SM (testing only).
 function M._reset()
@@ -108,3 +96,4 @@ function M._reset()
 end
 
 return M
+

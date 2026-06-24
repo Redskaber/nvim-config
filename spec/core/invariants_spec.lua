@@ -7,19 +7,13 @@ R.describe("core.compiler.invariants", function()
   local inv = require("core.compiler.invariants")
   local ir_mod = require("core.compiler.ir")
 
-  R.before_each(function()
-    inv.disable()
-  end)
-  R.after_each(function()
-    inv.disable()
-  end)
+  R.before_each(function() inv.disable() end)
+  R.after_each(function() inv.disable() end)
 
   -- ── enable / disable ──────────────────────────────────────────────────────
 
   R.describe("enable / disable", function()
-    R.it("starts disabled", function()
-      R.assert_false(inv.is_enabled())
-    end)
+    R.it("starts disabled", function() R.assert_false(inv.is_enabled()) end)
     R.it("enable() activates flag", function()
       inv.enable()
       R.assert_true(inv.is_enabled())
@@ -105,9 +99,7 @@ R.describe("core.compiler.invariants", function()
       inv.enable()
       inv.assert_strategy_shape({
         name = "strat",
-        resolve = function()
-          return {}
-        end,
+        resolve = function() return {} end,
         priority = 50,
       }, "ctx")
     end)
@@ -117,7 +109,9 @@ R.describe("core.compiler.invariants", function()
     end)
     R.it("throws for missing name", function()
       inv.enable()
-      R.assert_false(pcall(inv.assert_strategy_shape, { resolve = function() end, priority = 50 }, "ctx"))
+      R.assert_false(
+        pcall(inv.assert_strategy_shape, { resolve = function() end, priority = 50 }, "ctx")
+      )
     end)
     R.it("no-op when disabled", function()
       inv.disable()
@@ -135,9 +129,7 @@ R.describe("core.compiler.invariants", function()
         name = "mutating",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return i
-        end, -- violation: same table
+        run = function(i) return i end, -- violation: same table
       }
       local ir = ir_mod.new({}, "full")
       local ok = pcall(pass_mod.run_phase, mutating_phase, ir)
@@ -145,3 +137,4 @@ R.describe("core.compiler.invariants", function()
     end)
   end)
 end)
+

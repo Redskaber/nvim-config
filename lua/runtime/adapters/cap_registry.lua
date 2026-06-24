@@ -11,7 +11,10 @@ local _setup_done = false
 ---@param adapter_path string
 function M.register(cap_type, adapter_path)
   assert(type(cap_type) == "string" and cap_type ~= "", "cap_type must be non-empty string")
-  assert(type(adapter_path) == "string" and adapter_path ~= "", "adapter_path must be non-empty string")
+  assert(
+    type(adapter_path) == "string" and adapter_path ~= "",
+    "adapter_path must be non-empty string"
+  )
   _adapters[cap_type] = adapter_path
 end
 

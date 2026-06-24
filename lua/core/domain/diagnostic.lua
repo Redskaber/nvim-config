@@ -51,7 +51,13 @@ M.diag = M.new
 ---@param d Diagnostic
 ---@return string
 function M.format(d)
-  return ("[%s][%s] %s: %s"):format(d.severity or "error", d.stage or "?", d.node or "?", d.message or "?")
+  return ("[%s][%s] %s: %s"):format(
+    d.severity or "error",
+    d.stage or "?",
+    d.node or "?",
+    d.message or "?"
+  )
 end
 
 return M
+

@@ -26,15 +26,18 @@ R.describe("core.domain.diagnostic", function()
       R.assert_eq(d.severity, "error")
     end)
 
-    R.it("error → E-prefixed code", function()
-      R.assert_eq(diag.new("s", "n", "m", "error").code:sub(1, 1), "E")
-    end)
-    R.it("warn → W-prefixed code", function()
-      R.assert_eq(diag.new("s", "n", "m", "warn").code:sub(1, 1), "W")
-    end)
-    R.it("info → I-prefixed code", function()
-      R.assert_eq(diag.new("s", "n", "m", "info").code:sub(1, 1), "I")
-    end)
+    R.it(
+      "error → E-prefixed code",
+      function() R.assert_eq(diag.new("s", "n", "m", "error").code:sub(1, 1), "E") end
+    )
+    R.it(
+      "warn → W-prefixed code",
+      function() R.assert_eq(diag.new("s", "n", "m", "warn").code:sub(1, 1), "W") end
+    )
+    R.it(
+      "info → I-prefixed code",
+      function() R.assert_eq(diag.new("s", "n", "m", "info").code:sub(1, 1), "I") end
+    )
   end)
 
   -- ── determinism ────────────────────────────────────────────────────────────
@@ -86,3 +89,4 @@ R.describe("core.domain.diagnostic", function()
     end)
   end)
 end)
+

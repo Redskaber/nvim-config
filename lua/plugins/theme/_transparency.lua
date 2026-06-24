@@ -107,3 +107,4 @@ function M.highlights(colors)
 end
 
 return M
+

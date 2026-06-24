@@ -108,10 +108,11 @@ local function topo_sort(entries)
     -- Cycle detected — fall back to priority-only sort and emit a warning
     -- OPT-J (2026-06-23): use ports.notify instead of vim.notify (INV-3)
     local ports = require("core.compiler.ports")
-    ports.notify(vim.log.levels.WARN, "[phase_registry] dependency cycle detected — falling back to priority order")
-    table.sort(entries, function(a, b)
-      return a.priority < b.priority
-    end)
+    ports.notify(
+      vim.log.levels.WARN,
+      "[phase_registry] dependency cycle detected — falling back to priority order"
+    )
+    table.sort(entries, function(a, b) return a.priority < b.priority end)
     order = {}
     for _, e in ipairs(entries) do
       order[#order + 1] = e.phase
@@ -133,9 +134,7 @@ end
 
 --- Get the codegen phase.
 ---@return table|nil
-function M.codegen()
-  return _codegen
-end
+function M.codegen() return _codegen end
 
 --- Get phase order names for debugging/state machine.
 ---@return string[]
@@ -157,3 +156,4 @@ function M._reset()
   _order_cache = nil
 end
 return M
+

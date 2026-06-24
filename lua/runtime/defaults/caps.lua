@@ -64,7 +64,12 @@ function M.discover()
           -- This prevents helper modules (e.g. utils.lua) from being loaded as caps.
           -- A valid cap DSL has `cap_type` (string) and `version` (number) fields.
           local ok, mod = pcall(require, modname)
-          if ok and type(mod) == "table" and type(mod.cap_type) == "string" and type(mod.version) == "number" then
+          if
+            ok
+            and type(mod) == "table"
+            and type(mod.cap_type) == "string"
+            and type(mod.version) == "number"
+          then
             paths[#paths + 1] = modname
           end
           -- If not valid cap DSL: silently skip (helper module)

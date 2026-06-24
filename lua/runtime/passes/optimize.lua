@@ -17,9 +17,7 @@ local optimize_pass = {
   input_state = "resolving",
   output_state = "optimizing",
 
-  validate = function(ir)
-    return ir_mod.validate(ir, "optimize")
-  end,
+  validate = function(ir) return ir_mod.validate(ir, "optimize") end,
 
   ---@param ir IR
   ---@return IR
@@ -62,3 +60,4 @@ local optimize_pass = {
 }
 
 return optimize_pass
+

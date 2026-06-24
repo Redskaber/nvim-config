@@ -48,9 +48,7 @@ end
 
 -- ── Internal validators ───────────────────────────────────────────────────────
 
-local function is_sentinel(s)
-  return type(s) == "string" and s:match("^__.+__$") ~= nil
-end
+local function is_sentinel(s) return type(s) == "string" and s:match("^__.+__$") ~= nil end
 
 ---@param path  string
 ---@param node  table
@@ -63,8 +61,13 @@ local function validate_formatter_node(path, node, diags)
       valid_kinds[#valid_kinds + 1] = k
     end
     table.sort(valid_kinds)
-    diags[#diags + 1] =
-      diag(path, ("unknown node kind %q; valid: %s"):format(tostring(node.kind), table.concat(valid_kinds, ", ")))
+    diags[#diags + 1] = diag(
+      path,
+      ("unknown node kind %q; valid: %s"):format(
+        tostring(node.kind),
+        table.concat(valid_kinds, ", ")
+      )
+    )
     return
   end
   if node.name ~= nil and type(node.name) ~= "string" then
@@ -75,8 +78,10 @@ local function validate_formatter_node(path, node, diags)
   end
   -- fn must NOT appear in source DSL — it is injected by the normalize pass
   if node.fn ~= nil then
-    diags[#diags + 1] =
-      diag(path .. ".fn", "fn must not be set in source modules; it is injected by the normalize pass")
+    diags[#diags + 1] = diag(
+      path .. ".fn",
+      "fn must not be set in source modules; it is injected by the normalize pass"
+    )
   end
 end
 
@@ -109,7 +114,9 @@ local function validate_ft_tool_map(path, value, diags)
           if is_sentinel(v) then
             diags[#diags + 1] = diag(
               elem_path,
-              ('sentinel %q is forbidden; use FormatterNode: { kind = "formatter", strategy = "..." }'):format(v)
+              ('sentinel %q is forbidden; use FormatterNode: { kind = "formatter", strategy = "..." }'):format(
+                v
+              )
             )
           end
         else
@@ -192,7 +199,8 @@ function M.validate(name, cap)
   -- TODO-6.1: version field compatibility check
   if cap.version ~= nil then
     if type(cap.version) ~= "number" then
-      diags[#diags + 1] = diag(name .. ".version", "version must be a number, got " .. type(cap.version), "warn")
+      diags[#diags + 1] =
+        diag(name .. ".version", "version must be a number, got " .. type(cap.version), "warn")
     elseif cap.version > CURRENT_SCHEMA_VERSION then
       diags[#diags + 1] = diag(
         name .. ".version",
@@ -213,7 +221,8 @@ function M.validate(name, cap)
           diags[#diags + 1] = diag(name .. ".lsp.<key>", "server name must be a non-empty string")
         end
         if type(cfg) ~= "table" then
-          diags[#diags + 1] = diag(name .. ".lsp." .. tostring(server), "expected table, got " .. type(cfg))
+          diags[#diags + 1] =
+            diag(name .. ".lsp." .. tostring(server), "expected table, got " .. type(cfg))
         end
       end
     end
@@ -235,7 +244,8 @@ function M.validate(name, cap)
     if type(cap.mason) == "table" then
       for i, v in ipairs(cap.mason) do
         if type(v) == "string" and v == "" then
-          diags[#diags + 1] = diag(name .. ".mason[" .. i .. "]", "mason entries must be non-empty strings")
+          diags[#diags + 1] =
+            diag(name .. ".mason[" .. i .. "]", "mason entries must be non-empty strings")
         end
       end
     end
@@ -265,9 +275,15 @@ function M.format_diags(diags)
   end
   local lines = {}
   for _, d in ipairs(diags) do
-    lines[#lines + 1] = ("[%s][schema:%s] %s — %s"):format(d.code or "?", d.severity, d.path, d.message)
+    lines[#lines + 1] = ("[%s][schema:%s] %s — %s"):format(
+      d.code or "?",
+      d.severity,
+      d.path,
+      d.message
+    )
   end
   return table.concat(lines, "\n")
 end
 
 return M
+

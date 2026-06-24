@@ -150,9 +150,7 @@ function M.build(ir)
                 local p_ok, pkg = pcall(registry.get_package, pkg_name)
                 if p_ok and pkg and not pkg:is_installed() then
                   -- pcall swallows "already installing" errors gracefully
-                  pcall(function()
-                    pkg:install()
-                  end)
+                  pcall(function() pkg:install() end)
                 end
               end
             end,

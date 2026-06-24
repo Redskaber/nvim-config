@@ -11,21 +11,26 @@ R.describe("toolchain.rules", function()
   -- ── system tools ──────────────────────────────────────────────────────────
 
   R.describe("system_tools whitelist", function()
-    R.it("gofmt → use_mason=false (system managed)", function()
-      R.assert_false(rules.resolve("gofmt", {}).use_mason)
-    end)
-    R.it("rustfmt → use_mason=false (system managed)", function()
-      R.assert_false(rules.resolve("rustfmt", {}).use_mason)
-    end)
-    R.it("zigfmt → use_mason=false (system managed)", function()
-      R.assert_false(rules.resolve("zigfmt", {}).use_mason)
-    end)
-    R.it("fish_indent → use_mason=false", function()
-      R.assert_false(rules.resolve("fish_indent", {}).use_mason)
-    end)
-    R.it("git → use_mason=false", function()
-      R.assert_false(rules.resolve("git", {}).use_mason)
-    end)
+    R.it(
+      "gofmt → use_mason=false (system managed)",
+      function() R.assert_false(rules.resolve("gofmt", {}).use_mason) end
+    )
+    R.it(
+      "rustfmt → use_mason=false (system managed)",
+      function() R.assert_false(rules.resolve("rustfmt", {}).use_mason) end
+    )
+    R.it(
+      "zigfmt → use_mason=false (system managed)",
+      function() R.assert_false(rules.resolve("zigfmt", {}).use_mason) end
+    )
+    R.it(
+      "fish_indent → use_mason=false",
+      function() R.assert_false(rules.resolve("fish_indent", {}).use_mason) end
+    )
+    R.it(
+      "git → use_mason=false",
+      function() R.assert_false(rules.resolve("git", {}).use_mason) end
+    )
   end)
 
   -- ── identity fallback ─────────────────────────────────────────────────────
@@ -92,15 +97,15 @@ R.describe("toolchain.rules", function()
   -- ── use_mason() convenience ───────────────────────────────────────────────
 
   R.describe("use_mason() convenience wrapper", function()
-    R.it("returns boolean", function()
-      R.assert_type(rules.use_mason("stylua", {}, {}), "boolean")
-    end)
-    R.it("gofmt → false", function()
-      R.assert_false(rules.use_mason("gofmt", {}))
-    end)
-    R.it("unknown tool → true", function()
-      R.assert_true(rules.use_mason("unknown_tool_abc", {}))
-    end)
+    R.it(
+      "returns boolean",
+      function() R.assert_type(rules.use_mason("stylua", {}, {}), "boolean") end
+    )
+    R.it("gofmt → false", function() R.assert_false(rules.use_mason("gofmt", {})) end)
+    R.it(
+      "unknown tool → true",
+      function() R.assert_true(rules.use_mason("unknown_tool_abc", {})) end
+    )
   end)
 end)
 
@@ -112,26 +117,28 @@ R.describe("toolchain.mappings", function()
   -- ── lsp_pkg() ─────────────────────────────────────────────────────────────
 
   R.describe("lsp_pkg()", function()
-    R.it("lua_ls → lua-language-server", function()
-      R.assert_eq(mappings.lsp_pkg("lua_ls"), "lua-language-server")
-    end)
-    R.it("rust_analyzer → rust-analyzer", function()
-      R.assert_eq(mappings.lsp_pkg("rust_analyzer"), "rust-analyzer")
-    end)
-    R.it("unknown server → identity (server name as pkg)", function()
-      R.assert_eq(mappings.lsp_pkg("my_custom_lsp"), "my_custom_lsp")
-    end)
+    R.it(
+      "lua_ls → lua-language-server",
+      function() R.assert_eq(mappings.lsp_pkg("lua_ls"), "lua-language-server") end
+    )
+    R.it(
+      "rust_analyzer → rust-analyzer",
+      function() R.assert_eq(mappings.lsp_pkg("rust_analyzer"), "rust-analyzer") end
+    )
+    R.it(
+      "unknown server → identity (server name as pkg)",
+      function() R.assert_eq(mappings.lsp_pkg("my_custom_lsp"), "my_custom_lsp") end
+    )
   end)
 
   -- ── tool_pkg() ────────────────────────────────────────────────────────────
 
   R.describe("tool_pkg()", function()
-    R.it("system tool → nil", function()
-      R.assert_nil(mappings.tool_pkg("rustfmt"))
-    end)
-    R.it("ruff_format → ruff", function()
-      R.assert_eq(mappings.tool_pkg("ruff_format"), "ruff")
-    end)
+    R.it("system tool → nil", function() R.assert_nil(mappings.tool_pkg("rustfmt")) end)
+    R.it(
+      "ruff_format → ruff",
+      function() R.assert_eq(mappings.tool_pkg("ruff_format"), "ruff") end
+    )
   end)
 
   -- ── resolve() ─────────────────────────────────────────────────────────────
@@ -141,9 +148,10 @@ R.describe("toolchain.mappings", function()
       R.assert_false(mappings.resolve("git").use_mason)
       R.assert_false(mappings.resolve("gofmt").use_mason)
     end)
-    R.it("regular tool → use_mason=true", function()
-      R.assert_true(mappings.resolve("ruff").use_mason)
-    end)
+    R.it(
+      "regular tool → use_mason=true",
+      function() R.assert_true(mappings.resolve("ruff").use_mason) end
+    )
     R.it("ruff_format → pkg=ruff", function()
       local r = mappings.resolve("ruff_format")
       R.assert_true(r.use_mason)
@@ -184,21 +192,25 @@ R.describe("toolchain.strategy.registry", function()
     R.assert_true(#list >= 3)
   end)
 
-  R.it("ruff_or_black strategy is registered", function()
-    R.assert_not_nil(reg.get("ruff_or_black"))
-  end)
+  R.it(
+    "ruff_or_black strategy is registered",
+    function() R.assert_not_nil(reg.get("ruff_or_black")) end
+  )
 
-  R.it("prettierd_or_prettier strategy is registered", function()
-    R.assert_not_nil(reg.get("prettierd_or_prettier"))
-  end)
+  R.it(
+    "prettierd_or_prettier strategy is registered",
+    function() R.assert_not_nil(reg.get("prettierd_or_prettier")) end
+  )
 
-  R.it("stylua_or_lua_format strategy is registered", function()
-    R.assert_not_nil(reg.get("stylua_or_lua_format"))
-  end)
+  R.it(
+    "stylua_or_lua_format strategy is registered",
+    function() R.assert_not_nil(reg.get("stylua_or_lua_format")) end
+  )
 
-  R.it("get() returns nil for unknown strategy", function()
-    R.assert_nil(reg.get("nonexistent_strategy_xyz"))
-  end)
+  R.it(
+    "get() returns nil for unknown strategy",
+    function() R.assert_nil(reg.get("nonexistent_strategy_xyz")) end
+  )
 
   R.it("each strategy has resolve function", function()
     for _, name in ipairs(reg.list()) do
@@ -224,9 +236,7 @@ R.describe("toolchain.strategy.registry", function()
 
   R.it("register() after lock() throws", function()
     -- bootstrap() calls lock(); subsequent register should error
-    R.assert_false(pcall(reg.register, "new_strat", function()
-      return {}
-    end))
+    R.assert_false(pcall(reg.register, "new_strat", function() return {} end))
   end)
 
   R.it("resolve() multi-dispatch finds strategy by name", function()
@@ -246,9 +256,7 @@ R.describe("toolchain.strategy.builtin", function()
     local fake_registry = {
       -- FIX-AUDIT-STRATEGY (2026-06-23): register is called as
       -- registry.register(strategy) (function call, no self).
-      register = function(s)
-        registered[#registered + 1] = s.name
-      end,
+      register = function(s) registered[#registered + 1] = s.name end,
     }
     builtin.bootstrap(fake_registry)
     R.assert_true(#registered >= 3)
@@ -257,9 +265,7 @@ R.describe("toolchain.strategy.builtin", function()
   R.it("all built-in strategies have applies() function", function()
     local registered = {}
     builtin.bootstrap({
-      register = function(s)
-        registered[#registered + 1] = s
-      end,
+      register = function(s) registered[#registered + 1] = s end,
     })
     for _, s in ipairs(registered) do
       R.assert_type(s.applies, "function", s.name .. ".applies must be a function")
@@ -276,12 +282,8 @@ R.describe("toolchain.strategy.conflict", function()
     return {
       name = name,
       priority = priority,
-      applies = function(t)
-        return t == (applies_tool or name)
-      end,
-      resolve = function()
-        return { name }
-      end,
+      applies = function(t) return t == (applies_tool or name) end,
+      resolve = function() return { name } end,
     }
   end
 
@@ -305,12 +307,8 @@ R.describe("toolchain.strategy.conflict", function()
       local broken = {
         name = "broken",
         priority = 50,
-        applies = function()
-          error("boom")
-        end,
-        resolve = function()
-          return {}
-        end,
+        applies = function() error("boom") end,
+        resolve = function() return {} end,
       }
       local applicable = conflict.find_applicable("tool", { broken })
       R.assert_eq(#applicable, 0, "broken strategy must be skipped")
@@ -390,3 +388,4 @@ R.describe("toolchain.strategy.conflict", function()
     end)
   end)
 end)
+

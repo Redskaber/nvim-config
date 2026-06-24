@@ -81,14 +81,17 @@ end
 
 -- ── :LtosDebug ───────────────────────────────────────────────────────────────
 
-local VALID_DEBUG_STAGES = { collect = true, normalize = true, canonicalize = true, resolve = true, optimize = true }
+local VALID_DEBUG_STAGES =
+  { collect = true, normalize = true, canonicalize = true, resolve = true, optimize = true }
 
 local function cmd_debug(opts)
   local stage = (opts.args ~= "") and opts.args or nil
 
   if stage and not VALID_DEBUG_STAGES[stage] then
     vim.notify(
-      ("[LtosDebug] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(stage),
+      ("[LtosDebug] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(
+        stage
+      ),
       vim.log.levels.ERROR
     )
     return
@@ -102,7 +105,10 @@ local function cmd_debug(opts)
   local diag_lines = {}
   local counts = ir_mod.diag_counts(ir)
   if counts.errors + counts.warns > 0 then
-    diag_lines[#diag_lines + 1] = ("-- diagnostics  errors=%d  warns=%d"):format(counts.errors, counts.warns)
+    diag_lines[#diag_lines + 1] = ("-- diagnostics  errors=%d  warns=%d"):format(
+      counts.errors,
+      counts.warns
+    )
     for _, d in ipairs(ir.diagnostics or {}) do
       diag_lines[#diag_lines + 1] = ("--   [%s][%s] %s: %s"):format(
         d.severity or "?",
@@ -135,7 +141,9 @@ local function cmd_ir(opts)
 
   if not VALID_DEBUG_STAGES[stage] and stage ~= "optimize" then
     vim.notify(
-      ("[LtosIR] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(stage),
+      ("[LtosIR] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(
+        stage
+      ),
       vim.log.levels.ERROR
     )
     return
@@ -160,9 +168,12 @@ end
 -- ── :LtosTrace ───────────────────────────────────────────────────────────────
 
 local function cmd_trace()
-  local timings = require("runtime.pipeline").timings()  -- OPT-H: use API instead of vim.g
+  local timings = require("runtime.pipeline").timings() -- OPT-H: use API instead of vim.g
   if not timings then
-    vim.notify("[LtosTrace] no build timings available — run :LtosDebug first", vim.log.levels.WARN)
+    vim.notify(
+      "[LtosTrace] no build timings available — run :LtosDebug first",
+      vim.log.levels.WARN
+    )
     return
   end
 
@@ -354,7 +365,7 @@ local function cmd_info()
   local ir = pipeline.debug_run(modules, "collect")
   local caps = ir.caps or {}
 
-  local profile = vim.g.ltos_profile or "full"  -- UI display, not compilation knob
+  local profile = vim.g.ltos_profile or "full" -- UI display, not compilation knob
   local state = pipeline.state()
 
   -- Collect unique tool names
@@ -407,7 +418,7 @@ local function cmd_info()
   end
 
   -- Per-stage timings
-  local timings = require("runtime.pipeline").timings()  -- OPT-H: use API instead of vim.g
+  local timings = require("runtime.pipeline").timings() -- OPT-H: use API instead of vim.g
   if timings then
     lines[#lines + 1] = ""
     lines[#lines + 1] = "Last build timings:"
@@ -426,7 +437,12 @@ local function cmd_info()
     for tier, s in pairs(cache_stats) do
       local total = (s.hits or 0) + (s.misses or 0)
       local ratio = total > 0 and math.floor(100 * (s.hits or 0) / total) or 0
-      lines[#lines + 1] = ("  %-6s  hits=%d  misses=%d  ratio=%d%%"):format(tier, s.hits or 0, s.misses or 0, ratio)
+      lines[#lines + 1] = ("  %-6s  hits=%d  misses=%d  ratio=%d%%"):format(
+        tier,
+        s.hits or 0,
+        s.misses or 0,
+        ratio
+      )
     end
   end
   vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
@@ -438,9 +454,7 @@ function M.setup()
   vim.api.nvim_create_user_command("LtosDebug", cmd_debug, {
     nargs = "?",
     desc = "Dump LTOS pipeline IR at a given stage (collect|normalize|canonicalize|resolve|optimize)",
-    complete = function()
-      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
-    end,
+    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
   })
 
   vim.api.nvim_create_user_command("LtosInfo", cmd_info, {
@@ -451,9 +465,7 @@ function M.setup()
   vim.api.nvim_create_user_command("LtosIR", cmd_ir, {
     nargs = "?",
     desc = "Dump LTOS IR at a given stage (collect|normalize|canonicalize|resolve|optimize, default: optimize)",
-    complete = function()
-      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
-    end,
+    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
   })
 
   vim.api.nvim_create_user_command("LtosTrace", cmd_trace, {
@@ -464,17 +476,14 @@ function M.setup()
   vim.api.nvim_create_user_command("LtosGraph", cmd_graph, {
     nargs = "?",
     desc = "Show module capability graph (caps) or pipeline DAG (dag)",
-    complete = function()
-      return { "caps", "dag" }
-    end,
+    complete = function() return { "caps", "dag" } end,
   })
   vim.api.nvim_create_user_command("LtosDiff", cmd_diff, {
     nargs = "*",
     desc = "Diff IR between two pipeline stages: LtosDiff [stage_a] [stage_b] (default: collect optimize)",
-    complete = function()
-      return { "collect", "normalize", "canonicalize", "resolve", "optimize" }
-    end,
+    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
   })
 end
 
 return M
+

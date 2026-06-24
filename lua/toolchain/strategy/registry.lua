@@ -36,9 +36,7 @@ function M.register(strategy_or_name, fn)
     assert(type(fn) == "function", "strategy resolver must be a function")
     _registry[name] = {
       name = name,
-      applies = function(tool)
-        return tool == name
-      end,
+      applies = function(tool) return tool == name end,
       resolve = fn,
       priority = 50,
     }
@@ -67,9 +65,7 @@ end
 ---@param _kind string   e.g. "formatter" (reserved for future multi-dispatch)
 ---@param name  string   strategy name
 ---@return Strategy|nil
-function M.resolve(_kind, name)
-  return M.get(name)
-end
+function M.resolve(_kind, name) return M.get(name) end
 
 ---@return string[]
 function M.list()
@@ -101,8 +97,7 @@ end
 
 --- Lock the registry — subsequent register() calls will error.
 --- Called automatically by bootstrap(); can also be called explicitly.
-function M.lock()
-  _locked = true
-end
+function M.lock() _locked = true end
 
 return M
+

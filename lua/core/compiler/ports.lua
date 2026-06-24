@@ -5,24 +5,12 @@
 local M = {}
 
 local _ports = {
-  cache_dir = function()
-    return ".cache/ltos"
-  end,
-  json_encode = function(t)
-    error("compiler ports: json_encode not configured")
-  end,
-  json_decode = function(_s)
-    error("compiler ports: json_decode not configured")
-  end,
-  read_file = function(_path)
-    return nil
-  end,
-  resolve_runtime_file = function(_rel)
-    return nil
-  end,
-  debug_cache = function()
-    return false
-  end,
+  cache_dir = function() return ".cache/ltos" end,
+  json_encode = function(t) error("compiler ports: json_encode not configured") end,
+  json_decode = function(_s) error("compiler ports: json_decode not configured") end,
+  read_file = function(_path) return nil end,
+  resolve_runtime_file = function(_rel) return nil end,
+  debug_cache = function() return false end,
   notify = function(_level, _msg)
     -- no-op until runtime configures
   end,
@@ -49,39 +37,24 @@ function M.configure(opts)
   end
 end
 
-function M.cache_dir()
-  return _ports.cache_dir()
-end
+function M.cache_dir() return _ports.cache_dir() end
 
-function M.json_encode(t)
-  return _ports.json_encode(t)
-end
+function M.json_encode(t) return _ports.json_encode(t) end
 
-function M.json_decode(s)
-  return _ports.json_decode(s)
-end
+function M.json_decode(s) return _ports.json_decode(s) end
 
 --- Read file contents (pure text). Returns string or nil.
 ---@param path string
 ---@return string|nil
-function M.read_file(path)
-  return _ports.read_file(path)
-end
+function M.read_file(path) return _ports.read_file(path) end
 
-function M.resolve_runtime_file(rel)
-  return _ports.resolve_runtime_file(rel)
-end
+function M.resolve_runtime_file(rel) return _ports.resolve_runtime_file(rel) end
 
-function M.debug_cache()
-  return _ports.debug_cache()
-end
+function M.debug_cache() return _ports.debug_cache() end
 
-function M.notify(level, msg)
-  _ports.notify(level, msg)
-end
+function M.notify(level, msg) _ports.notify(level, msg) end
 
-function M.ensure_cache_dir(dir)
-  _ports.ensure_cache_dir(dir)
-end
+function M.ensure_cache_dir(dir) _ports.ensure_cache_dir(dir) end
 
 return M
+

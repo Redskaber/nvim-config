@@ -108,7 +108,7 @@ vim.g.ltos_profile = "full"  -- full / minimal / nix
 | Profile | lang 模块 | 工具策略 |
 | --------- | ---------- | --------- |
 | full | 全部 | rules 默认管道 |
-| minimal | 仅 lua_lang | 同上 |
+| minimal | 仅 lua | 同上 |
 | nix | 同 full | prefer_system=true |
 
 ### 4.2 调试模式

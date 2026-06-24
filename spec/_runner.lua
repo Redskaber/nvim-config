@@ -37,21 +37,11 @@ local function paint(code, s)
   return "\27[" .. code .. "m" .. s .. "\27[0m"
 end
 local C = {
-  green = function(s)
-    return paint("32", s)
-  end,
-  red = function(s)
-    return paint("31", s)
-  end,
-  yellow = function(s)
-    return paint("33", s)
-  end,
-  dim = function(s)
-    return paint("2", s)
-  end,
-  bold = function(s)
-    return paint("1", s)
-  end,
+  green = function(s) return paint("32", s) end,
+  red = function(s) return paint("31", s) end,
+  yellow = function(s) return paint("33", s) end,
+  dim = function(s) return paint("2", s) end,
+  bold = function(s) return paint("1", s) end,
 }
 M.colour = C
 
@@ -187,7 +177,8 @@ end
 
 function M.skip(label, _fn, tags)
   assert(_active, "skip() called outside a test module context")
-  local full = #_active.prefix > 0 and (table.concat(_active.prefix, " › ") .. " › " .. label) or label
+  local full = #_active.prefix > 0 and (table.concat(_active.prefix, " › ") .. " › " .. label)
+    or label
   record(_active, full, "skip", nil, tags or {})
 end
 
@@ -234,13 +225,30 @@ end
 
 function M.assert_type(v, t, msg)
   if type(v) ~= t then
-    error((msg or "assert_type") .. ": expected " .. t .. ", got " .. type(v) .. " (" .. tostring(v) .. ")", 2)
+    error(
+      (msg or "assert_type")
+        .. ": expected "
+        .. t
+        .. ", got "
+        .. type(v)
+        .. " ("
+        .. tostring(v)
+        .. ")",
+      2
+    )
   end
 end
 
 function M.assert_match(s, pattern, msg)
   if type(s) ~= "string" or not s:find(pattern, 1, false) then
-    error((msg or "assert_match") .. ": pattern " .. tostring(pattern) .. " not found in: " .. tostring(s), 2)
+    error(
+      (msg or "assert_match")
+        .. ": pattern "
+        .. tostring(pattern)
+        .. " not found in: "
+        .. tostring(s),
+      2
+    )
   end
 end
 
@@ -280,9 +288,7 @@ end
 -- ── Default reporter ──────────────────────────────────────────────────────────
 
 local _reporter = {
-  on_suite_start = function(name)
-    print(C.bold("── " .. name .. " ──"))
-  end,
+  on_suite_start = function(name) print(C.bold("── " .. name .. " ──")) end,
   on_result = function(r)
     if r.status == "pass" then
       print(C.green("  ✓ ") .. C.dim(r.label))
@@ -304,9 +310,7 @@ local _reporter = {
 }
 
 --- Inject a custom reporter (dependency inversion).
-function M.set_reporter(r)
-  _reporter = r
-end
+function M.set_reporter(r) _reporter = r end
 
 -- ── Module loader ─────────────────────────────────────────────────────────────
 
@@ -384,3 +388,4 @@ function M.run(modules, opts)
 end
 
 return M
+

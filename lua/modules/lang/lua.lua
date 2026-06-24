@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/modules/lang/lua_lang.lua
+-- ~/.config/nvim/lua/modules/lang/lua.lua
 -- DSL: Lua language toolchain declaration.
 -- P2: core module for minimal profile
 

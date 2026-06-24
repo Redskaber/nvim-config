@@ -16,13 +16,13 @@ local M = {}
 local FORMATTER_HANDLERS = {}
 
 -- Handler: plain string formatter ("stylua")
-FORMATTER_HANDLERS["string"] = function(v, _cf)
-  return v
-end
+FORMATTER_HANDLERS["string"] = function(v, _cf) return v end
 
 -- Handler: FormatterNode table ({ kind = "formatter", strategy = ..., fn = ..., name = ... })
 FORMATTER_HANDLERS["table"] = function(v, cf)
-  if v.kind ~= "formatter" then return nil end
+  if v.kind ~= "formatter" then
+    return nil
+  end
 
   local strategy = v.strategy
   local name = v.name
@@ -105,65 +105,55 @@ function M.build(ir)
     end
   end
 
-  -- Build the conform spec with custom formatter registration
-  local spec = {
-    "stevearc/conform.nvim",
-    _source = "ltos:conform",
-    opts = {
-      formatters_by_ft = formatters_by_ft,
-      format_on_save = false,
-      default_format_opts = {
-        timeout_ms = 3000,
-        async = false,
-        quiet = false,
-        lsp_fallback = true,
-      },
-    },
-  }
-
-  -- If we have custom formatters (strategies), register them in config()
-  -- This runs AFTER conform is loaded, so require("conform") works.
-  if next(custom_formatters) ~= nil then
-    spec.config = function(_, opts)
-      local conform = require("conform")
-
-      -- Register each strategy as a custom conform formatter.
-      -- The formatter's format() function:
-      --   1. Calls strategy_fn(bufnr) to get the actual formatter list
-      --      (e.g., {"ruff_format"} or {"isort", "black"})
-      --   2. Runs the first available formatter from that list
-      --   3. Returns the formatted lines
-      --
-      -- This preserves builtin.lua's runtime availability checking.
-      for strategy_name, strategy_fn in pairs(custom_formatters) do
-        conform.formatters[strategy_name] = {
-          -- conform calls format(self, ctx) where ctx has bufnr
-          -- We need to return the formatted text
-          format = function(self, ctx)
-            local candidates = strategy_fn(ctx.bufnr) or {}
-            -- Try each candidate formatter until one works
-            for _, fmt_name in ipairs(candidates) do
-              local formatter = conform.formatters[fmt_name]
-              if formatter and formatter.format then
-                -- Get the current buffer lines
-                local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-                local result = formatter.format(formatter, ctx, lines)
-                if result and type(result) == "table" then
-                  return result
-                end
+  return {
+    {
+      "stevearc/conform.nvim",
+      _source = "ltos:conform",
+      opts = function(_, opts)
+        opts.formatters_by_ft = opts.formatters_by_ft or {}
+        for ft, fmts in pairs(formatters_by_ft) do
+          if not opts.formatters_by_ft[ft] then
+            opts.formatters_by_ft[ft] = fmts
+          else
+            local seen = {}
+            for _, f in ipairs(opts.formatters_by_ft[ft]) do
+              seen[f] = true
+            end
+            for _, f in ipairs(fmts) do
+              if not seen[f] then
+                opts.formatters_by_ft[ft][#opts.formatters_by_ft[ft] + 1] = f
+                seen[f] = true
               end
             end
-            -- No formatter worked — return original lines unchanged
-            return vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-          end,
-        }
-      end
-
-      conform.setup(opts)
-    end
-  end
-
-  return { spec }
+          end
+        end
+        -- Register custom strategy formatters if any
+        for strategy_name, strategy_fn in pairs(custom_formatters) do
+          opts.formatters = opts.formatters or {}
+          if not opts.formatters[strategy_name] then
+            opts.formatters[strategy_name] = {
+              format = function(self, ctx)
+                local candidates = strategy_fn(ctx.bufnr) or {}
+                local conform = require("conform")
+                for _, fmt_name in ipairs(candidates) do
+                  local formatter = conform.formatters[fmt_name]
+                  if formatter and formatter.format then
+                    local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
+                    local result = formatter.format(formatter, ctx, lines)
+                    if result and type(result) == "table" then
+                      return result
+                    end
+                  end
+                end
+                return vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
+              end,
+            }
+          end
+        end
+        return opts
+      end,
+    },
+  }
 end
 
 return M

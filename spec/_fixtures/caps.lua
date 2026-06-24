@@ -78,8 +78,7 @@ function M.all_caps()
 end
 
 --- Empty cap buckets baseline.
-function M.empty_caps()
-  return { image = {}, media = {}, ai = {}, keybind = {}, editor = {} }
-end
+function M.empty_caps() return { image = {}, media = {}, ai = {}, keybind = {}, editor = {} } end
 
 return M
+

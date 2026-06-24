@@ -15,9 +15,9 @@
 
 local M = {}
 
+local cap_registry = require("runtime.adapters.cap_registry")
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
-local cap_registry = require("runtime.adapters.cap_registry")
 
 M.pass = {
   name = "cap_resolve",
@@ -59,7 +59,10 @@ M.pass = {
         diagnostics[#diagnostics + 1] = ir_mod.diag(
           next_ir.stage,
           cap_type,
-          ("Capability adapter for '%s' failed to build specs: %s"):format(cap_type, tostring(resolved_specs)),
+          ("Capability adapter for '%s' failed to build specs: %s"):format(
+            cap_type,
+            tostring(resolved_specs)
+          ),
           "error"
         )
         next_ir.cap_specs[cap_type] = {}

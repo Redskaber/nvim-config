@@ -14,9 +14,9 @@ local _last_build_timings = {}
 
 local ir_mod = require("core.compiler.ir")
 local pass_mod = require("core.compiler.pass")
-local util = require("core.kernel.util")
 local phase_registry = require("runtime.phase_registry")
-local ports = require("core.compiler.ports")  -- OPT-J: for notify
+local ports = require("core.compiler.ports") -- OPT-J: for notify
+local util = require("core.kernel.util")
 
 -- Load default phases and register them
 --- Resolve a phase from a module path.
@@ -58,12 +58,8 @@ end
 -- check_layer_boundaries.sh rule 7c excludes pipeline.lua for this reason.
 register_default_phases()
 
-local function PHASES()
-  return phase_registry.list()
-end
-local function CODEGEN()
-  return phase_registry.codegen()
-end
+local function PHASES() return phase_registry.list() end
+local function CODEGEN() return phase_registry.codegen() end
 
 M.PHASE_ORDER = phase_registry.phase_order()
 
@@ -107,14 +103,15 @@ local function new_sm()
       sm.timestamps[next_state] = os.clock()
       return true
     end
-    ports.notify(vim.log.levels.ERROR, ("[pipeline] illegal transition: %s → %s"):format(sm.state, next_state))  -- OPT-J
+    ports.notify(
+      vim.log.levels.ERROR,
+      ("[pipeline] illegal transition: %s → %s"):format(sm.state, next_state)
+    ) -- OPT-J
     sm.state = STATES.ERROR
     return false
   end
 
-  function sm.fail()
-    sm.state = STATES.ERROR
-  end
+  function sm.fail() sm.state = STATES.ERROR end
 
   return sm
 end
@@ -170,7 +167,7 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     timings["collect"] = 0
     timings["collect_ext"] = 0
     if dbg.enabled or dbg.cache then
-      ports.notify(vim.log.levels.DEBUG, "[pipeline] AST cache hit — collect/collect_ext skipped")  -- OPT-J
+      ports.notify(vim.log.levels.DEBUG, "[pipeline] AST cache hit — collect/collect_ext skipped") -- OPT-J
     end
     -- Honor stop_after="collect" even when skipping the phase
     if stop_after == "collect" then
@@ -202,13 +199,16 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
 
     local counts = ir_mod.diag_counts(ir)
     if counts.errors > 0 and dbg.enabled then
-      ports.notify(vim.log.levels.DEBUG, ("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors))  -- OPT-J
+      ports.notify(
+        vim.log.levels.DEBUG,
+        ("[pipeline.%s] %d error(s)"):format(phase.name, counts.errors)
+      ) -- OPT-J
     end
     if dbg.perf then
       ports.notify(
         vim.log.levels.DEBUG,
         ("[pipeline.perf] %s=%.3fms"):format(phase.name, (timings[phase.name] or 0) * 1000)
-      )  -- OPT-J
+      ) -- OPT-J
     end
     ::continue::
   end
@@ -226,7 +226,7 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     if ok then
       specs = result
     else
-      ports.notify(vim.log.levels.ERROR, "[pipeline.codegen] build failed: " .. tostring(result))  -- OPT-J
+      ports.notify(vim.log.levels.ERROR, "[pipeline.codegen] build failed: " .. tostring(result)) -- OPT-J
       sm.fail()
     end
   else
@@ -271,7 +271,8 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
   local sm = new_sm()
   last_run_sm = sm
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", nil, sm, cached_caps, ast_seed, build_request)
+  local ir, specs, timings =
+    execute(lang_modules, profile or "full", nil, sm, cached_caps, ast_seed, build_request)
 
   if sm.state ~= STATES.ERROR then
     sm.transition(STATES.DONE)
@@ -284,8 +285,12 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
   if counts.errors > 0 or counts.warns > 0 then
     ports.notify(
       counts.errors > 0 and vim.log.levels.WARN or vim.log.levels.INFO,
-      ("[pipeline] %d error(s), %d warning(s):\n%s"):format(counts.errors, counts.warns, ir_mod.format_diagnostics(ir))
-    )  -- OPT-J
+      ("[pipeline] %d error(s), %d warning(s):\n%s"):format(
+        counts.errors,
+        counts.warns,
+        ir_mod.format_diagnostics(ir)
+      )
+    ) -- OPT-J
   end
 
   -- OPT-G: read debug flags from IR meta (set by execute via build_request)
@@ -302,7 +307,7 @@ function M.run(lang_modules, profile, cached_caps, ast_seed, build_request)
       warns = counts.warns,
     })
     if ok then
-      ports.notify(vim.log.levels.DEBUG, "[ltos:trace] " .. encoded)  -- OPT-J
+      ports.notify(vim.log.levels.DEBUG, "[ltos:trace] " .. encoded) -- OPT-J
     end
   end
 
@@ -320,7 +325,8 @@ function M.debug_run(lang_modules, stop_after, profile, build_request)
 
   _G._ltos_debug_freeze = true
 
-  local ir, specs, timings = execute(lang_modules, profile or "full", stop_after, sm, nil, nil, build_request)
+  local ir, specs, timings =
+    execute(lang_modules, profile or "full", stop_after, sm, nil, nil, build_request)
 
   _G._ltos_debug_freeze = false
 
@@ -332,9 +338,7 @@ function M.debug_run(lang_modules, stop_after, profile, build_request)
 end
 
 ---@return string
-function M.state()
-  return last_run_sm.state
-end
+function M.state() return last_run_sm.state end
 
 ---@return table<string, number>|nil
 function M.timings()

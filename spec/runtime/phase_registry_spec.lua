@@ -11,9 +11,7 @@ R.describe("runtime.phase_registry", function()
       name = name,
       input_state = "x",
       output_state = "y",
-      run = function(ir)
-        return require("core.compiler.ir").clone(ir)
-      end,
+      run = function(ir) return require("core.compiler.ir").clone(ir) end,
     }
   end
 
@@ -169,12 +167,17 @@ R.describe("runtime.phase_registry", function()
         "codegen",
       }
       for i = 1, #chain - 1 do
-        R.assert_true(pos[chain[i]] < pos[chain[i + 1]], chain[i] .. " must precede " .. chain[i + 1])
+        R.assert_true(
+          pos[chain[i]] < pos[chain[i + 1]],
+          chain[i] .. " must precede " .. chain[i + 1]
+        )
       end
     end)
 
-    R.it("PHASE_ORDER has >= 8 phases", function()
-      R.assert_true(#require("runtime.pipeline").PHASE_ORDER >= 8)
-    end)
+    R.it(
+      "PHASE_ORDER has >= 8 phases",
+      function() R.assert_true(#require("runtime.pipeline").PHASE_ORDER >= 8) end
+    )
   end)
 end)
+

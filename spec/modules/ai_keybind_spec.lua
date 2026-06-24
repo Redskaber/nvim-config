@@ -109,3 +109,4 @@ R.describe("modules.cap.keybind", function()
     R.assert_true(r.ok, ext.format_diags(r.diags))
   end)
 end)
+

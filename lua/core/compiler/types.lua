@@ -49,9 +49,7 @@ local _diagnostic_factory = {
   diag = function(stage, node, message, severity)
     error("compiler types: diagnostic factory not configured", 2)
   end,
-  format = function(d)
-    error("compiler types: diagnostic factory not configured", 2)
-  end,
+  format = function(d) error("compiler types: diagnostic factory not configured", 2) end,
 }
 
 local _cap_types = {
@@ -61,12 +59,8 @@ local _cap_types = {
   KEYBIND = "keybind",
   EDITOR = "editor",
   ALL = { "image", "media", "ai", "keybind", "editor" },
-  is_known = function(t)
-    error("compiler types: cap_types not configured", 2)
-  end,
-  as_set = function()
-    error("compiler types: cap_types not configured", 2)
-  end,
+  is_known = function(t) error("compiler types: cap_types not configured", 2) end,
+  as_set = function() error("compiler types: cap_types not configured", 2) end,
 }
 
 -- ── Configuration API (called from Layer 4) ──────────────────────────────────
@@ -113,27 +107,20 @@ M.error = M.diag
 --- Format a diagnostic as a human-readable string
 ---@param d AbstractDiagnostic
 ---@return string
-function M.format_diagnostic(d)
-  return _diagnostic_factory.format(d)
-end
+function M.format_diagnostic(d) return _diagnostic_factory.format(d) end
 
 --- Get capability type constants
 ---@return AbstractCapTypes
-function M.cap_types()
-  return _cap_types
-end
+function M.cap_types() return _cap_types end
 
 --- Check if a string is a known capability type
 ---@param t string
 ---@return boolean
-function M.is_cap_type_known(t)
-  return _cap_types.is_known(t)
-end
+function M.is_cap_type_known(t) return _cap_types.is_known(t) end
 
 --- Get all capability types as a set
 ---@return table<string, boolean>
-function M.cap_types_set()
-  return _cap_types.as_set()
-end
+function M.cap_types_set() return _cap_types.as_set() end
 
 return M
+

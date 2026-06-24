@@ -28,21 +28,13 @@ local function get_fact(name)
 end
 
 -- Built-in facts (evaluated lazily on first read)
-M.register_fact("is_nix", function()
-  return vim.fn.executable("nix") == 1
-end)
+M.register_fact("is_nix", function() return vim.fn.executable("nix") == 1 end)
 
-M.register_fact("is_ssh", function()
-  return vim.env.SSH_CONNECTION ~= nil
-end)
+M.register_fact("is_ssh", function() return vim.env.SSH_CONNECTION ~= nil end)
 
-M.register_fact("is_vscode", function()
-  return vim.g.vscode ~= nil
-end)
+M.register_fact("is_vscode", function() return vim.g.vscode ~= nil end)
 
-M.register_fact("is_gui", function()
-  return vim.fn.has("gui_running") == 1
-end)
+M.register_fact("is_gui", function() return vim.fn.has("gui_running") == 1 end)
 
 setmetatable(M, {
   __index = function(t, k)
@@ -58,9 +50,7 @@ setmetatable(M, {
 --- Returns true if `cmd` is available in $PATH.
 ---@param cmd string
 ---@return boolean
-function M.has(cmd)
-  return vim.fn.executable(cmd) == 1
-end
+function M.has(cmd) return vim.fn.executable(cmd) == 1 end
 
 --- Returns true if nvim version >= 0.12
 function M.is_nvim012()
@@ -69,3 +59,4 @@ function M.is_nvim012()
 end
 
 return M
+

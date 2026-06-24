@@ -13,27 +13,19 @@ R.describe("core.compiler.types", function()
   -- ── API surface ───────────────────────────────────────────────────────────
 
   R.describe("public API surface", function()
-    R.it("diag() function exists", function()
-      R.assert_type(types.diag, "function")
-    end)
-    R.it("error() alias exists", function()
-      R.assert_type(types.error, "function")
-    end)
-    R.it("format_diagnostic() exists", function()
-      R.assert_type(types.format_diagnostic, "function")
-    end)
-    R.it("cap_types() returns table", function()
-      R.assert_type(types.cap_types(), "table")
-    end)
-    R.it("configure() exists", function()
-      R.assert_type(types.configure, "function")
-    end)
-    R.it("is_cap_type_known() exists", function()
-      R.assert_type(types.is_cap_type_known, "function")
-    end)
-    R.it("cap_types_set() exists", function()
-      R.assert_type(types.cap_types_set, "function")
-    end)
+    R.it("diag() function exists", function() R.assert_type(types.diag, "function") end)
+    R.it("error() alias exists", function() R.assert_type(types.error, "function") end)
+    R.it(
+      "format_diagnostic() exists",
+      function() R.assert_type(types.format_diagnostic, "function") end
+    )
+    R.it("cap_types() returns table", function() R.assert_type(types.cap_types(), "table") end)
+    R.it("configure() exists", function() R.assert_type(types.configure, "function") end)
+    R.it(
+      "is_cap_type_known() exists",
+      function() R.assert_type(types.is_cap_type_known, "function") end
+    )
+    R.it("cap_types_set() exists", function() R.assert_type(types.cap_types_set, "function") end)
   end)
 
   -- ── after runtime.types_bootstrap.setup() ────────────────────────────────
@@ -79,9 +71,10 @@ R.describe("core.compiler.types", function()
       R.assert_true(types.is_cap_type_known("editor"))
     end)
 
-    R.it("is_cap_type_known() returns false for unknown type", function()
-      R.assert_false(types.is_cap_type_known("unknown_type_xyz"))
-    end)
+    R.it(
+      "is_cap_type_known() returns false for unknown type",
+      function() R.assert_false(types.is_cap_type_known("unknown_type_xyz")) end
+    )
 
     R.it("cap_types_set() returns set table for O(1) lookup", function()
       local set = types.cap_types_set()
@@ -121,29 +114,17 @@ R.describe("core.domain.cap_types", function()
   -- ── constants ────────────────────────────────────────────────────────────
 
   R.describe("type constants", function()
-    R.it("IMAGE = 'image'", function()
-      R.assert_eq(ct.IMAGE, "image")
-    end)
-    R.it("MEDIA = 'media'", function()
-      R.assert_eq(ct.MEDIA, "media")
-    end)
-    R.it("AI = 'ai'", function()
-      R.assert_eq(ct.AI, "ai")
-    end)
-    R.it("KEYBIND = 'keybind'", function()
-      R.assert_eq(ct.KEYBIND, "keybind")
-    end)
-    R.it("EDITOR = 'editor'", function()
-      R.assert_eq(ct.EDITOR, "editor")
-    end)
+    R.it("IMAGE = 'image'", function() R.assert_eq(ct.IMAGE, "image") end)
+    R.it("MEDIA = 'media'", function() R.assert_eq(ct.MEDIA, "media") end)
+    R.it("AI = 'ai'", function() R.assert_eq(ct.AI, "ai") end)
+    R.it("KEYBIND = 'keybind'", function() R.assert_eq(ct.KEYBIND, "keybind") end)
+    R.it("EDITOR = 'editor'", function() R.assert_eq(ct.EDITOR, "editor") end)
   end)
 
   -- ── ALL list ──────────────────────────────────────────────────────────────
 
   R.describe("ALL list", function()
-    R.it("has exactly 5 entries", function()
-      R.assert_eq(#ct.ALL, 5)
-    end)
+    R.it("has exactly 5 entries", function() R.assert_eq(#ct.ALL, 5) end)
     R.it("contains all five type strings", function()
       local set = {}
       for _, v in ipairs(ct.ALL) do
@@ -169,15 +150,12 @@ R.describe("core.domain.cap_types", function()
         R.assert_true(ct.is_known(t), t .. " must be known")
       end
     end)
-    R.it("returns false for unknown type", function()
-      R.assert_false(ct.is_known("unknown_xyz"))
-    end)
-    R.it("returns false for nil", function()
-      R.assert_false(ct.is_known(nil))
-    end)
-    R.it("returns false for empty string", function()
-      R.assert_false(ct.is_known(""))
-    end)
+    R.it(
+      "returns false for unknown type",
+      function() R.assert_false(ct.is_known("unknown_xyz")) end
+    )
+    R.it("returns false for nil", function() R.assert_false(ct.is_known(nil)) end)
+    R.it("returns false for empty string", function() R.assert_false(ct.is_known("")) end)
   end)
 
   -- ── as_set() ─────────────────────────────────────────────────────────────
@@ -230,27 +208,13 @@ R.describe("core.domain.icons", function()
   -- ── structural integrity ──────────────────────────────────────────────────
 
   R.describe("top-level tables", function()
-    R.it("has diagnostics table", function()
-      R.assert_type(icons.diagnostics, "table")
-    end)
-    R.it("has git table", function()
-      R.assert_type(icons.git, "table")
-    end)
-    R.it("has fold table", function()
-      R.assert_type(icons.fold, "table")
-    end)
-    R.it("has todo table", function()
-      R.assert_type(icons.todo, "table")
-    end)
-    R.it("has ft table", function()
-      R.assert_type(icons.ft, "table")
-    end)
-    R.it("has file table", function()
-      R.assert_type(icons.file, "table")
-    end)
-    R.it("has extension table", function()
-      R.assert_type(icons.extension, "table")
-    end)
+    R.it("has diagnostics table", function() R.assert_type(icons.diagnostics, "table") end)
+    R.it("has git table", function() R.assert_type(icons.git, "table") end)
+    R.it("has fold table", function() R.assert_type(icons.fold, "table") end)
+    R.it("has todo table", function() R.assert_type(icons.todo, "table") end)
+    R.it("has ft table", function() R.assert_type(icons.ft, "table") end)
+    R.it("has file table", function() R.assert_type(icons.file, "table") end)
+    R.it("has extension table", function() R.assert_type(icons.extension, "table") end)
   end)
 
   -- ── diagnostics ───────────────────────────────────────────────────────────
@@ -343,21 +307,13 @@ R.describe("core.domain.keybind_presets_data", function()
   local kp = require("core.domain.keybind_presets_data")
 
   R.describe("constants", function()
-    R.it("HELIX = 'helix'", function()
-      R.assert_eq(kp.HELIX, "helix")
-    end)
-    R.it("VIM   = 'vim'", function()
-      R.assert_eq(kp.VIM, "vim")
-    end)
-    R.it("EMACS = 'emacs'", function()
-      R.assert_eq(kp.EMACS, "emacs")
-    end)
+    R.it("HELIX = 'helix'", function() R.assert_eq(kp.HELIX, "helix") end)
+    R.it("VIM   = 'vim'", function() R.assert_eq(kp.VIM, "vim") end)
+    R.it("EMACS = 'emacs'", function() R.assert_eq(kp.EMACS, "emacs") end)
   end)
 
   R.describe("ALL list", function()
-    R.it("has 3 entries", function()
-      R.assert_eq(#kp.ALL, 3)
-    end)
+    R.it("has 3 entries", function() R.assert_eq(#kp.ALL, 3) end)
     R.it("contains helix, vim, emacs", function()
       local set = {}
       for _, v in ipairs(kp.ALL) do
@@ -375,12 +331,8 @@ R.describe("core.domain.keybind_presets_data", function()
       R.assert_true(kp.is_known("vim"))
       R.assert_true(kp.is_known("emacs"))
     end)
-    R.it("false for unknown", function()
-      R.assert_false(kp.is_known("dvorak"))
-    end)
-    R.it("false for nil", function()
-      R.assert_false(kp.is_known(nil))
-    end)
+    R.it("false for unknown", function() R.assert_false(kp.is_known("dvorak")) end)
+    R.it("false for nil", function() R.assert_false(kp.is_known(nil)) end)
   end)
 
   R.describe("as_set()", function()
@@ -400,3 +352,4 @@ R.describe("core.domain.keybind_presets_data", function()
     end)
   end)
 end)
+

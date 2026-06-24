@@ -32,9 +32,16 @@ R.describe("toolchain.mappings: full data integrity", function()
     }
 
     for _, entry in ipairs(required_entries) do
-      R.it(entry.server .. " → " .. entry.pkg, function()
-        R.assert_eq(mappings.lsp_pkg(entry.server), entry.pkg, entry.server .. " must map to " .. entry.pkg)
-      end)
+      R.it(
+        entry.server .. " → " .. entry.pkg,
+        function()
+          R.assert_eq(
+            mappings.lsp_pkg(entry.server),
+            entry.pkg,
+            entry.server .. " must map to " .. entry.pkg
+          )
+        end
+      )
     end
   end)
 
@@ -56,9 +63,10 @@ R.describe("toolchain.mappings: full data integrity", function()
     }
 
     for _, entry in ipairs(required_entries) do
-      R.it(entry.tool .. " → " .. entry.pkg, function()
-        R.assert_eq(mappings.tool_pkg(entry.tool), entry.pkg)
-      end)
+      R.it(
+        entry.tool .. " → " .. entry.pkg,
+        function() R.assert_eq(mappings.tool_pkg(entry.tool), entry.pkg) end
+      )
     end
   end)
 
@@ -82,9 +90,15 @@ R.describe("toolchain.mappings: full data integrity", function()
     }
 
     for _, tool in ipairs(system_tools) do
-      R.it(tool .. " is marked system (tool_pkg returns nil)", function()
-        R.assert_nil(mappings.tool_pkg(tool), tool .. " must return nil from tool_pkg (system tool)")
-      end)
+      R.it(
+        tool .. " is marked system (tool_pkg returns nil)",
+        function()
+          R.assert_nil(
+            mappings.tool_pkg(tool),
+            tool .. " must return nil from tool_pkg (system tool)"
+          )
+        end
+      )
     end
 
     R.it("lsp_pkg() for system server falls back to identity", function()
@@ -146,13 +160,20 @@ R.describe("toolchain.mappings: full data integrity", function()
   R.describe("table isolation", function()
     R.it("lsp_to_mason and system_tools have no overlap", function()
       for server in pairs(mappings.lsp_to_mason) do
-        R.assert_nil(mappings.system_tools[server], "LSP server " .. server .. " must not appear in system_tools")
+        R.assert_nil(
+          mappings.system_tools[server],
+          "LSP server " .. server .. " must not appear in system_tools"
+        )
       end
     end)
 
     R.it("all lsp_to_mason values are non-empty strings", function()
       for server, pkg in pairs(mappings.lsp_to_mason) do
-        R.assert_type(pkg, "string", "lsp_to_mason[" .. server .. "] must be string, got " .. type(pkg))
+        R.assert_type(
+          pkg,
+          "string",
+          "lsp_to_mason[" .. server .. "] must be string, got " .. type(pkg)
+        )
         R.assert_true(#pkg > 0, "lsp_to_mason[" .. server .. "] must not be empty")
       end
     end)
@@ -270,8 +291,12 @@ R.describe("modules.capability.schema", function()
         local ok, m = pcall(require, mod_path)
         R.assert_true(ok, mod_path .. " must load")
         local result = schema.validate(mod_path, m)
-        R.assert_true(result.ok, mod_path .. " failed capability schema: " .. vim.inspect(result.diags))
+        R.assert_true(
+          result.ok,
+          mod_path .. " failed capability schema: " .. vim.inspect(result.diags)
+        )
       end)
     end
   end)
 end)
+

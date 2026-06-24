@@ -153,8 +153,12 @@ function M.validate_deps(g)
       if not satisfied then
         missing[mod_path] = missing[mod_path] or {}
         missing[mod_path][#missing[mod_path] + 1] = dep
-        diags[#diags + 1] =
-          diagnostic.new("graph", mod_path, ("Missing dependency '%s' for module '%s'"):format(dep, mod_path), "warn")
+        diags[#diags + 1] = diagnostic.new(
+          "graph",
+          mod_path,
+          ("Missing dependency '%s' for module '%s'"):format(dep, mod_path),
+          "warn"
+        )
       end
     end
   end
@@ -174,3 +178,4 @@ function M.sort(modules)
 end
 
 return M
+

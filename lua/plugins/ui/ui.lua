@@ -8,7 +8,11 @@ return {
     "akinsho/bufferline.nvim",
     keys = {
       { "<leader>bp", "<Cmd>BufferLineTogglePin<cr>", desc = "Toggle pin" },
-      { "<leader>bP", "<Cmd>BufferLineGroupClose ungrouped<cr>", desc = "Delete non-pinned buffers" },
+      {
+        "<leader>bP",
+        "<Cmd>BufferLineGroupClose ungrouped<cr>",
+        desc = "Delete non-pinned buffers",
+      },
       { "<leader>br", "<Cmd>BufferLineCloseRight<cr>", desc = "Delete buffers to the right" },
       { "<leader>bl", "<Cmd>BufferLineCloseLeft<cr>", desc = "Delete buffers to the left" },
       { "[b", "<cmd>BufferLineCyclePrev<cr>", desc = "Prev buffer" },
@@ -21,9 +25,7 @@ return {
       options = {
         -- stylua: ignore
         close_command       = function(n) Snacks.bufdelete(n) end,
-        right_mouse_command = function(n)
-          Snacks.bufdelete(n)
-        end,
+        right_mouse_command = function(n) Snacks.bufdelete(n) end,
         diagnostics = "nvim_lsp",
         always_show_bufferline = false,
         show_buffer_close_icons = false,
@@ -34,12 +36,15 @@ return {
           return vim.trim(ret)
         end,
         offsets = {
-          { filetype = "neo-tree", text = "Neo-tree", highlight = "Directory", text_align = "left" },
+          {
+            filetype = "neo-tree",
+            text = "Neo-tree",
+            highlight = "Directory",
+            text_align = "left",
+          },
           { filetype = "snacks_layout_box" },
         },
-        get_element_icon = function(opts)
-          return LazyVim.config.icons.ft[opts.filetype]
-        end,
+        get_element_icon = function(opts) return LazyVim.config.icons.ft[opts.filetype] end,
       },
     },
   },
@@ -92,7 +97,11 @@ return {
             { require("lazy.status").updates, cond = require("lazy.status").has_updates, color = function() return { fg = Snacks.util.color("Special") } end },
             {
               "diff",
-              symbols = { added = icons.git.added, modified = icons.git.modified, removed = icons.git.removed },
+              symbols = {
+                added = icons.git.added,
+                modified = icons.git.modified,
+                removed = icons.git.removed,
+              },
               source = function()
                 local gs = vim.b.gitsigns_status_dict
                 if gs then
@@ -106,9 +115,7 @@ return {
             { "location", padding = { left = 0, right = 1 } },
           },
           lualine_z = {
-            function()
-              return " " .. os.date("%R")
-            end,
+            function() return " " .. os.date("%R") end,
           },
         },
         extensions = { "neo-tree", "lazy", "fzf" },
@@ -127,9 +134,7 @@ return {
         })
         table.insert(opts.sections.lualine_c, {
           symbols and symbols.get,
-          cond = function()
-            return vim.b.trouble_lualine ~= false and symbols.has()
-          end,
+          cond = function() return vim.b.trouble_lualine ~= false and symbols.has() end,
         })
       end
 
@@ -249,9 +254,7 @@ return {
       dashboard = {
         enabled = true,
         preset = {
-          pick = function(cmd, opts)
-            return LazyVim.pick(cmd, opts)()
-          end,
+          pick = function(cmd, opts) return LazyVim.pick(cmd, opts)() end,
           header = [[
        ██╗      █████╗ ███████╗██╗   ██╗██╗   ██╗██╗███╗   ███╗          Z
        ██║     ██╔══██╗╚══███╔╝╚██╗ ██╔╝██║   ██║██║████╗ ████║      Z    
@@ -370,17 +373,11 @@ return {
         pattern = "VeryLazy",
         callback = function()
           -- Debug helpers
-          _G.dd = function(...)
-            Snacks.debug.inspect(...)
-          end
-          _G.bt = function()
-            Snacks.debug.backtrace()
-          end
+          _G.dd = function(...) Snacks.debug.inspect(...) end
+          _G.bt = function() Snacks.debug.backtrace() end
 
           if vim.fn.has("nvim-0.11") == 1 then
-            vim._print = function(_, ...)
-              dd(...)
-            end
+            vim._print = function(_, ...) dd(...) end
           else
             vim.print = _G.dd
           end
@@ -399,7 +396,9 @@ return {
             .option("conceallevel", { off = 0, on = vim.o.conceallevel > 0 and vim.o.conceallevel or 2 })
             :map("<leader>uc")
           Snacks.toggle.treesitter():map("<leader>uT")
-          Snacks.toggle.option("background", { off = "light", on = "dark", name = "Dark background" }):map("<leader>ub")
+          Snacks.toggle
+            .option("background", { off = "light", on = "dark", name = "Dark background" })
+            :map("<leader>ub")
           Snacks.toggle.inlay_hints():map("<leader>uh")
           Snacks.toggle.indent():map("<leader>ug")
           Snacks.toggle.dim():map("<leader>uD")
@@ -425,3 +424,4 @@ return {
 
   { "MunifTanjim/nui.nvim", lazy = true },
 }
+

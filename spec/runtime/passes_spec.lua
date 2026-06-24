@@ -16,9 +16,9 @@ local function run_phase(phase, ir)
   return pass_mod.run_phase(phase, ir)
 end
 
--- Build minimal lua_lang AST IR through collect pass
+-- Build minimal lua AST IR through collect pass
 local function collect_ir(modules)
-  modules = modules or { "modules.lang.lua_lang" }
+  modules = modules or { "modules.lang.lua" }
   local collect = require("runtime.passes.collect")
   local ir = ir_new(modules)
   local result = run_phase(collect, ir)
@@ -34,30 +34,25 @@ R.describe("runtime.passes.collect", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("has correct name", function()
-      R.assert_eq(collect.name, "collect")
-    end)
-    R.it("input_state = 'idle'", function()
-      R.assert_eq(collect.input_state, "idle")
-    end)
-    R.it("output_state = 'collecting'", function()
-      R.assert_eq(collect.output_state, "collecting")
-    end)
-    R.it("run is a function", function()
-      R.assert_type(collect.run, "function")
-    end)
+    R.it("has correct name", function() R.assert_eq(collect.name, "collect") end)
+    R.it("input_state = 'idle'", function() R.assert_eq(collect.input_state, "idle") end)
+    R.it(
+      "output_state = 'collecting'",
+      function() R.assert_eq(collect.output_state, "collecting") end
+    )
+    R.it("run is a function", function() R.assert_type(collect.run, "function") end)
   end)
 
   -- ── COW semantics ─────────────────────────────────────────────────────────
 
   R.describe("COW semantics", function()
     R.it("returns new IR table (not same reference)", function()
-      local ir = ir_new({ "modules.lang.lua_lang" })
+      local ir = ir_new({ "modules.lang.lua" })
       local result = collect.run(ir)
       R.assert_ne(result, ir)
     end)
     R.it("input IR caps remain empty after run", function()
-      local ir = ir_new({ "modules.lang.lua_lang" })
+      local ir = ir_new({ "modules.lang.lua" })
       collect.run(ir)
       R.assert_true(next(ir.caps) == nil)
     end)
@@ -67,20 +62,20 @@ R.describe("runtime.passes.collect", function()
 
   R.describe("IR output", function()
     R.it("stage = AST after collect", function()
-      local result = collect.run(ir_new({ "modules.lang.lua_lang" }))
+      local result = collect.run(ir_new({ "modules.lang.lua" }))
       R.assert_eq(result.stage, "AST")
     end)
     R.it("caps table populated", function()
-      local result = collect.run(ir_new({ "modules.lang.lua_lang" }))
+      local result = collect.run(ir_new({ "modules.lang.lua" }))
       R.assert_type(result.caps, "table")
       R.assert_true(next(result.caps) ~= nil)
     end)
-    R.it("lua_lang capability present in caps", function()
-      local result = collect.run(ir_new({ "modules.lang.lua_lang" }))
-      R.assert_not_nil(result.caps.lua_lang)
+    R.it("lua capability present in caps", function()
+      local result = collect.run(ir_new({ "modules.lang.lua" }))
+      R.assert_not_nil(result.caps.lua)
     end)
     R.it("meta.module_hashes populated", function()
-      local result = collect.run(ir_new({ "modules.lang.lua_lang" }))
+      local result = collect.run(ir_new({ "modules.lang.lua" }))
       R.assert_type(result.meta.module_hashes, "table")
     end)
   end)
@@ -114,14 +109,14 @@ R.describe("runtime.passes.collect", function()
   R.describe("multiple module collection", function()
     R.it("collects multiple lang modules independently", function()
       local result = collect.run(ir_new({
-        "modules.lang.lua_lang",
+        "modules.lang.lua",
         "modules.lang.python",
       }))
-      R.assert_not_nil(result.caps.lua_lang)
+      R.assert_not_nil(result.caps.lua)
       R.assert_not_nil(result.caps.python)
     end)
     R.it("diagnostic list remains empty for valid modules", function()
-      local result = collect.run(ir_new({ "modules.lang.lua_lang" }))
+      local result = collect.run(ir_new({ "modules.lang.lua" }))
       local err_count = 0
       for _, d in ipairs(result.diagnostics) do
         if d.severity == "error" then
@@ -141,18 +136,16 @@ R.describe("runtime.passes.normalize", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("name = 'normalize'", function()
-      R.assert_eq(normalize.name, "normalize")
-    end)
-    R.it("input_state = 'collecting'", function()
-      R.assert_eq(normalize.input_state, "collecting")
-    end)
-    R.it("output_state = 'normalizing'", function()
-      R.assert_eq(normalize.output_state, "normalizing")
-    end)
-    R.it("validate is a function", function()
-      R.assert_type(normalize.validate, "function")
-    end)
+    R.it("name = 'normalize'", function() R.assert_eq(normalize.name, "normalize") end)
+    R.it(
+      "input_state = 'collecting'",
+      function() R.assert_eq(normalize.input_state, "collecting") end
+    )
+    R.it(
+      "output_state = 'normalizing'",
+      function() R.assert_eq(normalize.output_state, "normalizing") end
+    )
+    R.it("validate is a function", function() R.assert_type(normalize.validate, "function") end)
   end)
 
   -- ── FormatterNode.fn injection ────────────────────────────────────────────
@@ -175,9 +168,9 @@ R.describe("runtime.passes.normalize", function()
     end)
 
     R.it("plain string formatters are unchanged", function()
-      local ast = collect_ir({ "modules.lang.lua_lang" })
+      local ast = collect_ir({ "modules.lang.lua" })
       local result = normalize.run(ast)
-      local lua_fmts = result.caps.lua_lang and result.caps.lua_lang.formatters
+      local lua_fmts = result.caps.lua and result.caps.lua.formatters
       if lua_fmts and lua_fmts.lua then
         for _, v in ipairs(lua_fmts.lua) do
           if type(v) == "string" then
@@ -257,32 +250,30 @@ R.describe("runtime.passes.canonicalize", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("name = 'canonicalize'", function()
-      R.assert_eq(canonicalize.name, "canonicalize")
-    end)
-    R.it("input_state = 'normalizing'", function()
-      R.assert_eq(canonicalize.input_state, "normalizing")
-    end)
-    R.it("output_state = 'canonicalizing'", function()
-      R.assert_eq(canonicalize.output_state, "canonicalizing")
-    end)
-    R.it("validate is a function", function()
-      R.assert_type(canonicalize.validate, "function")
-    end)
+    R.it("name = 'canonicalize'", function() R.assert_eq(canonicalize.name, "canonicalize") end)
+    R.it(
+      "input_state = 'normalizing'",
+      function() R.assert_eq(canonicalize.input_state, "normalizing") end
+    )
+    R.it(
+      "output_state = 'canonicalizing'",
+      function() R.assert_eq(canonicalize.output_state, "canonicalizing") end
+    )
+    R.it("validate is a function", function() R.assert_type(canonicalize.validate, "function") end)
   end)
 
   -- ── Symbol table ──────────────────────────────────────────────────────────
 
   R.describe("ir.symbols construction", function()
     R.it("symbols.lsp and symbols.tools populated", function()
-      local result = canon_ir({ "modules.lang.lua_lang" })
+      local result = canon_ir({ "modules.lang.lua" })
       R.assert_type(result.symbols, "table")
       R.assert_type(result.symbols.lsp, "table")
       R.assert_type(result.symbols.tools, "table")
     end)
 
     R.it("lua_ls → mason='lua-language-server', system=false", function()
-      local result = canon_ir({ "modules.lang.lua_lang" })
+      local result = canon_ir({ "modules.lang.lua" })
       local sym = result.symbols.lsp.lua_ls
       R.assert_not_nil(sym)
       R.assert_eq(sym.mason, "lua-language-server")
@@ -312,7 +303,7 @@ R.describe("runtime.passes.canonicalize", function()
     end)
 
     R.it("stylua → use_mason=true (mason managed)", function()
-      local result = canon_ir({ "modules.lang.lua_lang" })
+      local result = canon_ir({ "modules.lang.lua" })
       local sym = result.symbols.tools.stylua
       R.assert_not_nil(sym, "stylua symbol must exist")
       R.assert_false(sym.system, "stylua must not be system")
@@ -328,7 +319,7 @@ R.describe("runtime.passes.canonicalize", function()
     R.assert_ne(result, hir)
   end)
   R.it("stage unchanged (HIR → HIR+, no stage bump)", function()
-    local result = canon_ir({ "modules.lang.lua_lang" })
+    local result = canon_ir({ "modules.lang.lua" })
     -- canonicalize stays on HIR stage (adds symbols without stage change)
     R.assert_type(result.stage, "string")
   end)
@@ -337,8 +328,8 @@ R.describe("runtime.passes.canonicalize", function()
 
   R.it("same server not duplicated across modules", function()
     local result = canon_ir({
-      "modules.lang.lua_lang",
-      "modules.lang.lua_lang", -- intentional duplicate
+      "modules.lang.lua",
+      "modules.lang.lua", -- intentional duplicate
     })
     local count = 0
     for k in pairs(result.symbols.lsp) do
@@ -367,51 +358,53 @@ R.describe("runtime.passes.resolve", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("name = 'resolve'", function()
-      R.assert_eq(resolve.name, "resolve")
-    end)
-    R.it("input_state = 'canonicalizing'", function()
-      R.assert_eq(resolve.input_state, "canonicalizing")
-    end)
-    R.it("output_state = 'resolving'", function()
-      R.assert_eq(resolve.output_state, "resolving")
-    end)
-    R.it("validate is a function", function()
-      R.assert_type(resolve.validate, "function")
-    end)
+    R.it("name = 'resolve'", function() R.assert_eq(resolve.name, "resolve") end)
+    R.it(
+      "input_state = 'canonicalizing'",
+      function() R.assert_eq(resolve.input_state, "canonicalizing") end
+    )
+    R.it(
+      "output_state = 'resolving'",
+      function() R.assert_eq(resolve.output_state, "resolving") end
+    )
+    R.it("validate is a function", function() R.assert_type(resolve.validate, "function") end)
   end)
 
   -- ── IR.resolved construction ──────────────────────────────────────────────
 
   R.describe("IR.resolved construction", function()
     R.it("resolved.lsp and resolved.tools populated", function()
-      local result = resolve_ir({ "modules.lang.lua_lang" })
+      local result = resolve_ir({ "modules.lang.lua" })
       R.assert_type(result.resolved, "table")
       R.assert_type(result.resolved.lsp, "table")
       R.assert_type(result.resolved.tools, "table")
     end)
 
     R.it("lua_ls → resolved.lsp.lua_ls = true (mason managed)", function()
-      local result = resolve_ir({ "modules.lang.lua_lang" })
+      local result = resolve_ir({ "modules.lang.lua" })
       R.assert_true(result.resolved.lsp.lua_ls == true)
     end)
 
     R.it("rustfmt → resolved.tools.rustfmt = false (system tool)", function()
       local result = resolve_ir({ "modules.lang.rust" })
-      R.assert_false(result.resolved.tools.rustfmt == true, "rustfmt is system — resolved must be false")
+      R.assert_false(
+        result.resolved.tools.rustfmt == true,
+        "rustfmt is system — resolved must be false"
+      )
     end)
 
     R.it("stylua → resolved.tools.stylua = true (mason managed)", function()
-      local result = resolve_ir({ "modules.lang.lua_lang" })
+      local result = resolve_ir({ "modules.lang.lua" })
       R.assert_true(result.resolved.tools.stylua == true)
     end)
   end)
 
   -- ── Stage + COW ───────────────────────────────────────────────────────────
 
-  R.it("output stage = MIR", function()
-    R.assert_eq(resolve_ir({ "modules.lang.lua_lang" }).stage, "MIR")
-  end)
+  R.it(
+    "output stage = MIR",
+    function() R.assert_eq(resolve_ir({ "modules.lang.lua" }).stage, "MIR") end
+  )
   R.it("input HIR+ unchanged (COW)", function()
     local ast = collect_ir()
     local hir = normalize.run(ast)
@@ -440,25 +433,20 @@ R.describe("runtime.passes.optimize", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("name = 'optimize'", function()
-      R.assert_eq(optimize.name, "optimize")
-    end)
-    R.it("input_state = 'resolving'", function()
-      R.assert_eq(optimize.input_state, "resolving")
-    end)
-    R.it("output_state = 'optimizing'", function()
-      R.assert_eq(optimize.output_state, "optimizing")
-    end)
-    R.it("validate is a function", function()
-      R.assert_type(optimize.validate, "function")
-    end)
+    R.it("name = 'optimize'", function() R.assert_eq(optimize.name, "optimize") end)
+    R.it("input_state = 'resolving'", function() R.assert_eq(optimize.input_state, "resolving") end)
+    R.it(
+      "output_state = 'optimizing'",
+      function() R.assert_eq(optimize.output_state, "optimizing") end
+    )
+    R.it("validate is a function", function() R.assert_type(optimize.validate, "function") end)
   end)
 
   -- ── Deduplication ─────────────────────────────────────────────────────────
 
   R.describe("parser deduplication", function()
     R.it("all_parsers is deduplicated", function()
-      local result = opt_ir({ "modules.lang.lua_lang", "modules.lang.python" })
+      local result = opt_ir({ "modules.lang.lua", "modules.lang.python" })
       local seen = {}
       for _, p in ipairs(result.all_parsers) do
         R.assert_true(not seen[p], "duplicate parser: " .. p)
@@ -466,7 +454,7 @@ R.describe("runtime.passes.optimize", function()
       end
     end)
     R.it("all_parsers contains expected parsers", function()
-      local result = opt_ir({ "modules.lang.lua_lang" })
+      local result = opt_ir({ "modules.lang.lua" })
       local set = {}
       for _, p in ipairs(result.all_parsers) do
         set[p] = true
@@ -480,12 +468,12 @@ R.describe("runtime.passes.optimize", function()
 
   R.describe("LSP deep-merge", function()
     R.it("merged_lsp contains lua_ls", function()
-      local result = opt_ir({ "modules.lang.lua_lang" })
+      local result = opt_ir({ "modules.lang.lua" })
       R.assert_type(result.merged_lsp, "table")
       R.assert_not_nil(result.merged_lsp.lua_ls)
     end)
     R.it("LSP from two modules merged without data loss", function()
-      local result = opt_ir({ "modules.lang.lua_lang", "modules.lang.python" })
+      local result = opt_ir({ "modules.lang.lua", "modules.lang.python" })
       R.assert_not_nil(result.merged_lsp.lua_ls)
       R.assert_not_nil(result.merged_lsp.pyright)
     end)
@@ -493,12 +481,13 @@ R.describe("runtime.passes.optimize", function()
 
   -- ── Stage + COW ───────────────────────────────────────────────────────────
 
-  R.it("output stage = LIR", function()
-    R.assert_eq(opt_ir({ "modules.lang.lua_lang" }).stage, "LIR")
-  end)
+  R.it(
+    "output stage = LIR",
+    function() R.assert_eq(opt_ir({ "modules.lang.lua" }).stage, "LIR") end
+  )
   R.it("codegen pre-condition passes for LIR output", function()
     local ir_mod = require("core.compiler.ir")
-    local result = opt_ir({ "modules.lang.lua_lang" })
+    local result = opt_ir({ "modules.lang.lua" })
     local errs = ir_mod.validate(result, "codegen")
     R.assert_eq(#errs, 0, "LIR must satisfy codegen pre-conditions")
   end)
@@ -513,28 +502,21 @@ R.describe("runtime.passes.codegen", function()
   -- ── Phase contract ────────────────────────────────────────────────────────
 
   R.describe("Phase contract", function()
-    R.it("name = 'codegen'", function()
-      R.assert_eq(codegen.name, "codegen")
-    end)
-    R.it("input_state = 'optimizing'", function()
-      R.assert_eq(codegen.input_state, "optimizing")
-    end)
-    R.it("output_state = 'codegen'", function()
-      R.assert_eq(codegen.output_state, "codegen")
-    end)
-    R.it("validate is a function", function()
-      R.assert_type(codegen.validate, "function")
-    end)
-    R.it("build() is a function", function()
-      R.assert_type(codegen.build, "function")
-    end)
+    R.it("name = 'codegen'", function() R.assert_eq(codegen.name, "codegen") end)
+    R.it(
+      "input_state = 'optimizing'",
+      function() R.assert_eq(codegen.input_state, "optimizing") end
+    )
+    R.it("output_state = 'codegen'", function() R.assert_eq(codegen.output_state, "codegen") end)
+    R.it("validate is a function", function() R.assert_type(codegen.validate, "function") end)
+    R.it("build() is a function", function() R.assert_type(codegen.build, "function") end)
   end)
 
   -- ── build() output ────────────────────────────────────────────────────────
 
   R.describe("build()", function()
     R.it("returns list of LazySpec tables", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       local specs = codegen.build(ir)
       R.assert_type(specs, "table")
       R.assert_true(#specs > 0)
@@ -544,7 +526,7 @@ R.describe("runtime.passes.codegen", function()
     end)
 
     R.it("all LTOS specs have _source prefix 'ltos:'", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       local specs = codegen.build(ir)
       for _, s in ipairs(specs) do
         if s._source then
@@ -554,7 +536,7 @@ R.describe("runtime.passes.codegen", function()
     end)
 
     R.it("merges cap_specs from cap_resolve into final list", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       -- Inject dummy cap_specs
       ir.cap_specs = {
         image = { { "test-image-plugin", _source = "ltos:test" } },
@@ -575,13 +557,13 @@ R.describe("runtime.passes.codegen", function()
 
   R.describe("run() Phase interface compliance", function()
     R.it("run() returns IR with stage=SPEC and embedded _specs", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       local result = codegen.run(ir)
       R.assert_eq(result.stage, "SPEC")
       R.assert_type(result._specs, "table")
     end)
     R.it("run() COW: original IR unchanged", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       codegen.run(ir)
       R.assert_ne(ir.stage, "SPEC", "codegen.run must not mutate input stage")
     end)
@@ -591,7 +573,7 @@ R.describe("runtime.passes.codegen", function()
 
   R.describe("validate()", function()
     R.it("returns empty list for valid LIR", function()
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       local errs = codegen.validate(ir)
       R.assert_eq(#errs, 0)
     end)
@@ -605,3 +587,4 @@ R.describe("runtime.passes.codegen", function()
     end)
   end)
 end)
+

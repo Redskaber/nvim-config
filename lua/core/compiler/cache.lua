@@ -2,8 +2,8 @@
 -- Layer 1 compiler: backward-compatible facade over cache/ subsystem.
 -- REFACTOR: delegates to cache/key.lua + cache/store.lua + cache/policy.lua
 
-local policy = require("core.compiler.cache.policy")
 local key_mod = require("core.compiler.cache.key")
+local policy = require("core.compiler.cache.policy")
 
 local M = {}
 
@@ -20,11 +20,8 @@ M.is_cacheable = policy.is_cacheable
 M.mark_uncacheable = policy.mark_uncacheable
 
 -- Spec-tier shorthands
-function M.load_specs(key)
-  return M.load("spec", key)
-end
-function M.save_specs(key, specs)
-  M.save("spec", key, specs)
-end
+function M.load_specs(key) return M.load("spec", key) end
+function M.save_specs(key, specs) M.save("spec", key, specs) end
 
 return M
+

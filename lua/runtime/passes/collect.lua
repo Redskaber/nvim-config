@@ -11,8 +11,8 @@
 -- IR input:  { meta, profile }
 -- IR output: { meta, profile, caps }   (AST sub-layer)
 
-local ir_mod = require("core.compiler.ir")
 local cap_mod = require("core.domain.capability")
+local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
 -- use ports abstraction for file resolution.
 -- Old code called vim.api.nvim_get_runtime_file directly, violating INV-2
@@ -50,7 +50,11 @@ local collect_pass = {
             diags[#diags + 1] = ir_mod.diag(
               "collect",
               mod,
-              ("[schema:%s] %s — %s"):format(schema_d.code or "?", schema_d.path, schema_d.message),
+              ("[schema:%s] %s — %s"):format(
+                schema_d.code or "?",
+                schema_d.path,
+                schema_d.message
+              ),
               schema_d.severity or "error"
             )
           end
@@ -62,7 +66,8 @@ local collect_pass = {
       -- Skip modules already seeded from partial cache
       if ast_seed and ast_seed.module_hashes and ast_seed.current_hashes then
         if
-          ast_seed.module_hashes[mod] == ast_seed.current_hashes[mod] and ast_seed.caps[mod:match("([^.]+)$") or mod]
+          ast_seed.module_hashes[mod] == ast_seed.current_hashes[mod]
+          and ast_seed.caps[mod:match("([^.]+)$") or mod]
         then
           goto continue
         end
@@ -70,9 +75,11 @@ local collect_pass = {
 
       local ok, result = pcall(require, mod)
       if not ok then
-        diags[#diags + 1] = ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
+        diags[#diags + 1] =
+          ir_mod.diag("collect", mod, "failed to load: " .. tostring(result), "error")
       elseif type(result) ~= "table" then
-        diags[#diags + 1] = ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
+        diags[#diags + 1] =
+          ir_mod.diag("collect", mod, "module did not return a table; skipping", "warn")
       else
         local name = mod:match("([^.]+)$") or mod
         -- use ports.resolve_runtime_file (returns string|nil)

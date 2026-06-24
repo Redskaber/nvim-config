@@ -61,7 +61,10 @@ for _, filepath in ipairs(plugin_files) do
       local ok, result = pcall(require, modname)
       if not ok then
         -- Surface load errors without crashing the whole startup
-        vim.notify("[plugins.init] failed to load " .. modname .. ":\n" .. tostring(result), vim.log.levels.ERROR)
+        vim.notify(
+          "[plugins.init] failed to load " .. modname .. ":\n" .. tostring(result),
+          vim.log.levels.ERROR
+        )
       elseif type(result) == "table" then
         -- only accept tables that look like LazySpec.
         -- A LazySpec is either:

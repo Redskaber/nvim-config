@@ -21,16 +21,16 @@ R.describe("runtime.providers.interface", function()
       R.assert_type(mods, "table")
     end)
 
-    R.it("contains lua_lang module path", function()
+    R.it("contains lua module path", function()
       local mods = iface.discover()
       local found = false
       for _, m in ipairs(mods) do
-        if m == "modules.lang.lua_lang" then
+        if m == "modules.lang.lua" then
           found = true
           break
         end
       end
-      R.assert_true(found, "modules.lang.lua_lang must be discovered")
+      R.assert_true(found, "modules.lang.lua must be discovered")
     end)
 
     R.it("result is sorted", function()
@@ -128,16 +128,16 @@ R.describe("runtime.providers.registry", function()
       end
     end)
 
-    R.it("'minimal' includes lua_lang (core=true module)", function()
+    R.it("'minimal' includes lua (core=true module)", function()
       local minimal = reg.resolve("minimal")
       local found = false
       for _, m in ipairs(minimal) do
-        if m == "modules.lang.lua_lang" then
+        if m == "modules.lang.lua" then
           found = true
           break
         end
       end
-      R.assert_true(found, "lua_lang (core=true) must be in minimal profile")
+      R.assert_true(found, "lua (core=true) must be in minimal profile")
     end)
 
     R.it("'nix' profile returns same module set as full", function()
@@ -169,15 +169,11 @@ R.describe("runtime.providers.registry", function()
   -- ── register() extension API ─────────────────────────────────────────────
 
   R.describe("register()", function()
-    R.it("register() throws for empty path", function()
-      R.assert_false(pcall(reg.register, ""))
-    end)
-    R.it("register() throws for non-string", function()
-      R.assert_false(pcall(reg.register, 42))
-    end)
+    R.it("register() throws for empty path", function() R.assert_false(pcall(reg.register, "")) end)
+    R.it("register() throws for non-string", function() R.assert_false(pcall(reg.register, 42)) end)
     R.it("register() adds extra module to full resolve", function()
       local before = #reg.resolve("full")
-      reg.register("modules.lang.lua_lang") -- already exists → deduplicated
+      reg.register("modules.lang.lua") -- already exists → deduplicated
       local after = #reg.resolve("full")
       -- Should not increase (dedup)
       R.assert_eq(before, after, "existing module must be deduplicated")
@@ -282,7 +278,7 @@ R.describe("runtime.emitter.init", function()
   R.describe("emit()", function()
     local function minimal_lir()
       local pipeline = require("runtime.pipeline")
-      return pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      return pipeline.debug_run({ "modules.lang.lua" }, "optimize")
     end
 
     R.it("returns flat LazySpec[] list", function()
@@ -335,20 +331,23 @@ R.describe("runtime.emitter.init", function()
       R.assert_eq(#specs, 0)
     end)
 
-    R.it("Invariant 3: emitter is the sole side-effect boundary (no vim.notify in adapters)", function()
-      -- Verify that adapters themselves don't call vim.notify
-      -- This is a static check via the architecture; we verify emitter wraps correctly
-      local ir = minimal_lir()
-      local notify_count_before = 0 -- track via pcall
-      local specs = emitter.emit(ir, {
-        "runtime.adapters.lsp",
-        "runtime.adapters.mason",
-        "runtime.adapters.treesitter",
-        "runtime.adapters.conform",
-        "runtime.adapters.lint",
-      })
-      R.assert_true(#specs > 0, "all 5 adapters must produce specs via emitter")
-    end)
+    R.it(
+      "Invariant 3: emitter is the sole side-effect boundary (no vim.notify in adapters)",
+      function()
+        -- Verify that adapters themselves don't call vim.notify
+        -- This is a static check via the architecture; we verify emitter wraps correctly
+        local ir = minimal_lir()
+        local notify_count_before = 0 -- track via pcall
+        local specs = emitter.emit(ir, {
+          "runtime.adapters.lsp",
+          "runtime.adapters.mason",
+          "runtime.adapters.treesitter",
+          "runtime.adapters.conform",
+          "runtime.adapters.lint",
+        })
+        R.assert_true(#specs > 0, "all 5 adapters must produce specs via emitter")
+      end
+    )
   end)
 end)
 
@@ -408,9 +407,10 @@ R.describe("runtime.api", function()
       "on_lifecycle_change",
     }
     for _, fn in ipairs(expected_fns) do
-      R.it(fn .. "() exists as function", function()
-        R.assert_type(api[fn], "function", "api." .. fn .. " must be a function")
-      end)
+      R.it(
+        fn .. "() exists as function",
+        function() R.assert_type(api[fn], "function", "api." .. fn .. " must be a function") end
+      )
     end
   end)
 
@@ -418,7 +418,11 @@ R.describe("runtime.api", function()
     R.it("api.diagnostics table with next/prev/open/list", function()
       R.assert_type(api.diagnostics, "table")
       for _, m in ipairs({ "next", "prev", "open", "list" }) do
-        R.assert_type(api.diagnostics[m], "function", "api.diagnostics." .. m .. " must be function")
+        R.assert_type(
+          api.diagnostics[m],
+          "function",
+          "api.diagnostics." .. m .. " must be function"
+        )
       end
     end)
     R.it("api.lsp table with rename/code_action/hover/signature", function()
@@ -448,12 +452,11 @@ R.describe("runtime.api", function()
   -- ── picker_register / picker_set_default ────────────────────────────────
 
   R.describe("picker_register()", function()
-    R.it("throws for empty name", function()
-      R.assert_false(pcall(api.picker_register, "", {}))
-    end)
-    R.it("throws for non-table backend", function()
-      R.assert_false(pcall(api.picker_register, "test", "not_a_table"))
-    end)
+    R.it("throws for empty name", function() R.assert_false(pcall(api.picker_register, "", {})) end)
+    R.it(
+      "throws for non-table backend",
+      function() R.assert_false(pcall(api.picker_register, "test", "not_a_table")) end
+    )
     R.it("registers backend successfully", function()
       local ok = pcall(api.picker_register, "test_picker", { files = function() end })
       R.assert_true(ok)
@@ -463,11 +466,16 @@ R.describe("runtime.api", function()
   -- ── terminal_register ────────────────────────────────────────────────────
 
   R.describe("terminal_register()", function()
-    R.it("throws for empty name", function()
-      R.assert_false(pcall(api.terminal_register, "", {}))
-    end)
+    R.it(
+      "throws for empty name",
+      function() R.assert_false(pcall(api.terminal_register, "", {})) end
+    )
     R.it("registers terminal backend successfully", function()
-      local ok = pcall(api.terminal_register, "test_terminal", { float = function() end, horizontal = function() end })
+      local ok = pcall(
+        api.terminal_register,
+        "test_terminal",
+        { float = function() end, horizontal = function() end }
+      )
       R.assert_true(ok)
     end)
   end)
@@ -532,7 +540,10 @@ R.describe("runtime.defaults data integrity", function()
 
     R.it("priorities are in ascending order", function()
       for i = 2, #defaults do
-        R.assert_true(defaults[i].priority > defaults[i - 1].priority, "adapter priorities must be ascending")
+        R.assert_true(
+          defaults[i].priority > defaults[i - 1].priority,
+          "adapter priorities must be ascending"
+        )
       end
     end)
   end)
@@ -626,9 +637,10 @@ R.describe("runtime.defaults data integrity", function()
       R.assert_type(defaults.codegen, "string")
     end)
 
-    R.it("phases list has 7 entries (excluding codegen)", function()
-      R.assert_eq(#defaults.phases, 7, "expected exactly 7 non-codegen phases")
-    end)
+    R.it(
+      "phases list has 7 entries (excluding codegen)",
+      function() R.assert_eq(#defaults.phases, 7, "expected exactly 7 non-codegen phases") end
+    )
 
     R.it("each phase entry has path and priority", function()
       for i, entry in ipairs(defaults.phases) do
@@ -649,7 +661,10 @@ R.describe("runtime.defaults data integrity", function()
       -- collect should have the lowest priority number
       for _, e in ipairs(defaults.phases) do
         if e.path ~= "runtime.passes.collect" then
-          R.assert_true(collect_entry.priority <= e.priority, "collect must have <= priority than " .. e.path)
+          R.assert_true(
+            collect_entry.priority <= e.priority,
+            "collect must have <= priority than " .. e.path
+          )
         end
       end
     end)
@@ -691,17 +706,11 @@ end)
 R.describe("toolchain.defaults.mappings", function()
   local defaults = require("toolchain.defaults.mappings")
 
-  R.it("has lsp_to_mason table", function()
-    R.assert_type(defaults.lsp_to_mason, "table")
-  end)
+  R.it("has lsp_to_mason table", function() R.assert_type(defaults.lsp_to_mason, "table") end)
 
-  R.it("has tool_to_mason table", function()
-    R.assert_type(defaults.tool_to_mason, "table")
-  end)
+  R.it("has tool_to_mason table", function() R.assert_type(defaults.tool_to_mason, "table") end)
 
-  R.it("has system_tools table", function()
-    R.assert_type(defaults.system_tools, "table")
-  end)
+  R.it("has system_tools table", function() R.assert_type(defaults.system_tools, "table") end)
 
   R.describe("lsp_to_mason", function()
     local expected = {
@@ -716,9 +725,7 @@ R.describe("toolchain.defaults.mappings", function()
       yamlls = "yaml-language-server",
     }
     for server, pkg in pairs(expected) do
-      R.it(server .. " → " .. pkg, function()
-        R.assert_eq(defaults.lsp_to_mason[server], pkg)
-      end)
+      R.it(server .. " → " .. pkg, function() R.assert_eq(defaults.lsp_to_mason[server], pkg) end)
     end
   end)
 
@@ -736,17 +743,27 @@ R.describe("toolchain.defaults.mappings", function()
       "clangtidy",
     }
     for _, tool in ipairs(expected_system) do
-      R.it(tool .. " is a system tool (value = true)", function()
-        R.assert_true(defaults.system_tools[tool] == true, tool .. " must be true in system_tools")
-      end)
+      R.it(
+        tool .. " is a system tool (value = true)",
+        function()
+          R.assert_true(
+            defaults.system_tools[tool] == true,
+            tool .. " must be true in system_tools"
+          )
+        end
+      )
     end
   end)
 
   R.describe("no overlap between system_tools and lsp_to_mason", function()
     R.it("lsp servers are not in system_tools", function()
       for server in pairs(defaults.lsp_to_mason) do
-        R.assert_nil(defaults.system_tools[server], "LSP server " .. server .. " must not be in system_tools")
+        R.assert_nil(
+          defaults.system_tools[server],
+          "LSP server " .. server .. " must not be in system_tools"
+        )
       end
     end)
   end)
 end)
+

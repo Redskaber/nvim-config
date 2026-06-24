@@ -17,10 +17,10 @@
 -- Downstream consumers (resolve, mason adapter) read ONLY ir.symbols.
 -- No adapter or pass may call mappings.lsp_pkg() / mappings.tool_pkg() directly.
 
+local build_request_mod = require("runtime.build_request")
 local ir_mod = require("core.compiler.ir")
 local mappings = require("toolchain.mappings")
 local rules = require("toolchain.rules")
-local build_request_mod = require("runtime.build_request")
 
 ---@type Phase
 local canonicalize_pass = {
@@ -28,9 +28,7 @@ local canonicalize_pass = {
   input_state = "normalizing",
   output_state = "canonicalizing",
 
-  validate = function(ir)
-    return ir_mod.validate(ir, "canonicalize")
-  end,
+  validate = function(ir) return ir_mod.validate(ir, "canonicalize") end,
 
   ---@param ir IR
   ---@return IR
@@ -113,3 +111,4 @@ local canonicalize_pass = {
 }
 
 return canonicalize_pass
+

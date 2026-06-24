@@ -2,19 +2,17 @@
 -- Layer 1 compiler: tier invalidation policy + serializability check.
 -- Tier order: ast < spec. Notifications via ports (no direct vim API).
 
-local store = require("core.compiler.cache.store")
 local key_mod = require("core.compiler.cache.key")
-local version = require("core.compiler.cache.version")
 local ports = require("core.compiler.ports")
+local store = require("core.compiler.cache.store")
+local version = require("core.compiler.cache.version")
 
 local M = {}
 local TIER_ORDER = { "ast", "spec" }
 
 local UNCACHEABLE_MT = { __ltos_cacheable = false }
 
-function M.mark_uncacheable(t)
-  return setmetatable(t, UNCACHEABLE_MT)
-end
+function M.mark_uncacheable(t) return setmetatable(t, UNCACHEABLE_MT) end
 
 -- Old code recursed without tracking visited tables — infinite loop on
 -- self-referential tables (e.g., metatable with __index = self, or cyclic
@@ -51,9 +49,7 @@ end
 
 ---@param v any
 ---@return boolean
-local function is_cacheable(v)
-  return is_cacheable_inner(v, {})
-end
+local function is_cacheable(v) return is_cacheable_inner(v, {}) end
 
 M.is_cacheable = is_cacheable
 
@@ -188,9 +184,7 @@ function M.invalidate_all()
   end
 end
 
-function M.stats()
-  return M._stats or {}
-end
+function M.stats() return M._stats or {} end
 
 M.compute_key = key_mod.compute
 

@@ -9,7 +9,7 @@ return {
     asm_lsp = {},
   },
   formatters = {
-    asm = { "asmfmt" },
+    asm = { "nasmfmt" },
   },
   linters = {},
   -- No formatters or linters: no widely-available mason-installable tools for asm.

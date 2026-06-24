@@ -48,29 +48,21 @@ M.overrides = {}
 
 ---@param server string
 ---@param pkg string
-function M.register_lsp(server, pkg)
-  M.lsp_to_mason[server] = pkg
-end
+function M.register_lsp(server, pkg) M.lsp_to_mason[server] = pkg end
 
 ---@param tool string
 ---@param pkg string
-function M.register_tool(tool, pkg)
-  M.tool_to_mason[tool] = pkg
-end
+function M.register_tool(tool, pkg) M.tool_to_mason[tool] = pkg end
 
 ---@param tool string
 ---@param override { use_mason: boolean, pkg: string|nil }
-function M.register_override(tool, override)
-  M.overrides[tool] = override
-end
+function M.register_override(tool, override) M.overrides[tool] = override end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
 ---@param server string
 ---@return string
-function M.lsp_pkg(server)
-  return M.lsp_to_mason[server] or server
-end
+function M.lsp_pkg(server) return M.lsp_to_mason[server] or server end
 
 ---@param tool string
 ---@return string|nil
@@ -91,3 +83,4 @@ function M.resolve(tool)
 end
 
 return M
+

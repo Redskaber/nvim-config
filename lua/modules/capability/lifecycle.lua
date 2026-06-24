@@ -66,7 +66,11 @@ function M.transition(rec, next_state, diag)
   --   Fix: explicitly exempt ERROR as a valid target from RUNNING.
   if
     rec.state == M.STATES.ERROR
-    or (rec.state == M.STATES.RUNNING and next_state ~= M.STATES.RUNNING and next_state ~= M.STATES.ERROR)
+    or (
+      rec.state == M.STATES.RUNNING
+      and next_state ~= M.STATES.RUNNING
+      and next_state ~= M.STATES.ERROR
+    )
   then
     -- Terminal states cannot transition, except RUNNING to itself or to ERROR
     return rec
@@ -116,16 +120,12 @@ end
 --- Checks if a LifecycleRecord is in a terminal state (RUNNING or ERROR).
 ---@param rec LifecycleRecord
 ---@return boolean
-function M.is_terminal(rec)
-  return rec.state == M.STATES.RUNNING or rec.state == M.STATES.ERROR
-end
+function M.is_terminal(rec) return rec.state == M.STATES.RUNNING or rec.state == M.STATES.ERROR end
 
 --- Checks if a LifecycleRecord is in the RUNNING state.
 ---@param rec LifecycleRecord
 ---@return boolean
-function M.is_active(rec)
-  return rec.state == M.STATES.RUNNING
-end
+function M.is_active(rec) return rec.state == M.STATES.RUNNING end
 
 ---@class LifecycleManager
 ---@field records table<string, LifecycleRecord>
@@ -170,16 +170,12 @@ end
 ---@param mgr LifecycleManager
 ---@param id string
 ---@return LifecycleRecord|nil
-function M.get(mgr, id)
-  return mgr.records[id]
-end
+function M.get(mgr, id) return mgr.records[id] end
 
 --- Gets all LifecycleRecords.
 ---@param mgr LifecycleManager
 ---@return table<string, LifecycleRecord>
-function M.all(mgr)
-  return mgr.records
-end
+function M.all(mgr) return mgr.records end
 
 --- Summarizes the counts of records by state.
 ---@param mgr LifecycleManager

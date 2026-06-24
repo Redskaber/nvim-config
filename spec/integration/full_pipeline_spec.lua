@@ -34,13 +34,13 @@ R.describe("integration: full pipeline", function()
     return nil
   end
 
-  -- ── lua_lang golden ───────────────────────────────────────────────────────
+  -- ── lua golden ───────────────────────────────────────────────────────
 
-  R.describe("lua_lang golden", function()
+  R.describe("lua golden", function()
     local specs, ir
 
     R.before_each(function()
-      specs, ir = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      specs, ir = pipeline.run({ "modules.lang.lua" }, "full")
     end)
 
     R.it("all 5 required lang adapter plugins present", function()
@@ -61,13 +61,12 @@ R.describe("integration: full pipeline", function()
       R.assert_true(ltos_count >= 5, "at least 5 specs must have _source")
     end)
 
-    R.it("IR.caps.lua_lang survives through full pipeline", function()
-      R.assert_not_nil(ir.caps.lua_lang)
-    end)
+    R.it(
+      "IR.caps.lua survives through full pipeline",
+      function() R.assert_not_nil(ir.caps.lua) end
+    )
 
-    R.it("no error-severity diagnostics in final IR", function()
-      R.assert_no_errors(ir)
-    end)
+    R.it("no error-severity diagnostics in final IR", function() R.assert_no_errors(ir) end)
 
     R.it("nvim-lspconfig spec contains lua_ls server", function()
       local lsp_spec = find_spec(specs, "neovim/nvim-lspconfig")
@@ -147,7 +146,7 @@ R.describe("integration: full pipeline", function()
 
   R.describe("multi-language deduplication", function()
     local multi_mods = {
-      "modules.lang.lua_lang",
+      "modules.lang.lua",
       "modules.lang.python",
       "modules.lang.typescript",
     }
@@ -166,7 +165,7 @@ R.describe("integration: full pipeline", function()
     end)
 
     R.it("no duplicate LSP servers in mason-lspconfig ensure_installed", function()
-      local specs = pipeline.run({ "modules.lang.lua_lang", "modules.lang.python" }, "full")
+      local specs = pipeline.run({ "modules.lang.lua", "modules.lang.python" }, "full")
       local ml_spec = find_spec(specs, "mason-org/mason-lspconfig.nvim")
       if ml_spec then
         local ei = ml_spec.opts and ml_spec.opts.ensure_installed or {}
@@ -192,7 +191,7 @@ R.describe("integration: full pipeline", function()
       local collect_ext = require("runtime.passes.collect_ext")
       local orig = collect_ext.registered()
       collect_ext.register({ "modules.cap.image" })
-      local specs = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local specs = pipeline.run({ "modules.lang.lua" }, "full")
       -- restore
       collect_ext.register(orig)
       local found = false
@@ -206,7 +205,7 @@ R.describe("integration: full pipeline", function()
     end)
 
     R.it("cap_specs merged into final spec list", function()
-      local specs, ir = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local specs, ir = pipeline.run({ "modules.lang.lua" }, "full")
       -- IR should have cap_specs populated after cap_resolve
       R.assert_type(ir.cap_specs, "table")
     end)
@@ -216,15 +215,15 @@ R.describe("integration: full pipeline", function()
 
   R.describe("BuildRequest passthrough", function()
     R.it("build_request in IR.meta after full run", function()
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_not_nil(ir.meta.build_request)
       R.assert_type(ir.meta.build_request.profile, "string")
     end)
 
     R.it("nix profile build_request has prefer_system=true", function()
       local br = require("runtime.build_request")
-      local req = br.from_vim("nix", { "modules.lang.lua_lang" })
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "nix", nil, nil, req)
+      local req = br.from_vim("nix", { "modules.lang.lua" })
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "nix", nil, nil, req)
       R.assert_true(ir.meta.build_request.prefer_system)
     end)
   end)
@@ -234,7 +233,7 @@ R.describe("integration: full pipeline", function()
   R.describe("IR schema version (P6-C4)", function()
     R.it("final IR contains correct ir_version in meta", function()
       local ver = require("core.compiler.cache.version")
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_eq(ir.meta.ir_version, ver.SCHEMA_VERSION)
     end)
   end)
@@ -269,9 +268,7 @@ R.describe("integration: full pipeline", function()
         name = "test_output_validate",
         input_state = "idle",
         output_state = "collecting",
-        run = function(i)
-          return ir_mod.clone(i)
-        end,
+        run = function(i) return ir_mod.clone(i) end,
         output_validate = function(_)
           -- FIX-DEPLOY-TEST (2026-06-23): use plain table diag instead of
           -- ir_mod.diag() to avoid types bootstrap dependency issues.
@@ -301,3 +298,4 @@ R.describe("integration: full pipeline", function()
     end)
   end)
 end)
+

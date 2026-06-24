@@ -87,17 +87,13 @@ return {
           {
             "<leader>b",
             group = "buffer",
-            expand = function()
-              return require("which-key.extras").expand.buf()
-            end,
+            expand = function() return require("which-key.extras").expand.buf() end,
           },
           {
             "<leader>w",
             group = "windows",
             proxy = "<c-w>",
-            expand = function()
-              return require("which-key.extras").expand.win()
-            end,
+            expand = function() return require("which-key.extras").expand.win() end,
           },
           -- better descriptions
           { "gx", desc = "Open with system app" },
@@ -107,16 +103,12 @@ return {
     keys = {
       {
         "<leader>?",
-        function()
-          require("which-key").show({ global = false })
-        end,
+        function() require("which-key").show({ global = false }) end,
         desc = "Buffer Keymaps (which-key)",
       },
       {
         "<c-w><space>",
-        function()
-          require("which-key").show({ keys = "<c-w>", loop = true })
-        end,
+        function() require("which-key").show({ keys = "<c-w>", loop = true }) end,
         desc = "Window Hydra Mode (which-key)",
       },
     },
@@ -196,12 +188,8 @@ return {
             gs.nav_hunk("prev")
           end
         end, "Prev Hunk")
-        map("n", "]H", function()
-          gs.nav_hunk("last")
-        end, "Last Hunk")
-        map("n", "[H", function()
-          gs.nav_hunk("first")
-        end, "First Hunk")
+        map("n", "]H", function() gs.nav_hunk("last") end, "Last Hunk")
+        map("n", "[H", function() gs.nav_hunk("first") end, "First Hunk")
 
         -- 操作
         map({ "n", "x" }, "<leader>ghs", ":Gitsigns stage_hunk<CR>", "Stage Hunk")
@@ -210,24 +198,16 @@ return {
         map("n", "<leader>ghu", gs.undo_stage_hunk, "Undo Stage Hunk")
         map("n", "<leader>ghR", gs.reset_buffer, "Reset Buffer")
         map("n", "<leader>ghp", gs.preview_hunk_inline, "Preview Hunk Inline")
-        map("n", "<leader>ghb", function()
-          gs.blame_line({ full = true })
-        end, "Blame Line (full)")
-        map("n", "<leader>ghB", function()
-          gs.blame()
-        end, "Blame Buffer")
+        map("n", "<leader>ghb", function() gs.blame_line({ full = true }) end, "Blame Line (full)")
+        map("n", "<leader>ghB", function() gs.blame() end, "Blame Buffer")
         map("n", "<leader>ghd", gs.diffthis, "Diff This")
-        map("n", "<leader>ghD", function()
-          gs.diffthis("~")
-        end, "Diff This (~)")
+        map("n", "<leader>ghD", function() gs.diffthis("~") end, "Diff This (~)")
         map("n", "<leader>gtb", gs.toggle_current_line_blame, "Toggle Current Line Blame")
         map("n", "<leader>gtw", gs.toggle_word_diff, "Toggle Word Diff")
         map("n", "<leader>gts", gs.toggle_signs, "Toggle Signs")
         map("n", "<leader>gtl", gs.toggle_linehl, "Toggle Line Highlight")
         map("n", "<leader>gtn", gs.toggle_numhl, "Toggle Number Highlight")
-        map("n", "<leader>ghQ", function()
-          gs.setqflist("all")
-        end, "Quickfix all changes")
+        map("n", "<leader>ghQ", function() gs.setqflist("all") end, "Quickfix all changes")
         map("n", "<leader>ghq", gs.setqflist, "Quickfix buffer changes")
         map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "GitSigns Select Hunk")
       end,
@@ -238,12 +218,8 @@ return {
     opts = function()
       Snacks.toggle({
         name = "Git Signs",
-        get = function()
-          return require("gitsigns.config").config.signcolumn
-        end,
-        set = function(state)
-          require("gitsigns").toggle_signs(state)
-        end,
+        get = function() return require("gitsigns.config").config.signcolumn end,
+        set = function(state) require("gitsigns").toggle_signs(state) end,
       }):map("<leader>uG")
     end,
   },
@@ -259,9 +235,17 @@ return {
     },
     keys = {
       { "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", desc = "Diagnostics (Trouble)" },
-      { "<leader>xX", "<cmd>Trouble diagnostics toggle filter.buf=0<cr>", desc = "Buffer Diagnostics (Trouble)" },
+      {
+        "<leader>xX",
+        "<cmd>Trouble diagnostics toggle filter.buf=0<cr>",
+        desc = "Buffer Diagnostics (Trouble)",
+      },
       { "<leader>cs", "<cmd>Trouble symbols toggle<cr>", desc = "Symbols (Trouble)" },
-      { "<leader>cS", "<cmd>Trouble lsp toggle<cr>", desc = "LSP references/definitions/... (Trouble)" },
+      {
+        "<leader>cS",
+        "<cmd>Trouble lsp toggle<cr>",
+        desc = "LSP references/definitions/... (Trouble)",
+      },
       { "<leader>xL", "<cmd>Trouble loclist toggle<cr>", desc = "Location List (Trouble)" },
       { "<leader>xQ", "<cmd>Trouble qflist toggle<cr>", desc = "Quickfix List (Trouble)" },
       {

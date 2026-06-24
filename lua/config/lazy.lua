@@ -30,9 +30,7 @@ local lang_specs = runtime.build()
 vim.api.nvim_create_autocmd("User", {
   pattern = "VeryLazy",
   once = true,
-  callback = function()
-    runtime.setup_commands()
-  end,
+  callback = function() runtime.setup_commands() end,
 })
 
 local config_provider = require("runtime.providers.config")

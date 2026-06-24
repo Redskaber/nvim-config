@@ -85,9 +85,8 @@ return {
     config = function(_, opts)
       local img = require("image")
       img.setup(opts)
-      vim.defer_fn(function()
-        img.enable()
-      end, 50)
+      vim.defer_fn(function() img.enable() end, 50)
     end,
   },
 }
+

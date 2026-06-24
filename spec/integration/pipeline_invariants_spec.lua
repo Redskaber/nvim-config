@@ -28,7 +28,7 @@ R.describe("integration: IR as pipeline communication protocol", function()
 
     for _, tc in ipairs(stages) do
       R.it("debug_run('" .. tc.stop .. "') returns stage=" .. tc.expected_stage, function()
-        local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, tc.stop)
+        local ir = pipeline.debug_run({ "modules.lang.lua" }, tc.stop)
         R.assert_eq(ir.stage, tc.expected_stage)
       end)
     end
@@ -36,7 +36,7 @@ R.describe("integration: IR as pipeline communication protocol", function()
     R.it("each phase returns a NEW IR table (COW invariant)", function()
       local pass_mod = require("core.compiler.pass")
       local collect = require("runtime.passes.collect")
-      local ir = ir_mod.new({ "modules.lang.lua_lang" })
+      local ir = ir_mod.new({ "modules.lang.lua" })
       local result = pass_mod.run_phase(collect, ir)
       R.assert_ne(result, ir, "collect must return new IR table")
     end)
@@ -44,12 +44,12 @@ R.describe("integration: IR as pipeline communication protocol", function()
     R.it("input IR caps are read-only after collect (no mutation)", function()
       local pass_mod = require("core.compiler.pass")
       local collect = require("runtime.passes.collect")
-      local ir = ir_mod.new({ "modules.lang.lua_lang" })
+      local ir = ir_mod.new({ "modules.lang.lua" })
       local result = pass_mod.run_phase(collect, ir)
       -- Modify result; original must be unaffected
-      result.caps.lua_lang = nil
+      result.caps.lua = nil
       local result2 = pass_mod.run_phase(collect, ir)
-      R.assert_not_nil(result2.caps.lua_lang, "original IR must not be affected by result mutation")
+      R.assert_not_nil(result2.caps.lua, "original IR must not be affected by result mutation")
     end)
   end)
 
@@ -71,9 +71,13 @@ R.describe("integration: IR as pipeline communication protocol", function()
           or tc.stage == "resolve" and "canonicalize"
           or tc.stage == "optimize" and "resolve"
           or "optimize"
-        local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, stop_before)
+        local ir = pipeline.debug_run({ "modules.lang.lua" }, stop_before)
         local errs = ir_mod.validate(ir, tc.stage)
-        R.assert_eq(#errs, 0, "IR at '" .. stop_before .. "' must satisfy '" .. tc.stage .. "' preconditions")
+        R.assert_eq(
+          #errs,
+          0,
+          "IR at '" .. stop_before .. "' must satisfy '" .. tc.stage .. "' preconditions"
+        )
       end)
     end
 
@@ -81,7 +85,7 @@ R.describe("integration: IR as pipeline communication protocol", function()
       -- FIX-DEPLOY-TEST (2026-06-23): ir_mod.with({caps=nil}) doesn't remove
       -- caps because Lua table merge ignores nil values. Create a proper IR
       -- without caps by copying all fields except caps.
-      local ir_ast = pipeline.debug_run({ "modules.lang.lua_lang" }, "collect")
+      local ir_ast = pipeline.debug_run({ "modules.lang.lua" }, "collect")
       local ir_bad = {}
       for k, v in pairs(ir_ast) do
         if k ~= "caps" then
@@ -101,7 +105,10 @@ R.describe("integration: IR as pipeline communication protocol", function()
       local ir = ir_mod.new({}, "full")
       for _, ct in ipairs(cap_types.ALL) do
         R.assert_type(ir.ext_caps[ct], "table")
-        R.assert_true(next(ir.ext_caps[ct]) == nil, ct .. " bucket must be empty at IR construction")
+        R.assert_true(
+          next(ir.ext_caps[ct]) == nil,
+          ct .. " bucket must be empty at IR construction"
+        )
       end
     end)
 
@@ -110,7 +117,7 @@ R.describe("integration: IR as pipeline communication protocol", function()
       local normalize = require("runtime.passes.normalize")
       local pass_mod = require("core.compiler.pass")
 
-      local ast_ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "collect")
+      local ast_ir = pipeline.debug_run({ "modules.lang.lua" }, "collect")
       local ast_plus = collect_ext.pass.run(ast_ir)
       local image_count = 0
       for _ in pairs(ast_plus.ext_caps.image or {}) do
@@ -124,7 +131,11 @@ R.describe("integration: IR as pipeline communication protocol", function()
         image_count_after = image_count_after + 1
       end
 
-      R.assert_eq(image_count_after, image_count, "normalize must not remove ext_caps entries (INV-11)")
+      R.assert_eq(
+        image_count_after,
+        image_count,
+        "normalize must not remove ext_caps entries (INV-11)"
+      )
     end)
 
     R.it("cap_specs initialized as empty table in new IR", function()
@@ -144,25 +155,25 @@ R.describe("integration: state machine correctness", function()
     local pipeline = require("runtime.pipeline")
 
     R.it("state = 'done' after successful run()", function()
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_eq(pipeline.state(), "done")
     end)
 
     R.it("debug_run() does not affect pipeline.state()", function()
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       local before = pipeline.state()
-      pipeline.debug_run({ "modules.lang.lua_lang" }, "collect")
+      pipeline.debug_run({ "modules.lang.lua" }, "collect")
       R.assert_eq(pipeline.state(), before)
     end)
 
     R.it("timings() returns table after run()", function()
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       local t = pipeline.timings()
       R.assert_type(t, "table")
     end)
 
     R.it("timings contains entries for all phases", function()
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       local t = pipeline.timings()
       if t then
         for _, phase_name in ipairs({
@@ -185,9 +196,7 @@ R.describe("integration: state machine correctness", function()
       package.loaded["runtime.lifecycle"] = nil
       local lc = require("runtime.lifecycle")
       local seen = {}
-      lc.observe(function(s)
-        seen[s] = true
-      end)
+      lc.observe(function(s) seen[s] = true end)
 
       local runtime = require("runtime")
       runtime.build()
@@ -233,21 +242,21 @@ R.describe("integration: incremental cache", function()
   R.describe("AST tier", function()
     R.it("AST cache round-trip preserves caps structure", function()
       cache.invalidate_all()
-      local modules = { "modules.lang.lua_lang" }
+      local modules = { "modules.lang.lua" }
       local caps = require("runtime.passes.collect_ext").registered()
       local k = key_mod.compute(modules, "full", caps)
 
       if k ~= "" then
         -- Save a dummy AST payload
         local payload = {
-          caps = { lua_lang = { treesitter = { "lua" } } },
+          caps = { lua = { treesitter = { "lua" } } },
           ext_caps = {},
           module_hashes = {},
         }
         cache.save("ast", k, payload)
         local loaded = cache.load("ast", k)
         R.assert_not_nil(loaded)
-        R.assert_not_nil(loaded.caps.lua_lang)
+        R.assert_not_nil(loaded.caps.lua)
       end
     end)
   end)
@@ -257,10 +266,10 @@ R.describe("integration: incremental cache", function()
   R.describe("spec tier", function()
     R.it("spec cache populated after first run", function()
       cache.invalidate_all()
-      local specs = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local specs = pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_true(#specs > 0)
 
-      local modules = { "modules.lang.lua_lang" }
+      local modules = { "modules.lang.lua" }
       local caps = require("runtime.passes.collect_ext").registered()
       local k = key_mod.compute(modules, "full", caps)
 
@@ -300,13 +309,13 @@ R.describe("integration: incremental cache", function()
 
   R.describe("content-hash determinism (INV-7)", function()
     R.it("same content → same key across two computations", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "full")
       R.assert_eq(k1, k2)
     end)
 
     R.it("key includes schema version suffix :vN", function()
-      local k = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k = key_mod.compute({ "modules.lang.lua" }, "full")
       if k ~= "" then
         R.assert_match(k, ":v%d+$")
         R.assert_match(k, ":v" .. ver.SCHEMA_VERSION .. "$")
@@ -314,8 +323,8 @@ R.describe("integration: incremental cache", function()
     end)
 
     R.it("different profiles produce different keys", function()
-      local k_full = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k_minimal = key_mod.compute({ "modules.lang.lua_lang" }, "minimal")
+      local k_full = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k_minimal = key_mod.compute({ "modules.lang.lua" }, "minimal")
       if k_full ~= "" and k_minimal ~= "" then
         R.assert_ne(k_full, k_minimal)
       end
@@ -414,9 +423,7 @@ R.describe("integration: plugin-in extensibility", function()
         name = "custom_phase_test",
         input_state = "x",
         output_state = "y",
-        run = function(i)
-          return require("core.compiler.ir").clone(i)
-        end,
+        run = function(i) return require("core.compiler.ir").clone(i) end,
       }
       pr.register(dummy, { priority = 999 })
       local list = pr.list()
@@ -445,9 +452,7 @@ R.describe("integration: plugin-in extensibility", function()
       -- Register a custom adapter
       local custom_path = "runtime.adapters.__test_custom__" .. math.random(1e6)
       package.loaded[custom_path] = {
-        build = function(_)
-          return { { "custom/plugin", _source = "ltos:test" } }
-        end,
+        build = function(_) return { { "custom/plugin", _source = "ltos:test" } } end,
       }
 
       local before = #reg.list()
@@ -455,7 +460,7 @@ R.describe("integration: plugin-in extensibility", function()
       R.assert_eq(#reg.list(), before + 1, "custom adapter must be in list")
 
       -- Verify emit includes it
-      local ir = pipeline.debug_run({ "modules.lang.lua_lang" }, "optimize")
+      local ir = pipeline.debug_run({ "modules.lang.lua" }, "optimize")
       local emitter = require("runtime.emitter")
       local specs = emitter.emit(ir, { custom_path })
       local found = false
@@ -483,9 +488,7 @@ R.describe("integration: plugin-in extensibility", function()
       local custom_type = "custom_cap_type_" .. math.random(1e6)
       local custom_path = "runtime.adapters.__test_cap__" .. math.random(1e6)
       package.loaded[custom_path] = {
-        build = function(_, _)
-          return { { "custom/cap-plugin" } }
-        end,
+        build = function(_, _) return { { "custom/cap-plugin" } } end,
       }
 
       cap_reg.register(custom_type, custom_path)
@@ -504,11 +507,11 @@ R.describe("integration: plugin-in extensibility", function()
     R.it("register_filter() adds a custom profile filter", function()
       local reg = require("runtime.providers.registry")
 
-      -- Register a custom "testing" profile that only includes lua_lang
+      -- Register a custom "testing" profile that only includes lua
       reg.register_filter("testing_custom_profile", function(modules, _)
         local out = {}
         for _, m in ipairs(modules) do
-          if m == "modules.lang.lua_lang" then
+          if m == "modules.lang.lua" then
             out[#out + 1] = m
           end
         end
@@ -517,7 +520,7 @@ R.describe("integration: plugin-in extensibility", function()
 
       local filtered = reg.resolve("testing_custom_profile")
       R.assert_eq(#filtered, 1)
-      R.assert_eq(filtered[1], "modules.lang.lua_lang")
+      R.assert_eq(filtered[1], "modules.lang.lua")
     end)
   end)
 end)
@@ -529,7 +532,7 @@ R.describe("integration: data-driven pipeline behavior", function()
 
   R.describe("defaults drive exact adapter output", function()
     R.it("all 5 default adapters produce specs in correct order", function()
-      local specs = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local specs = pipeline.run({ "modules.lang.lua" }, "full")
       local names = {}
       for _, s in ipairs(specs) do
         if s[1] then
@@ -548,7 +551,7 @@ R.describe("integration: data-driven pipeline behavior", function()
       local collect_ext = require("runtime.passes.collect_ext")
       local orig = collect_ext.registered()
       collect_ext.register({ "modules.cap.image" })
-      local specs = pipeline.run({ "modules.lang.lua_lang" }, "full")
+      local specs = pipeline.run({ "modules.lang.lua" }, "full")
       collect_ext.register(orig)
       local found = false
       for _, s in ipairs(specs) do
@@ -585,9 +588,11 @@ R.describe("integration: data-driven pipeline behavior", function()
   R.describe("profile-driven module selection", function()
     R.it("full profile produces more specs than minimal", function()
       local specs_full = pipeline.run(require("runtime.providers.registry").resolve("full"), "full")
-      local specs_minimal = pipeline.run(require("runtime.providers.registry").resolve("minimal"), "minimal")
+      local specs_minimal =
+        pipeline.run(require("runtime.providers.registry").resolve("minimal"), "minimal")
       -- Full has more modules → more LSP servers → more specs
       R.assert_true(#specs_full >= #specs_minimal, "full profile must produce >= specs as minimal")
     end)
   end)
 end)
+

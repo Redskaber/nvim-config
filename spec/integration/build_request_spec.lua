@@ -93,8 +93,8 @@ R.describe("integration: build_request", function()
   R.describe("pipeline integration", function()
     R.it("build_request ends up in IR.meta.build_request after run()", function()
       local pipeline = require("runtime.pipeline")
-      local req = br.from_vim("full", { "modules.lang.lua_lang" })
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "full", nil, nil, req)
+      local req = br.from_vim("full", { "modules.lang.lua" })
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "full", nil, nil, req)
       R.assert_not_nil(ir.meta.build_request)
       R.assert_eq(ir.meta.build_request.profile, "full")
       R.assert_eq(ir.meta.build_request.prefer_system, false)
@@ -102,17 +102,17 @@ R.describe("integration: build_request", function()
 
     R.it("nix profile build_request propagates prefer_system to symbols", function()
       local pipeline = require("runtime.pipeline")
-      local req = br.from_vim("nix", { "modules.lang.lua_lang" })
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "nix", nil, nil, req)
+      local req = br.from_vim("nix", { "modules.lang.lua" })
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "nix", nil, nil, req)
       R.assert_true(ir.meta.build_request.prefer_system)
     end)
 
     R.it("overrides passed via build_request reach canonicalize pass", function()
       local pipeline = require("runtime.pipeline")
       -- Force stylua to system (override default mason behavior)
-      local req = br.from_vim("full", { "modules.lang.lua_lang" })
+      local req = br.from_vim("full", { "modules.lang.lua" })
       req.overrides = { stylua = { use_mason = false, pkg = nil } }
-      local _, ir = pipeline.run({ "modules.lang.lua_lang" }, "full", nil, nil, req)
+      local _, ir = pipeline.run({ "modules.lang.lua" }, "full", nil, nil, req)
       -- stylua should be marked system in symbols
       local sym = ir.symbols and ir.symbols.tools and ir.symbols.tools.stylua
       if sym then
@@ -141,3 +141,4 @@ R.describe("integration: build_request", function()
     end)
   end)
 end)
+

@@ -4,12 +4,8 @@
 
 local M = {}
 
-local function ir_mod()
-  return require("core.compiler.ir")
-end
-local function util()
-  return require("core.kernel.util")
-end
+local function ir_mod() return require("core.compiler.ir") end
+local function util() return require("core.kernel.util") end
 
 -- ── IR stage constructors ─────────────────────────────────────────────────────
 
@@ -73,7 +69,7 @@ end
 
 -- ── Canonical capability fixtures ─────────────────────────────────────────────
 
-function M.lua_lang_cap()
+function M.lua_cap()
   return {
     lsp = { lua_ls = { settings = { Lua = { workspace = { checkThirdParty = false } } } } },
     formatters = { lua = { "stylua" } },
@@ -119,3 +115,4 @@ function M.run_phase_ok(phase, ir)
 end
 
 return M
+

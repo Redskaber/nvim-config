@@ -225,7 +225,7 @@ vim.g.ltos_profile = "minimal"  -- "full" (default) | "minimal" | "nix"
 | Profile            | Modules loaded                      |
 | ------------------ | ----------------------------------- |
 | `"full"` (default) | all lang modules                    |
-| `"minimal"`        | `lua_lang` only                     |
+| `"minimal"`        | `lua` only                     |
 | `"nix"`            | all modules, system tools preferred |
 
 ---
@@ -300,7 +300,7 @@ lua/
 │   ├── java.lua                   Java (jdtls, google-java-format, checkstyle)
 │   ├── kotlin.lua                 Kotlin (kotlin_language_server, ktfmt, ktlint)
 │   ├── lisp.lua                   Lisp / Clojure (clojure_lsp, cljfmt, clj-kondo)
-│   ├── lua_lang.lua               Lua (lua_ls, stylua)
+│   ├── lua.lua                    Lua (lua_ls, stylua)
 │   ├── markup.lua                 JSON/JSONC/YAML/TOML/HTML/CSS/SCSS/Markdown
 │   ├── nix.lua                    Nix (nil_ls, nixpkgs_fmt — system)
 │   ├── python.lua                 Python (pyright, ruff-or-black, ruff)

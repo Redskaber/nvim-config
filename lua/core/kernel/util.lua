@@ -104,9 +104,7 @@ function M.freeze(t, label)
         2
       )
     end,
-    __len = function()
-      return #t
-    end,
+    __len = function() return #t end,
     __ltos_src = t, -- expose original for ir_mod.with() to iterate
   })
   return proxy
@@ -126,9 +124,7 @@ end
 --- Split a module path "foo.bar.baz" and return the last segment "baz".
 ---@param mod_path string
 ---@return string
-function M.basename(mod_path)
-  return mod_path:match("([^.]+)$") or mod_path
-end
+function M.basename(mod_path) return mod_path:match("([^.]+)$") or mod_path end
 
 -- ── Content hash (FNV-1a) ─────────────────────────────────────────────────────
 -- v4.1: file content hash instead of mtime.
@@ -211,9 +207,7 @@ end
 
 ---@param t table|nil
 ---@return boolean
-function M.tbl_isempty(t)
-  return t == nil or next(t) == nil
-end
+function M.tbl_isempty(t) return t == nil or next(t) == nil end
 
 --- Deep-merge variadic tables (right wins on scalar conflict).
 ---@param base table|nil
@@ -231,3 +225,4 @@ function M.merge_recursive(base, ...)
 end
 
 return M
+

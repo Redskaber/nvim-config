@@ -45,16 +45,12 @@ end
 --- Check if a module path is registered.
 ---@param mod_path string
 ---@return boolean
-function M.is_registered(mod_path)
-  return _all_modules[mod_path] == true
-end
+function M.is_registered(mod_path) return _all_modules[mod_path] == true end
 
 --- Get all registered module paths for a given capability type.
 ---@param cap_type string
 ---@return string[]
-function M.get_by_type(cap_type)
-  return _registry[cap_type] or {}
-end
+function M.get_by_type(cap_type) return _registry[cap_type] or {} end
 
 --- Get all registered module paths across all capability types.
 ---@return string[]
@@ -87,3 +83,4 @@ function M.register_all(entries)
 end
 
 return M
+

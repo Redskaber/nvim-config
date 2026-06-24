@@ -1,9 +1,9 @@
 -- lua/core/compiler/cache/key.lua
 -- Layer 1 compiler: cache key computation (pure via ports for path resolution).
 
+local ports = require("core.compiler.ports")
 local util = require("core.kernel.util")
 local version = require("core.compiler.cache.version")
-local ports = require("core.compiler.ports")
 
 local M = {}
 
@@ -16,9 +16,7 @@ end
 
 ---@param mod string
 ---@return string|nil
-local function resolve_path(mod)
-  return ports.resolve_runtime_file(mod:gsub("%.", "/") .. ".lua")
-end
+local function resolve_path(mod) return ports.resolve_runtime_file(mod:gsub("%.", "/") .. ".lua") end
 
 ---@param modules string[]
 local function append_module_hashes(modules, parts)

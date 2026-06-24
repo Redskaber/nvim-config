@@ -196,9 +196,7 @@ R.describe("modules.capability.lifecycle", function()
       R.assert_true(lc.is_terminal(r))
       R.assert_false(lc.is_active(r))
     end)
-    R.it("DECLARED is not terminal", function()
-      R.assert_false(lc.is_terminal(lc.new("x")))
-    end)
+    R.it("DECLARED is not terminal", function() R.assert_false(lc.is_terminal(lc.new("x"))) end)
   end)
 
   -- ── LifecycleManager ──────────────────────────────────────────────────────
@@ -245,12 +243,8 @@ end)
 R.describe("modules.capability.registry", function()
   local reg = require("modules.capability.registry")
 
-  R.before_each(function()
-    reg._reset()
-  end)
-  R.after_each(function()
-    reg._reset()
-  end)
+  R.before_each(function() reg._reset() end)
+  R.after_each(function() reg._reset() end)
 
   R.it("register() and is_registered()", function()
     reg.register("image", "modules.cap.image")
@@ -305,24 +299,27 @@ R.describe("modules.capability.keybind_presets", function()
     R.assert_true(presets.is_known("helix"))
     R.assert_true(presets.is_known("emacs"))
   end)
-  R.it("is_known() returns false for unknown preset", function()
-    R.assert_false(presets.is_known("dvorak_ultra"))
-  end)
-  R.it("resolve('vim') returns non-empty binding list", function()
-    R.assert_true(#presets.resolve("vim") >= 1)
-  end)
-  R.it("resolve('helix') returns non-empty binding list", function()
-    R.assert_true(#presets.resolve("helix") >= 1)
-  end)
-  R.it("resolve(nil) returns empty list", function()
-    R.assert_eq(#presets.resolve(nil), 0)
-  end)
-  R.it("resolve(unknown) returns empty list", function()
-    R.assert_eq(#presets.resolve("unknown_xyz"), 0)
-  end)
+  R.it(
+    "is_known() returns false for unknown preset",
+    function() R.assert_false(presets.is_known("dvorak_ultra")) end
+  )
+  R.it(
+    "resolve('vim') returns non-empty binding list",
+    function() R.assert_true(#presets.resolve("vim") >= 1) end
+  )
+  R.it(
+    "resolve('helix') returns non-empty binding list",
+    function() R.assert_true(#presets.resolve("helix") >= 1) end
+  )
+  R.it("resolve(nil) returns empty list", function() R.assert_eq(#presets.resolve(nil), 0) end)
+  R.it(
+    "resolve(unknown) returns empty list",
+    function() R.assert_eq(#presets.resolve("unknown_xyz"), 0) end
+  )
   R.it("known_presets() returns sorted list", function()
     local kp = presets.known_presets()
     R.assert_type(kp, "table")
     R.assert_true(#kp >= 3)
   end)
 end)
+

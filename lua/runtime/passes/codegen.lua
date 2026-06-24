@@ -17,9 +17,7 @@ local codegen_pass = {
   input_state = "optimizing",
   output_state = "codegen",
 
-  validate = function(ir)
-    return ir_mod.validate(ir, "codegen")
-  end,
+  validate = function(ir) return ir_mod.validate(ir, "codegen") end,
 
   --- Phase.run: satisfies Phase interface contract.
   --- Returns IR with stage="SPEC" and embedded specs in ir._specs.
@@ -45,3 +43,4 @@ local codegen_pass = {
 }
 
 return codegen_pass
+

@@ -19,9 +19,7 @@ local normalize_pass = {
   input_state = "collecting",
   output_state = "normalizing",
 
-  validate = function(ir)
-    return ir_mod.validate(ir, "normalize")
-  end,
+  validate = function(ir) return ir_mod.validate(ir, "normalize") end,
 
   ---@param ir IR
   ---@return IR
@@ -53,9 +51,7 @@ local normalize_pass = {
                 patched_list[i].fn = strat.resolve
               else
                 -- Graceful degradation: inject a no-op fn; diagnostic surfaced via IR
-                patched_list[i].fn = function()
-                  return {}
-                end
+                patched_list[i].fn = function() return {} end
                 -- Record unknown strategy as a warn diagnostic (no vim.notify in Phase.run)
                 patched_list[i]._unknown_strategy = v.strategy
               end
@@ -110,3 +106,4 @@ local normalize_pass = {
 }
 
 return normalize_pass
+

@@ -68,5 +68,11 @@ ci: check test
 
 # Dump current project file tree + concat to stored/
 dump:
-  @bash {{root}}/scripts/grep_paths.sh -l -o stored/paths.txt \
-    && bash {{root}}/scripts/concat_files.sh stored/paths.txt stored/terminal.txt
+  @bash scripts/grep_paths.sh -l -e "*.sh" -o stored/sh_paths.txt
+  @bash scripts/concat_files.sh stored/sh_paths.txt stored/sh.txt
+  @bash scripts/grep_paths.sh -l -e "*.md" -o stored/md_paths.txt
+  @bash scripts/concat_files.sh stored/md_paths.txt stored/md.txt
+  @bash scripts/grep_paths.sh -l -e "*.lua" -o stored/lua_paths.txt
+  @bash scripts/concat_files.sh stored/lua_paths.txt stored/lua.txt
+
+

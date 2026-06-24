@@ -10,7 +10,7 @@ local R = require("spec._runner")
 
 local function full_lir()
   local pipeline = require("runtime.pipeline")
-  return pipeline.debug_run({ "modules.lang.lua_lang", "modules.lang.python" }, "optimize")
+  return pipeline.debug_run({ "modules.lang.lua", "modules.lang.python" }, "optimize")
 end
 
 -- Minimal valid LIR with all required fields
@@ -131,7 +131,7 @@ R.describe("runtime.adapters.lsp", function()
       -- minimal_lir({ merged_lsp = nil }) doesn't work because pairs() doesn't
       -- iterate nil values, so the override is silently ignored.
       local ir = minimal_lir()
-      ir.merged_lsp = nil  -- explicitly nil out after construction
+      ir.merged_lsp = nil -- explicitly nil out after construction
       local specs = lsp.build(ir)
       R.assert_eq(#specs, 1)
       R.assert_not_nil(specs[1]._ltos_error)
@@ -184,7 +184,7 @@ R.describe("runtime.adapters.mason", function()
   -- ── ensure_installed content ──────────────────────────────────────────────
 
   R.describe("ensure_installed content", function()
-    R.it("lua-language-server in ensure_installed for lua_lang", function()
+    R.it("lua-language-server in ensure_installed for lua", function()
       local ir = full_lir()
       local specs = mason.build(ir)
       for _, s in ipairs(specs) do
@@ -290,7 +290,7 @@ R.describe("runtime.adapters.treesitter", function()
   -- ── ensure_installed content ──────────────────────────────────────────────
 
   R.describe("ensure_installed content", function()
-    R.it("contains lua parsers from lua_lang module", function()
+    R.it("contains lua parsers from lua module", function()
       local ir = full_lir()
       local specs = treesitter.build(ir)
       local ei = specs[1].opts and specs[1].opts.ensure_installed or {}
@@ -365,9 +365,10 @@ R.describe("runtime.adapters.conform", function()
       R.assert_eq(specs[1][1], "stevearc/conform.nvim")
     end)
 
-    R.it("_source = 'ltos:conform'", function()
-      R.assert_eq(conform.build(minimal_lir())[1]._source, "ltos:conform")
-    end)
+    R.it(
+      "_source = 'ltos:conform'",
+      function() R.assert_eq(conform.build(minimal_lir())[1]._source, "ltos:conform") end
+    )
   end)
 
   -- ── formatters_by_ft content ──────────────────────────────────────────────
@@ -440,9 +441,10 @@ R.describe("runtime.adapters.lint", function()
       R.assert_eq(specs[1][1], "mfussenegger/nvim-lint")
     end)
 
-    R.it("_source = 'ltos:lint'", function()
-      R.assert_eq(lint.build(minimal_lir())[1]._source, "ltos:lint")
-    end)
+    R.it(
+      "_source = 'ltos:lint'",
+      function() R.assert_eq(lint.build(minimal_lir())[1]._source, "ltos:lint") end
+    )
   end)
 
   -- ── linters_by_ft content ────────────────────────────────────────────────
@@ -508,13 +510,15 @@ end)
 R.describe("runtime.adapters.registry", function()
   local reg = require("runtime.adapters.registry")
 
-  R.it("at least 5 adapters registered (lsp/mason/treesitter/conform/lint)", function()
-    R.assert_true(#reg.list() >= 5)
-  end)
+  R.it(
+    "at least 5 adapters registered (lsp/mason/treesitter/conform/lint)",
+    function() R.assert_true(#reg.list() >= 5) end
+  )
 
-  R.it("first adapter is lsp (priority 10)", function()
-    R.assert_eq(reg.list()[1], "runtime.adapters.lsp")
-  end)
+  R.it(
+    "first adapter is lsp (priority 10)",
+    function() R.assert_eq(reg.list()[1], "runtime.adapters.lsp") end
+  )
 
   R.it("adapters are in ascending priority order", function()
     local list = reg.list()
@@ -548,3 +552,4 @@ R.describe("runtime.adapters.registry", function()
     R.assert_eq(#reg.list(), before, "existing adapter must not be duplicated")
   end)
 end)
+

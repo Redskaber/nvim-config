@@ -79,7 +79,9 @@ end
 ---@param known_set table<string, boolean>
 ---@param path_prefix string
 local function validate_string_field(diags, path, field_name, value, known_set, path_prefix)
-  if value == nil then return end
+  if value == nil then
+    return
+  end
   if type(value) ~= "string" then
     err(diags, path, (path_prefix .. ": '%s' must be a string"):format(field_name))
   elseif not known_set[value] then
@@ -89,7 +91,9 @@ end
 
 --- Validate a string-or-warn field (warn instead of error for unknown values).
 local function validate_string_field_warn(diags, path, field_name, value, known_set, path_prefix)
-  if value == nil then return end
+  if value == nil then
+    return
+  end
   if type(value) ~= "string" then
     err(diags, path, (path_prefix .. ": '%s' must be a string"):format(field_name))
   elseif not known_set[value] then
@@ -105,7 +109,9 @@ end
 ---@param path_prefix string
 ---@param elem_validator? fun(diags, path, elem, idx, path_prefix)  -- optional
 local function validate_list_field(diags, path, field_name, value, path_prefix, elem_validator)
-  if value == nil then return end
+  if value == nil then
+    return
+  end
   if type(value) ~= "table" then
     err(diags, path, (path_prefix .. ": expected list for '%s'"):format(field_name))
     return
@@ -134,7 +140,14 @@ local function validate_image(mod_name, cap, diags)
   end
 
   -- FIX-TEST (2026-06-23): backend unknown → error (test expects err, not warn)
-  validate_string_field(diags, mod_name .. ".backend", "backend", cap.backend, KNOWN_IMAGE_BACKENDS, pp)
+  validate_string_field(
+    diags,
+    mod_name .. ".backend",
+    "backend",
+    cap.backend,
+    KNOWN_IMAGE_BACKENDS,
+    pp
+  )
 
   -- backends list
   if cap.backends ~= nil then
@@ -152,7 +165,14 @@ local function validate_image(mod_name, cap, diags)
     end
   end
 
-  validate_string_field_warn(diags, mod_name .. ".fallback", "fallback", cap.fallback, KNOWN_IMAGE_BACKENDS, pp)
+  validate_string_field_warn(
+    diags,
+    mod_name .. ".fallback",
+    "fallback",
+    cap.fallback,
+    KNOWN_IMAGE_BACKENDS,
+    pp
+  )
 
   -- filetypes list
   if cap.filetypes ~= nil then
@@ -161,8 +181,11 @@ local function validate_image(mod_name, cap, diags)
     else
       for i, ft in ipairs(cap.filetypes) do
         if type(ft) ~= "string" then
-          err(diags, ("%s.filetypes[%d]"):format(mod_name, i),
-            pp .. ": expected string in filetypes, got " .. type(ft))
+          err(
+            diags,
+            ("%s.filetypes[%d]"):format(mod_name, i),
+            pp .. ": expected string in filetypes, got " .. type(ft)
+          )
         end
       end
     end
@@ -177,9 +200,7 @@ local function validate_image(mod_name, cap, diags)
 end
 
 -- editor shares image shape
-local function validate_editor(mod_name, cap, diags)
-  validate_image(mod_name, cap, diags)
-end
+local function validate_editor(mod_name, cap, diags) validate_image(mod_name, cap, diags) end
 
 local function validate_media(mod_name, cap, diags)
   local pp = ("media capability for '%s'"):format(mod_name)
@@ -220,15 +241,22 @@ local function validate_ai(mod_name, cap, diags)
 
   local has_substance = cap.completion or cap.chat or cap.plugins or cap.provides
   if not has_substance then
-    warn(diags, mod_name, pp .. ": no 'completion', 'chat', 'plugins', or 'provides' defined — cap will be a no-op")
+    warn(
+      diags,
+      mod_name,
+      pp .. ": no 'completion', 'chat', 'plugins', or 'provides' defined — cap will be a no-op"
+    )
   end
 
   if cap.completion ~= nil then
     if type(cap.completion) ~= "table" then
       err(diags, mod_name .. ".completion", pp .. ": expected table for 'completion'")
     elseif cap.completion.provider and not KNOWN_AI_PROVIDERS[cap.completion.provider] then
-      warn(diags, mod_name .. ".completion.provider",
-        (pp .. ": unknown completion provider '%s'"):format(cap.completion.provider))
+      warn(
+        diags,
+        mod_name .. ".completion.provider",
+        (pp .. ": unknown completion provider '%s'"):format(cap.completion.provider)
+      )
     end
   end
 
@@ -237,10 +265,18 @@ local function validate_ai(mod_name, cap, diags)
       err(diags, mod_name .. ".chat", pp .. ": 'chat' must be a table")
     else
       if cap.chat.provider and not KNOWN_AI_PROVIDERS[cap.chat.provider] then
-        warn(diags, mod_name .. ".chat.provider", (pp .. ": unknown chat provider '%s'"):format(cap.chat.provider))
+        warn(
+          diags,
+          mod_name .. ".chat.provider",
+          (pp .. ": unknown chat provider '%s'"):format(cap.chat.provider)
+        )
       end
       if cap.chat.adapter and not KNOWN_AI_ADAPTERS[cap.chat.adapter] then
-        warn(diags, mod_name .. ".chat.adapter", (pp .. ": unknown chat adapter '%s'"):format(cap.chat.adapter))
+        warn(
+          diags,
+          mod_name .. ".chat.adapter",
+          (pp .. ": unknown chat adapter '%s'"):format(cap.chat.adapter)
+        )
       end
     end
   end
@@ -272,8 +308,14 @@ local function validate_keybind(mod_name, cap, diags)
     if type(cap.preset) ~= "string" then
       err(diags, mod_name .. ".preset", pp .. ": 'preset' must be a string")
     elseif not keybind_presets.is_known(cap.preset) then
-      warn(diags, mod_name .. ".preset",
-        (pp .. ": unknown preset '%s' (known: %s)"):format(cap.preset, table.concat(keybind_presets.ALL, ", ")))
+      warn(
+        diags,
+        mod_name .. ".preset",
+        (pp .. ": unknown preset '%s' (known: %s)"):format(
+          cap.preset,
+          table.concat(keybind_presets.ALL, ", ")
+        )
+      )
     end
   end
 
@@ -310,8 +352,12 @@ local function validate_keybind(mod_name, cap, diags)
         if type(b) ~= "table" then
           err(diags, bpath, pp .. ": binding entry must be a table")
         else
-          if not b.lhs then err(diags, bpath .. ".lhs", pp .. ": binding missing 'lhs' field") end
-          if not b.rhs then err(diags, bpath .. ".rhs", pp .. ": binding missing 'rhs' field") end
+          if not b.lhs then
+            err(diags, bpath .. ".lhs", pp .. ": binding missing 'lhs' field")
+          end
+          if not b.rhs then
+            err(diags, bpath .. ".rhs", pp .. ": binding missing 'rhs' field")
+          end
         end
       end
     end
@@ -329,10 +375,10 @@ end
 -- This is extensible: third-party cap types can register validators too.
 
 local VALIDATORS = {
-  [cap_types.IMAGE]   = validate_image,
-  [cap_types.EDITOR]  = validate_editor,
-  [cap_types.MEDIA]   = validate_media,
-  [cap_types.AI]      = validate_ai,
+  [cap_types.IMAGE] = validate_image,
+  [cap_types.EDITOR] = validate_editor,
+  [cap_types.MEDIA] = validate_media,
+  [cap_types.AI] = validate_ai,
   [cap_types.KEYBIND] = validate_keybind,
 }
 
@@ -388,17 +434,21 @@ function M.validate(cap_type, mod_name, cap)
 end
 
 ---@return string[]
-function M.known_cap_types()
-  return cap_types.ALL
-end
+function M.known_cap_types() return cap_types.ALL end
 
 ---@param diags table[]
 ---@return string
 function M.format_diags(diags)
-  if not diags or #diags == 0 then return "" end
+  if not diags or #diags == 0 then
+    return ""
+  end
   local parts = {}
   for _, d in ipairs(diags) do
-    parts[#parts + 1] = ("[%s] %s: %s"):format(d.severity or "error", d.path or "?", d.message or "?")
+    parts[#parts + 1] = ("[%s] %s: %s"):format(
+      d.severity or "error",
+      d.path or "?",
+      d.message or "?"
+    )
   end
   return table.concat(parts, "\n")
 end

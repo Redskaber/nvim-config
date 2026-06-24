@@ -101,7 +101,7 @@ R.describe("integration: layer boundary contracts", function()
   R.describe("INV-8: DSL module purity", function()
     R.describe("lang modules", function()
       local lang_mods = {
-        "modules.lang.lua_lang",
+        "modules.lang.lua",
         "modules.lang.python",
         "modules.lang.rust",
         "modules.lang.go",
@@ -151,7 +151,7 @@ R.describe("integration: layer boundary contracts", function()
     local br = require("runtime.build_request")
 
     R.it("from_vim() returns structured BuildRequest table", function()
-      local req = br.from_vim("full", { "modules.lang.lua_lang" })
+      local req = br.from_vim("full", { "modules.lang.lua" })
       R.assert_eq(req.profile, "full")
       R.assert_type(req.overrides, "table")
       R.assert_type(req.base_tools, "table")
@@ -209,7 +209,8 @@ R.describe("integration: layer boundary contracts", function()
         { lua_ls = { settings = {} } },
         { "lua", "luadoc" }
       )
-      lir.symbols = { lsp = { lua_ls = { mason = "lua-language-server", system = false } }, tools = {} }
+      lir.symbols =
+        { lsp = { lua_ls = { mason = "lua-language-server", system = false } }, tools = {} }
       for _, mod in ipairs(adapter_mods) do
         local _, adapter = pcall(require, mod)
         if adapter and adapter.build then
@@ -243,14 +244,14 @@ R.describe("integration: layer boundary contracts", function()
     local key_mod = require("core.compiler.cache.key")
 
     R.it("same inputs → identical keys (determinism)", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "full")
       R.assert_eq(k1, k2)
     end)
 
     R.it("different profiles → different keys", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "minimal")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "minimal")
       if k1 ~= "" and k2 ~= "" then
         R.assert_ne(k1, k2)
       end
@@ -258,8 +259,8 @@ R.describe("integration: layer boundary contracts", function()
 
     R.it("cap modules included in key (P6-A2)", function()
       local caps = require("runtime.passes.collect_ext").registered()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full", caps)
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "full", {})
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full", caps)
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "full", {})
       R.assert_ne(k1, k2)
     end)
   end)
@@ -292,7 +293,7 @@ R.describe("integration: layer boundary contracts", function()
   R.describe("INV-11: ext_caps bucket ownership", function()
     R.it("normalize pass does not write ext_caps", function()
       local pipeline = require("runtime.pipeline")
-      local ir_ast = pipeline.debug_run({ "modules.lang.lua_lang" }, "collect")
+      local ir_ast = pipeline.debug_run({ "modules.lang.lua" }, "collect")
       local pass_mod = require("core.compiler.pass")
       local normalize = require("runtime.passes.normalize")
       local ir_hir = pass_mod.run_phase(normalize, ir_ast)
@@ -320,15 +321,19 @@ R.describe("integration: layer boundary contracts", function()
       -- lifecycle in initial BOOT state
       R.assert_eq(lc.state(), "BOOT")
       -- running pipeline must not change lifecycle state
-      pipeline.run({ "modules.lang.lua_lang" }, "full")
+      pipeline.run({ "modules.lang.lua" }, "full")
       R.assert_eq(lc.state(), "BOOT", "pipeline.run must not advance lifecycle SM")
     end)
 
     R.it("pipeline PHASE_ORDER has no lifecycle SM references", function()
       local pipeline = require("runtime.pipeline")
       for _, phase_name in ipairs(pipeline.PHASE_ORDER) do
-        R.assert_false(phase_name:find("lifecycle"), "pipeline phase must not reference lifecycle: " .. phase_name)
+        R.assert_false(
+          phase_name:find("lifecycle"),
+          "pipeline phase must not reference lifecycle: " .. phase_name
+        )
       end
     end)
   end)
 end)
+

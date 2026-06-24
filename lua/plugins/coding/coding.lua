@@ -20,7 +20,12 @@ return {
           t = { "<([%p%w]-)%f[^<%w][^<>]->.-</%1>", "^<.->().*()</[^/]->$" }, -- tags
           d = { "%f[%d]%d+" }, -- digits
           e = { -- word-case segments
-            { "%u[%l%d]+%f[^%l%d]", "%f[%S][%l%d]+%f[^%l%d]", "%f[%P][%l%d]+%f[^%l%d]", "^[%l%d]+%f[^%l%d]" },
+            {
+              "%u[%l%d]+%f[^%l%d]",
+              "%f[%S][%l%d]+%f[^%l%d]",
+              "%f[%P][%l%d]+%f[^%l%d]",
+              "^[%l%d]+%f[^%l%d]",
+            },
             "^().*()$",
           },
           g = LazyVim.mini.ai_buffer,
@@ -32,9 +37,7 @@ return {
     config = function(_, opts)
       require("mini.ai").setup(opts)
       LazyVim.on_load("which-key.nvim", function()
-        vim.schedule(function()
-          LazyVim.mini.ai_whichkey(opts)
-        end)
+        vim.schedule(function() LazyVim.mini.ai_whichkey(opts) end)
       end)
     end,
   },
@@ -44,9 +47,7 @@ return {
     "hrsh7th/nvim-cmp",
     dependencies = { "hrsh7th/cmp-emoji" },
     ---@param opts cmp.ConfigSchema
-    opts = function(_, opts)
-      table.insert(opts.sources, { name = "emoji" })
-    end,
+    opts = function(_, opts) table.insert(opts.sources, { name = "emoji" }) end,
   },
 
   { "Kaiser-Yang/blink-cmp-avante" },
@@ -108,7 +109,11 @@ return {
       "theHamsta/nvim-dap-virtual-text",
     },
     keys = {
-      { "<leader>db", function() require("dap").toggle_breakpoint() end, desc = "Toggle breakpoint" },
+      {
+        "<leader>db",
+        function() require("dap").toggle_breakpoint() end,
+        desc = "Toggle breakpoint",
+      },
       { "<leader>dc", function() require("dap").continue() end, desc = "Continue" },
       { "<leader>di", function() require("dap").step_into() end, desc = "Step into" },
       { "<leader>do", function() require("dap").step_over() end, desc = "Step over" },
@@ -120,15 +125,10 @@ return {
       local dap = require("dap")
       local dapui = require("dapui")
       dapui.setup()
-      dap.listeners.after.event_initialized["dapui_config"] = function()
-        dapui.open()
-      end
-      dap.listeners.before.event_terminated["dapui_config"] = function()
-        dapui.close()
-      end
-      dap.listeners.before.event_exited["dapui_config"] = function()
-        dapui.close()
-      end
+      dap.listeners.after.event_initialized["dapui_config"] = function() dapui.open() end
+      dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close() end
+      dap.listeners.before.event_exited["dapui_config"] = function() dapui.close() end
     end,
   },
 }
+

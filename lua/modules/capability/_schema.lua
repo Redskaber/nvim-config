@@ -46,7 +46,9 @@ function M.validate(mod_name, cap)
         if type(backend) ~= "string" then
           table.insert(
             diags,
-            ("Image capability in module '%s': backend list contains non-string entry."):format(mod_name)
+            ("Image capability in module '%s': backend list contains non-string entry."):format(
+              mod_name
+            )
           )
           ok = false
         end
@@ -57,7 +59,9 @@ function M.validate(mod_name, cap)
         if type(plugin) ~= "table" or type(plugin.name) ~= "string" then
           table.insert(
             diags,
-            ("Image capability in module '%s': plugin entry must be a table with a 'name' string."):format(mod_name)
+            ("Image capability in module '%s': plugin entry must be a table with a 'name' string."):format(
+              mod_name
+            )
           )
           ok = false
         end
@@ -72,7 +76,9 @@ function M.validate(mod_name, cap)
         if type(binding) ~= "table" or not binding.lhs or not binding.rhs then
           table.insert(
             diags,
-            ("Keybind capability in module '%s': binding entry must have 'lhs' and 'rhs'."):format(mod_name)
+            ("Keybind capability in module '%s': binding entry must have 'lhs' and 'rhs'."):format(
+              mod_name
+            )
           )
           ok = false
         end
@@ -81,7 +87,10 @@ function M.validate(mod_name, cap)
     if cap.preset then
       local presets = require("modules.capability.keybind_presets")
       if not presets.is_known(cap.preset) then
-        table.insert(diags, ("Keybind capability in module '%s': unknown preset '%s'."):format(mod_name, cap.preset))
+        table.insert(
+          diags,
+          ("Keybind capability in module '%s': unknown preset '%s'."):format(mod_name, cap.preset)
+        )
       end
     end
   end
@@ -95,3 +104,4 @@ function M.validate(mod_name, cap)
 end
 
 return M
+

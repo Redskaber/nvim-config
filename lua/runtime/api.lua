@@ -64,9 +64,7 @@ end
 
 --- Set the default picker backend name (used when vim.g.ltos_picker_backend is unset).
 ---@param name string
-function M.picker_set_default(name)
-  _default_picker = name
-end
+function M.picker_set_default(name) _default_picker = name end
 
 local function bootstrap_picker_backends()
   if _picker_backends["snacks"] == nil then
@@ -108,34 +106,18 @@ local function pick(method, ...)
   end
 end
 
-function M.find_files(opts)
-  pick("files", opts)
-end
-function M.live_grep(opts)
-  pick("grep", opts)
-end
-function M.buffers(opts)
-  pick("buffers", opts)
-end
-function M.recent_files(opts)
-  pick("recent", opts)
-end
-function M.help_tags(opts)
-  pick("help", opts)
-end
+function M.find_files(opts) pick("files", opts) end
+function M.live_grep(opts) pick("grep", opts) end
+function M.buffers(opts) pick("buffers", opts) end
+function M.recent_files(opts) pick("recent", opts) end
+function M.help_tags(opts) pick("help", opts) end
 
 -- ── Diagnostics ───────────────────────────────────────────────────────────────
 
 M.diagnostics = {
-  next = function()
-    vim.diagnostic.goto_next()
-  end,
-  prev = function()
-    vim.diagnostic.goto_prev()
-  end,
-  open = function()
-    vim.diagnostic.open_float()
-  end,
+  next = function() vim.diagnostic.goto_next() end,
+  prev = function() vim.diagnostic.goto_prev() end,
+  open = function() vim.diagnostic.open_float() end,
   list = function()
     local p = get_picker()
     if p and type(p.diagnostics) == "function" then
@@ -149,18 +131,10 @@ M.diagnostics = {
 -- ── LSP ───────────────────────────────────────────────────────────────────────
 
 M.lsp = {
-  rename = function()
-    vim.lsp.buf.rename()
-  end,
-  code_action = function()
-    vim.lsp.buf.code_action()
-  end,
-  hover = function()
-    vim.lsp.buf.hover()
-  end,
-  signature = function()
-    vim.lsp.buf.signature_help()
-  end,
+  rename = function() vim.lsp.buf.rename() end,
+  code_action = function() vim.lsp.buf.code_action() end,
+  hover = function() vim.lsp.buf.hover() end,
+  signature = function() vim.lsp.buf.signature_help() end,
 }
 
 -- ── Terminal (pluggable backend) ──────────────────────────────────────────────
@@ -179,9 +153,7 @@ end
 
 --- Set the default terminal backend name (used when vim.g.ltos_terminal_backend is unset).
 ---@param name string
-function M.terminal_set_default(name)
-  _default_terminal = name
-end
+function M.terminal_set_default(name) _default_terminal = name end
 
 local function get_terminal()
   local name = vim.g.ltos_terminal_backend or _default_terminal or "toggleterm"
@@ -190,12 +162,8 @@ local function get_terminal()
     local ok, tt = pcall(require, "toggleterm.terminal")
     if ok then
       _terminal_backends["toggleterm"] = {
-        float = function()
-          tt.Terminal:new({ direction = "float" }):toggle()
-        end,
-        horizontal = function()
-          tt.Terminal:new({ direction = "horizontal" }):toggle()
-        end,
+        float = function() tt.Terminal:new({ direction = "float" }):toggle() end,
+        horizontal = function() tt.Terminal:new({ direction = "horizontal" }):toggle() end,
       }
       return _terminal_backends["toggleterm"]
     end

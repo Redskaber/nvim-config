@@ -7,8 +7,8 @@ local R = require("spec._runner")
 
 -- ── Shared DSL conformance helpers ───────────────────────────────────────────
 
-local schema = require("core.domain.schema")
 local cap_mod = require("core.domain.capability")
+local schema = require("core.domain.schema")
 
 --- Assert a lang module satisfies all Invariant-8 DSL purity constraints.
 local function assert_dsl_pure(mod_path)
@@ -24,7 +24,10 @@ local function assert_schema_ok(mod_path)
   local _, m = pcall(require, mod_path)
   local name = mod_path:match("([^.]+)$") or mod_path
   local result = schema.validate(name, m)
-  R.assert_true(result.ok, mod_path .. " schema validation failed:\n" .. schema.format_diags(result.diags))
+  R.assert_true(
+    result.ok,
+    mod_path .. " schema validation failed:\n" .. schema.format_diags(result.diags)
+  )
 end
 
 --- Assert a module can be added to a CapabilitySet without error.
@@ -35,23 +38,17 @@ local function assert_cap_add_ok(mod_path)
   R.assert_true(res.ok, mod_path .. " CapabilitySet.add failed: " .. vim.inspect(res.diags))
 end
 
--- ── modules.lang.lua_lang ────────────────────────────────────────────────────
+-- ── modules.lang.lua ────────────────────────────────────────────────────
 
-R.describe("modules.lang.lua_lang", function()
-  local mod_path = "modules.lang.lua_lang"
+R.describe("modules.lang.lua", function()
+  local mod_path = "modules.lang.lua"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("declares core=true (minimal profile membership)", function()
     local _, m = pcall(require, mod_path)
-    R.assert_true(m.core == true, "lua_lang must be a core module")
+    R.assert_true(m.core == true, "lua must be a core module")
   end)
   R.it("LSP server: lua_ls configured", function()
     local _, m = pcall(require, mod_path)
@@ -86,15 +83,9 @@ end)
 R.describe("modules.lang.python", function()
   local mod_path = "modules.lang.python"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: pyright configured", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.pyright)
@@ -136,15 +127,9 @@ end)
 R.describe("modules.lang.rust", function()
   local mod_path = "modules.lang.rust"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: rust_analyzer", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.rust_analyzer)
@@ -186,15 +171,9 @@ end)
 R.describe("modules.lang.go", function()
   local mod_path = "modules.lang.go"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: gopls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.gopls)
@@ -231,15 +210,9 @@ end)
 R.describe("modules.lang.typescript", function()
   local mod_path = "modules.lang.typescript"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: vtsls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.vtsls)
@@ -288,15 +261,9 @@ end)
 R.describe("modules.lang.c_cpp", function()
   local mod_path = "modules.lang.c_cpp"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: clangd with cmd", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.clangd)
@@ -340,15 +307,9 @@ end)
 R.describe("modules.lang.shell", function()
   local mod_path = "modules.lang.shell"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: bashls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.bashls)
@@ -387,15 +348,9 @@ end)
 R.describe("modules.lang.zig", function()
   local mod_path = "modules.lang.zig"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: zls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.zls)
@@ -415,15 +370,9 @@ end)
 R.describe("modules.lang.nix", function()
   local mod_path = "modules.lang.nix"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: nil_ls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.nil_ls)
@@ -443,15 +392,9 @@ end)
 R.describe("modules.lang.markup", function()
   local mod_path = "modules.lang.markup"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("multiple LSP servers: marksman + jsonls + yamlls + taplo", function()
     local _, m = pcall(require, mod_path)
     for _, srv in ipairs({ "marksman", "jsonls", "yamlls", "taplo" }) do
@@ -483,15 +426,9 @@ end)
 R.describe("modules.lang.java", function()
   local mod_path = "modules.lang.java"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: jdtls", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.jdtls)
@@ -511,15 +448,9 @@ end)
 R.describe("modules.lang.kotlin", function()
   local mod_path = "modules.lang.kotlin"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: kotlin_language_server", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.kotlin_language_server)
@@ -540,15 +471,9 @@ end)
 R.describe("modules.lang.asm", function()
   local mod_path = "modules.lang.asm"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: asm_lsp", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.asm_lsp)
@@ -572,15 +497,9 @@ end)
 R.describe("modules.lang.lisp", function()
   local mod_path = "modules.lang.lisp"
 
-  R.it("INV-8: pure DSL declaration", function()
-    assert_dsl_pure(mod_path)
-  end)
-  R.it("schema validation passes", function()
-    assert_schema_ok(mod_path)
-  end)
-  R.it("CapabilitySet.add succeeds", function()
-    assert_cap_add_ok(mod_path)
-  end)
+  R.it("INV-8: pure DSL declaration", function() assert_dsl_pure(mod_path) end)
+  R.it("schema validation passes", function() assert_schema_ok(mod_path) end)
+  R.it("CapabilitySet.add succeeds", function() assert_cap_add_ok(mod_path) end)
   R.it("LSP server: clojure_lsp", function()
     local _, m = pcall(require, mod_path)
     R.assert_not_nil(m.lsp and m.lsp.clojure_lsp)
@@ -608,14 +527,20 @@ R.describe("system tool classification invariant", function()
   }
 
   for _, tc in ipairs(system_tool_cases) do
-    R.it(tc.desc .. ": rules.resolve() → use_mason=false", function()
-      R.assert_false(rules.resolve(tc.tool, {}).use_mason, tc.tool .. " must not be mason-managed")
-    end)
+    R.it(
+      tc.desc .. ": rules.resolve() → use_mason=false",
+      function()
+        R.assert_false(
+          rules.resolve(tc.tool, {}).use_mason,
+          tc.tool .. " must not be mason-managed"
+        )
+      end
+    )
   end
 
   R.it("all lang modules pass DSL purity batch check", function()
     local lang_mods = {
-      "modules.lang.lua_lang",
+      "modules.lang.lua",
       "modules.lang.python",
       "modules.lang.rust",
       "modules.lang.go",
@@ -648,9 +573,7 @@ R.describe("core.kernel.env", function()
 
   R.describe("register_fact()", function()
     R.it("registers a custom fact by name", function()
-      env.register_fact("test_custom_fact", function()
-        return "test_value"
-      end)
+      env.register_fact("test_custom_fact", function() return "test_value" end)
       -- Access via metatable
       R.assert_eq(env.test_custom_fact, "test_value")
       -- cleanup: reset cached value
@@ -658,17 +581,14 @@ R.describe("core.kernel.env", function()
     end)
 
     R.it("invalid name throws assertion", function()
-      R.assert_false(pcall(env.register_fact, "", function()
-        return true
-      end))
-      R.assert_false(pcall(env.register_fact, nil, function()
-        return true
-      end))
+      R.assert_false(pcall(env.register_fact, "", function() return true end))
+      R.assert_false(pcall(env.register_fact, nil, function() return true end))
     end)
 
-    R.it("invalid fn throws assertion", function()
-      R.assert_false(pcall(env.register_fact, "test_fn_fact", "not_a_function"))
-    end)
+    R.it(
+      "invalid fn throws assertion",
+      function() R.assert_false(pcall(env.register_fact, "test_fn_fact", "not_a_function")) end
+    )
 
     R.it("fact is lazily evaluated (fn called on first access)", function()
       local called = 0
@@ -684,9 +604,7 @@ R.describe("core.kernel.env", function()
     end)
 
     R.it("fact fn error returns nil gracefully", function()
-      env.register_fact("test_error_fact", function()
-        error("fact evaluation error")
-      end)
+      env.register_fact("test_error_fact", function() error("fact evaluation error") end)
       local result = env.test_error_fact
       -- Should be nil when fact errors, not throw
       R.assert_nil(result, "fact error must return nil gracefully")
@@ -716,24 +634,21 @@ R.describe("core.kernel.env", function()
   -- ── has() ─────────────────────────────────────────────────────────────────
 
   R.describe("has()", function()
-    R.it("returns boolean for any command", function()
-      R.assert_type(env.has("ls"), "boolean")
-    end)
+    R.it("returns boolean for any command", function() R.assert_type(env.has("ls"), "boolean") end)
     R.it("'sh' is executable (always available in test env)", function()
       -- sh is universally available in any POSIX environment
       R.assert_true(env.has("sh"), "sh must be executable")
     end)
-    R.it("nonexistent_binary_xyz returns false", function()
-      R.assert_false(env.has("nonexistent_binary_xyz_12345"))
-    end)
+    R.it(
+      "nonexistent_binary_xyz returns false",
+      function() R.assert_false(env.has("nonexistent_binary_xyz_12345")) end
+    )
   end)
 
   -- ── is_nvim012() ──────────────────────────────────────────────────────────
 
   R.describe("is_nvim012()", function()
-    R.it("returns boolean", function()
-      R.assert_type(env.is_nvim012(), "boolean")
-    end)
+    R.it("returns boolean", function() R.assert_type(env.is_nvim012(), "boolean") end)
   end)
 
   -- ── layer isolation: no compiler/domain requires ──────────────────────────

@@ -86,9 +86,7 @@ end
 -- ── CapabilitySet constructor ─────────────────────────────────────────────────
 
 ---@return CapabilitySet
-function M.new()
-  return {}
-end
+function M.new() return {} end
 
 -- ── Add (pure, copy-on-write) ─────────────────────────────────────────────────
 
@@ -112,12 +110,15 @@ function M.add(set, name, raw)
   local cap = result.cap
 
   -- Copy-on-write: shallow-copy the set, deep-copy only the affected entry
-  local existing = set[name] or { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
+  local existing = set[name]
+    or { lsp = {}, formatters = {}, linters = {}, treesitter = {}, mason = {} }
   local new_entry = {
     lsp = cap.lsp and merge_lsp(existing.lsp, cap.lsp) or existing.lsp,
-    formatters = cap.formatters and merge_list_map(existing.formatters, cap.formatters) or existing.formatters,
+    formatters = cap.formatters and merge_list_map(existing.formatters, cap.formatters)
+      or existing.formatters,
     linters = cap.linters and merge_list_map(existing.linters, cap.linters) or existing.linters,
-    treesitter = cap.treesitter and merge_list(existing.treesitter, cap.treesitter) or existing.treesitter,
+    treesitter = cap.treesitter and merge_list(existing.treesitter, cap.treesitter)
+      or existing.treesitter,
     mason = cap.mason and merge_list(existing.mason, cap.mason) or existing.mason,
   }
 
@@ -152,13 +153,21 @@ function M.dump(set)
   local seen = {}
   local function serialize(val, depth)
     depth = depth or 0
-    if depth > 3 then return "..." end -- prevent deep recursion
-    if type(val) == "string" then return '"' .. val .. '"'
-    elseif type(val) == "number" or type(val) == "boolean" then return tostring(val)
-    elseif type(val) == "nil" then return "nil"
-    elseif type(val) == "function" then return "<fn>"
+    if depth > 3 then
+      return "..."
+    end -- prevent deep recursion
+    if type(val) == "string" then
+      return '"' .. val .. '"'
+    elseif type(val) == "number" or type(val) == "boolean" then
+      return tostring(val)
+    elseif type(val) == "nil" then
+      return "nil"
+    elseif type(val) == "function" then
+      return "<fn>"
     elseif type(val) == "table" then
-      if seen[val] then return "<cyclic>" end
+      if seen[val] then
+        return "<cyclic>"
+      end
       seen[val] = true
       local parts = {}
       for k, v in pairs(val) do

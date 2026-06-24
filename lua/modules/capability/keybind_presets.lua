@@ -26,8 +26,7 @@ end
 
 ---@param preset string
 ---@return boolean
-function M.is_known(preset)
-  return defaults[preset] ~= nil
-end
+function M.is_known(preset) return defaults[preset] ~= nil end
 
 return M
+

@@ -43,15 +43,38 @@ function M.build(ir)
     {
       "neovim/nvim-lspconfig",
       _source = "ltos:lsp",
-      opts = { servers = servers },
+      opts = function(_, opts)
+        opts.servers = opts.servers or {}
+        for server, cfg in pairs(servers) do
+          if not opts.servers[server] then
+            opts.servers[server] = cfg
+          else
+            for k, v in pairs(cfg) do
+              opts.servers[server][k] = v
+            end
+          end
+        end
+        return opts
+      end,
     },
     {
       "mason-org/mason-lspconfig.nvim",
       _source = "ltos:lsp",
-      opts = {
-        ensure_installed = ensure_installed,
-        automatic_installation = false,
-      },
+      opts = function(_, opts)
+        opts.ensure_installed = opts.ensure_installed or {}
+        opts.automatic_installation = false
+        local seen = {}
+        for _, s in ipairs(opts.ensure_installed) do
+          seen[s] = true
+        end
+        for _, s in ipairs(ensure_installed) do
+          if not seen[s] then
+            opts.ensure_installed[#opts.ensure_installed + 1] = s
+            seen[s] = true
+          end
+        end
+        return opts
+      end,
     },
   }
 end

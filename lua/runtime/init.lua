@@ -21,8 +21,8 @@ require("runtime.adapters.cap_registry").setup()
 -- test suite relies on package.loaded reload pattern — see pipeline.lua comment).
 require("runtime.passes.collect_ext").setup()
 
-local provider_registry = require("runtime.providers.registry")
 local build_request_mod = require("runtime.build_request")
+local provider_registry = require("runtime.providers.registry")
 local util = require("core.kernel.util")
 
 local function valid_profiles()
@@ -41,13 +41,14 @@ local function resolve_profile()
   if valid_profiles()[raw] then
     return raw
   end
-  vim.notify(('[ltos] invalid profile %q — falling back to "full"'):format(tostring(raw)), vim.log.levels.WARN)
+  vim.notify(
+    ('[ltos] invalid profile %q — falling back to "full"'):format(tostring(raw)),
+    vim.log.levels.WARN
+  )
   return "full"
 end
 
-local function cap_modules()
-  return require("runtime.passes.collect_ext").registered()
-end
+local function cap_modules() return require("runtime.passes.collect_ext").registered() end
 
 local function compute_module_hashes(modules)
   local hashes = {}
@@ -159,9 +160,7 @@ local function persist_ast_cache(modules, profile, caps, ext_caps, module_hashes
   end
 end
 
-function M.lang_modules()
-  return provider_registry.resolve(resolve_profile())
-end
+function M.lang_modules() return provider_registry.resolve(resolve_profile()) end
 
 M.LANG_MODULES = setmetatable({}, {
   -- FIX-DEPLOY-TEST (2026-06-23): __index should return the k-th element
@@ -172,15 +171,9 @@ M.LANG_MODULES = setmetatable({}, {
     local mods = M.lang_modules()
     return mods[k]
   end,
-  __len = function()
-    return #M.lang_modules()
-  end,
-  __pairs = function()
-    return pairs(M.lang_modules())
-  end,
-  __ipairs = function()
-    return ipairs(M.lang_modules())
-  end,
+  __len = function() return #M.lang_modules() end,
+  __pairs = function() return pairs(M.lang_modules()) end,
+  __ipairs = function() return ipairs(M.lang_modules()) end,
 })
 
 function M.build()
@@ -234,8 +227,6 @@ function M.build()
   return specs
 end
 
-function M.setup_commands()
-  require("runtime.commands").setup()
-end
+function M.setup_commands() require("runtime.commands").setup() end
 
 return M

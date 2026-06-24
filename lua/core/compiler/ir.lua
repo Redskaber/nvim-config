@@ -25,8 +25,8 @@
 --   • Maintains strict layer boundaries (compiler → domain)
 
 local M = {}
-local util = require("core.kernel.util") -- for unfreeze in ir.with()
 local types = require("core.compiler.types") -- abstract type interfaces
+local util = require("core.kernel.util") -- for unfreeze in ir.with()
 
 -- ── Stage enum ────────────────────────────────────────────────────────────────
 
@@ -55,9 +55,7 @@ local STAGE_TRANSITIONS = {
 ---@param message  string
 ---@param severity? "error"|"warn"|"info"
 ---@return Diagnostic
-function M.diag(stage, node, message, severity)
-  return types.diag(stage, node, message, severity)
-end
+function M.diag(stage, node, message, severity) return types.diag(stage, node, message, severity) end
 
 -- Backward-compat alias
 M.error = M.diag
@@ -284,7 +282,8 @@ function M.validate(ir, stage)
   local diags = {}
   for _, field in ipairs(required) do
     if ir[field] == nil then
-      diags[#diags + 1] = M.diag(stage, "ir", ("required field %q missing before %s"):format(field, stage))
+      diags[#diags + 1] =
+        M.diag(stage, "ir", ("required field %q missing before %s"):format(field, stage))
     end
   end
   return diags
@@ -337,8 +336,13 @@ function M.format_diff(changes)
   end
   local lines = {}
   for _, c in ipairs(changes) do
-    lines[#lines + 1] = ("  %s: %s → %s"):format(c.path, tostring(c.old):sub(1, 60), tostring(c.new):sub(1, 60))
+    lines[#lines + 1] = ("  %s: %s → %s"):format(
+      c.path,
+      tostring(c.old):sub(1, 60),
+      tostring(c.new):sub(1, 60)
+    )
   end
   return table.concat(lines, "\n")
 end
 return M
+

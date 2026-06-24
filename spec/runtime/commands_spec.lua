@@ -12,9 +12,7 @@ R.describe("runtime.commands", function()
   -- ── setup() ───────────────────────────────────────────────────────────────
 
   R.describe("setup()", function()
-    R.it("setup() is a function", function()
-      R.assert_type(commands.setup, "function")
-    end)
+    R.it("setup() is a function", function() R.assert_type(commands.setup, "function") end)
 
     R.it("setup() registers user commands without error", function()
       local ok = pcall(commands.setup)
@@ -68,16 +66,17 @@ R.describe("runtime.commands", function()
   -- ── command metadata ──────────────────────────────────────────────────────
 
   R.describe("command metadata", function()
-    R.before_each(function()
-      commands.setup()
-    end)
+    R.before_each(function() commands.setup() end)
 
     R.it("LtosDebug accepts optional stage argument", function()
       local cmds = vim.api.nvim_get_commands({})
       local cmd = cmds.LtosDebug
       R.assert_not_nil(cmd, "LtosDebug must be registered")
       -- nargs="?" → accepts 0 or 1 argument
-      R.assert_true(cmd.nargs == "?" or cmd.nargs == "0" or cmd.nargs == "*", "LtosDebug must accept optional args")
+      R.assert_true(
+        cmd.nargs == "?" or cmd.nargs == "0" or cmd.nargs == "*",
+        "LtosDebug must accept optional args"
+      )
     end)
 
     R.it("LtosInfo takes no arguments", function()
@@ -108,16 +107,16 @@ R.describe("runtime.init", function()
       R.assert_true(#mods > 0)
     end)
 
-    R.it("includes lua_lang module", function()
+    R.it("includes lua module", function()
       local mods = runtime.lang_modules()
       local found = false
       for _, m in ipairs(mods) do
-        if m == "modules.lang.lua_lang" then
+        if m == "modules.lang.lua" then
           found = true
           break
         end
       end
-      R.assert_true(found, "lang_modules() must include lua_lang")
+      R.assert_true(found, "lang_modules() must include lua")
     end)
 
     R.it("respects profile (minimal only returns core modules)", function()
@@ -238,7 +237,10 @@ R.describe("runtime.init", function()
       local dir = ports.cache_dir()
       R.assert_type(dir, "string")
       R.assert_true(#dir > 0)
-      R.assert_true(dir:find("ltos") ~= nil or dir:find("cache") ~= nil, "cache dir must be ltos-related: " .. dir)
+      R.assert_true(
+        dir:find("ltos") ~= nil or dir:find("cache") ~= nil,
+        "cache dir must be ltos-related: " .. dir
+      )
     end)
 
     R.it("ports.json_encode/decode round-trip works after bootstrap", function()
@@ -274,3 +276,4 @@ R.describe("runtime.init", function()
     end)
   end)
 end)
+

@@ -33,9 +33,26 @@ function M.build(ir)
     {
       "mfussenegger/nvim-lint",
       _source = "ltos:lint",
-      opts = {
-        linters_by_ft = linters_by_ft,
-      },
+      opts = function(_, opts)
+        opts.linters_by_ft = opts.linters_by_ft or {}
+        for ft, linters in pairs(linters_by_ft) do
+          if not opts.linters_by_ft[ft] then
+            opts.linters_by_ft[ft] = linters
+          else
+            local seen = {}
+            for _, l in ipairs(opts.linters_by_ft[ft]) do
+              seen[l] = true
+            end
+            for _, l in ipairs(linters) do
+              if not seen[l] then
+                opts.linters_by_ft[ft][#opts.linters_by_ft[ft] + 1] = l
+                seen[l] = true
+              end
+            end
+          end
+        end
+        return opts
+      end,
     },
   }
 end

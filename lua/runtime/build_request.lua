@@ -68,8 +68,6 @@ end
 --- Context for toolchain/rules.resolve (Layer 3 pure input).
 ---@param req BuildRequest
 ---@return { prefer_system: boolean }
-function M.rules_ctx(req)
-  return { prefer_system = req.prefer_system == true }
-end
+function M.rules_ctx(req) return { prefer_system = req.prefer_system == true } end
 
 return M

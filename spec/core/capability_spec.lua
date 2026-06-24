@@ -22,11 +22,11 @@ R.describe("core.domain.capability", function()
   R.describe("add()", function()
     R.it("returns NEW set; input set is unchanged", function()
       local s0 = cap.new()
-      local s1, result = cap.add(s0, "lua_lang", F.lua_lang_cap())
+      local s1, result = cap.add(s0, "lua", F.lua_cap())
       R.assert_true(result.ok)
       R.assert_ne(s1, s0)
       R.assert_true(next(s0) == nil)
-      R.assert_not_nil(s1.lua_lang)
+      R.assert_not_nil(s1.lua)
     end)
 
     R.it("merges treesitter lists across two adds for same module", function()
@@ -73,20 +73,18 @@ R.describe("core.domain.capability", function()
   -- ── reset() backward-compat ───────────────────────────────────────────────
 
   R.describe("reset() backward-compat", function()
-    R.it("is a no-op (does not error)", function()
-      cap.reset()
-    end)
+    R.it("is a no-op (does not error)", function() cap.reset() end)
   end)
 
-  -- ── golden: lua_lang DSL round-trip ───────────────────────────────────────
+  -- ── golden: lua DSL round-trip ───────────────────────────────────────
 
-  R.describe("golden: lua_lang DSL", function()
+  R.describe("golden: lua DSL", function()
     R.it("produces expected capability shape from real module", function()
-      local ok, lua_lang = pcall(require, "modules.lang.lua_lang")
-      R.assert_true(ok, "modules.lang.lua_lang must load cleanly")
-      local s, result = cap.add(cap.new(), "lua_lang", lua_lang)
+      local ok, lua = pcall(require, "modules.lang.lua")
+      R.assert_true(ok, "modules.lang.lua must load cleanly")
+      local s, result = cap.add(cap.new(), "lua", lua)
       R.assert_true(result.ok)
-      local c = s.lua_lang
+      local c = s.lua
       R.assert_not_nil(c)
       R.assert_not_nil(c.lsp and c.lsp.lua_ls)
       R.assert_not_nil(c.formatters and c.formatters.lua)
@@ -94,3 +92,4 @@ R.describe("core.domain.capability", function()
     end)
   end)
 end)
+

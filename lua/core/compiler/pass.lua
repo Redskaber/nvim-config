@@ -4,9 +4,9 @@
 -- debug mode: input IR is frozen via util.freeze to catch accidental mutation.
 -- TODO-2.2: run_with_ctx() provides the ctx-based execution path (forward-compat).
 
+local invariants = require("core.compiler.invariants")
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
-local invariants = require("core.compiler.invariants")
 
 local M = {}
 
@@ -77,7 +77,11 @@ function M.run_phase(phase, ir)
     return ir_mod.append_diag(ir, d), { d }
   end
   if type(next_ir) ~= "table" then
-    local d = ir_mod.diag(phase.name, "run", "Phase.run returned " .. type(next_ir) .. " instead of IR table")
+    local d = ir_mod.diag(
+      phase.name,
+      "run",
+      "Phase.run returned " .. type(next_ir) .. " instead of IR table"
+    )
     return ir_mod.append_diag(ir, d), { d }
   end
 
@@ -92,11 +96,17 @@ function M.run_phase(phase, ir)
     if not ok2 then
       -- use pcall for ir_mod.diag, fallback to plain table
       local err_diag
-      local e_ok, e_result = pcall(ir_mod.diag, phase.name, "output_validate", tostring(result2), "error")
+      local e_ok, e_result =
+        pcall(ir_mod.diag, phase.name, "output_validate", tostring(result2), "error")
       if e_ok and type(e_result) == "table" then
         err_diag = e_result
       else
-        err_diag = { stage = phase.name, node = "output_validate", message = tostring(result2), severity = "error" }
+        err_diag = {
+          stage = phase.name,
+          node = "output_validate",
+          message = tostring(result2),
+          severity = "error",
+        }
       end
       post_diags[#post_diags + 1] = err_diag
     elseif type(result2) == "table" then
@@ -116,7 +126,13 @@ function M.run_phase(phase, ir)
       -- ir_mod.diag() will throw. Use pcall + fallback plain table to ensure
       -- the warn diagnostic is always appended.
       local warn_d
-      local diag_ok, diag_result = pcall(ir_mod.diag, phase.name, d.node or "output", "[post-condition] " .. (d.message or "?"), "warn")
+      local diag_ok, diag_result = pcall(
+        ir_mod.diag,
+        phase.name,
+        d.node or "output",
+        "[post-condition] " .. (d.message or "?"),
+        "warn"
+      )
       if diag_ok and type(diag_result) == "table" then
         warn_d = diag_result
       else

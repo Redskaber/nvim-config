@@ -13,9 +13,10 @@ R.describe("runtime.passes.collect_ext", function()
   -- ── registered() / register() ─────────────────────────────────────────────
 
   R.describe("registered()", function()
-    R.it("returns the current cap module list (>= 5 defaults)", function()
-      R.assert_true(#collect_ext.registered() >= 5)
-    end)
+    R.it(
+      "returns the current cap module list (>= 5 defaults)",
+      function() R.assert_true(#collect_ext.registered() >= 5) end
+    )
     R.it("register() updates the module list", function()
       local orig = collect_ext.registered()
       collect_ext.register({ "modules.cap.image" })
@@ -29,7 +30,7 @@ R.describe("runtime.passes.collect_ext", function()
 
   R.describe("pass.run()", function()
     R.it("populates ext_caps.image bucket after collect", function()
-      local ir = collect_ext.pass.run(ir_mod.new({ "modules.lang.lua_lang" }, "full"))
+      local ir = collect_ext.pass.run(ir_mod.new({ "modules.lang.lua" }, "full"))
       R.assert_type(ir.ext_caps, "table")
       R.assert_not_nil(ir.ext_caps.image, "image bucket must exist")
       R.assert_true(next(ir.ext_caps.image) ~= nil, "image bucket must be non-empty")
@@ -122,29 +123,32 @@ end)
 R.describe("runtime.adapters.cap_registry", function()
   local reg = require("runtime.adapters.cap_registry")
 
-  R.it("at least 4 cap adapters registered after setup", function()
-    R.assert_true(#reg.list() >= 4)
-  end)
+  R.it(
+    "at least 4 cap adapters registered after setup",
+    function() R.assert_true(#reg.list() >= 4) end
+  )
 
-  R.it("image adapter is registered and loadable", function()
-    R.assert_not_nil(reg.get("image"), "image adapter must be registered")
-  end)
+  R.it(
+    "image adapter is registered and loadable",
+    function() R.assert_not_nil(reg.get("image"), "image adapter must be registered") end
+  )
 
-  R.it("media adapter is registered and loadable", function()
-    R.assert_not_nil(reg.get("media"))
-  end)
+  R.it(
+    "media adapter is registered and loadable",
+    function() R.assert_not_nil(reg.get("media")) end
+  )
 
-  R.it("ai adapter is registered and loadable", function()
-    R.assert_not_nil(reg.get("ai"))
-  end)
+  R.it("ai adapter is registered and loadable", function() R.assert_not_nil(reg.get("ai")) end)
 
-  R.it("keybind adapter is registered and loadable", function()
-    R.assert_not_nil(reg.get("keybind"))
-  end)
+  R.it(
+    "keybind adapter is registered and loadable",
+    function() R.assert_not_nil(reg.get("keybind")) end
+  )
 
-  R.it("unknown cap_type returns nil", function()
-    R.assert_nil(reg.get("unknown_cap_type_xyz_" .. math.random(1e6)))
-  end)
+  R.it(
+    "unknown cap_type returns nil",
+    function() R.assert_nil(reg.get("unknown_cap_type_xyz_" .. math.random(1e6))) end
+  )
 
   R.it("list() is sorted", function()
     local list = reg.list()
@@ -228,7 +232,10 @@ R.describe("runtime.adapters.ai_cap (P6-C5)", function()
         names[s[1]] = true
       end
     end
-    R.assert_true(names["github/copilot.vim"] or #specs > 0, "copilot.vim must appear for copilot completion provider")
+    R.assert_true(
+      names["github/copilot.vim"] or #specs > 0,
+      "copilot.vim must appear for copilot completion provider"
+    )
   end)
 
   R.it("explicit plugin declarations take priority (no duplicates)", function()
@@ -352,9 +359,11 @@ R.describe("cap_resolve: end-to-end content (FIX-AUDIT-P0-1 regression)", functi
         break
       end
     end
-    R.assert_true(found_chafa,
+    R.assert_true(
+      found_chafa,
       "cap_specs.image must contain chafa spec when cap.fallback='chafa' — "
-      .. "if this fails, cap_resolve is dropping caps data (FIX-AUDIT-P0-1 regression)")
+        .. "if this fails, cap_resolve is dropping caps data (FIX-AUDIT-P0-1 regression)"
+    )
   end)
 
   R.it("cap_specs.media is populated when ext_caps.media has content", function()
@@ -368,8 +377,10 @@ R.describe("cap_resolve: end-to-end content (FIX-AUDIT-P0-1 regression)", functi
     R.assert_not_nil(result.cap_specs.media, "cap_specs.media must be populated")
     -- KEY: with old bug, media adapter returned empty {} because it couldn't
     -- find cap.viewers in the IR (which was wrongly passed as caps_by_name).
-    R.assert_true(#result.cap_specs.media > 0,
-      "media specs must be non-empty — if empty, cap_resolve is dropping caps data")
+    R.assert_true(
+      #result.cap_specs.media > 0,
+      "media specs must be non-empty — if empty, cap_resolve is dropping caps data"
+    )
   end)
 
   R.it("cap_specs.ai is populated when ext_caps.ai has copilot completion", function()
@@ -383,8 +394,10 @@ R.describe("cap_resolve: end-to-end content (FIX-AUDIT-P0-1 regression)", functi
     R.assert_not_nil(result.cap_specs.ai, "cap_specs.ai must be populated")
     -- KEY: with old bug, ai_cap adapter returned empty {} because it couldn't
     -- find cap.completion/cap.chat in the IR.
-    R.assert_true(#result.cap_specs.ai > 0,
-      "ai specs must be non-empty — if empty, cap_resolve is dropping caps data")
+    R.assert_true(
+      #result.cap_specs.ai > 0,
+      "ai specs must be non-empty — if empty, cap_resolve is dropping caps data"
+    )
   end)
 
   R.it("cap_specs preserves cap customizations (max_width flows through to opts)", function()
@@ -403,7 +416,9 @@ R.describe("cap_resolve: end-to-end content (FIX-AUDIT-P0-1 regression)", functi
     -- Note: this is a strict assertion. If image adapter doesn't propagate
     -- max_width to opts, the adapter itself needs fixing (separate from P0-1).
     -- For now, we just verify cap_specs is non-empty (relaxed assertion).
-    R.assert_true(#result.cap_specs.image > 0,
-      "image specs must be non-empty with max_width customization")
+    R.assert_true(
+      #result.cap_specs.image > 0,
+      "image specs must be non-empty with max_width customization"
+    )
   end)
 end)

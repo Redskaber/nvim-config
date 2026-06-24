@@ -20,9 +20,7 @@ function M.register(path, opts)
     end
   end
   _adapters[#_adapters + 1] = { path = path, priority = opts.priority or #_adapters + 1 }
-  table.sort(_adapters, function(a, b)
-    return a.priority < b.priority
-  end)
+  table.sort(_adapters, function(a, b) return a.priority < b.priority end)
 end
 
 ---@return string[]

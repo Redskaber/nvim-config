@@ -9,44 +9,46 @@ R.describe("core.compiler.cache", function()
   local ver = require("core.compiler.cache.version")
 
   local function fresh_key(prefix)
-    return (prefix or "test") .. "-" .. tostring(os.clock()):gsub("%.", "") .. "-" .. tostring(math.random(1e6))
+    return (prefix or "test")
+      .. "-"
+      .. tostring(os.clock()):gsub("%.", "")
+      .. "-"
+      .. tostring(math.random(1e6))
   end
 
   -- ── version ───────────────────────────────────────────────────────────────
 
   R.describe("version", function()
-    R.it("CACHE_VERSION == SCHEMA_VERSION (unified)", function()
-      R.assert_eq(ver.CACHE_VERSION, ver.SCHEMA_VERSION)
-    end)
-    R.it("version >= 7 (P6-C4 baseline)", function()
-      R.assert_true(ver.CACHE_VERSION >= 7)
-    end)
+    R.it(
+      "CACHE_VERSION == SCHEMA_VERSION (unified)",
+      function() R.assert_eq(ver.CACHE_VERSION, ver.SCHEMA_VERSION) end
+    )
+    R.it("version >= 7 (P6-C4 baseline)", function() R.assert_true(ver.CACHE_VERSION >= 7) end)
   end)
 
   -- ── is_cacheable() ────────────────────────────────────────────────────────
 
   R.describe("is_cacheable()", function()
-    R.it("plain table → cacheable", function()
-      R.assert_true(policy.is_cacheable({ a = 1, b = { c = 2 } }))
-    end)
+    R.it(
+      "plain table → cacheable",
+      function() R.assert_true(policy.is_cacheable({ a = 1, b = { c = 2 } })) end
+    )
     R.it("table with function → NOT cacheable", function()
       R.assert_false(policy.is_cacheable({ fn = function() end }))
     end)
     R.it("nested function → NOT cacheable", function()
       R.assert_false(policy.is_cacheable({ n = { fn = function() end } }))
     end)
-    R.it("mark_uncacheable table → NOT cacheable", function()
-      R.assert_false(policy.is_cacheable(cache.mark_uncacheable({})))
-    end)
-    R.it("_no_cache field → NOT cacheable", function()
-      R.assert_false(policy.is_cacheable({ _no_cache = true, data = 1 }))
-    end)
-    R.it("string value → cacheable", function()
-      R.assert_true(policy.is_cacheable("hello"))
-    end)
-    R.it("number value → cacheable", function()
-      R.assert_true(policy.is_cacheable(42))
-    end)
+    R.it(
+      "mark_uncacheable table → NOT cacheable",
+      function() R.assert_false(policy.is_cacheable(cache.mark_uncacheable({}))) end
+    )
+    R.it(
+      "_no_cache field → NOT cacheable",
+      function() R.assert_false(policy.is_cacheable({ _no_cache = true, data = 1 })) end
+    )
+    R.it("string value → cacheable", function() R.assert_true(policy.is_cacheable("hello")) end)
+    R.it("number value → cacheable", function() R.assert_true(policy.is_cacheable(42)) end)
   end)
 
   -- ── tier layout ───────────────────────────────────────────────────────────
@@ -83,13 +85,12 @@ R.describe("core.compiler.cache", function()
       R.assert_false(cache.save("spec", fresh_key(), { fn = function() end }))
     end)
 
-    R.it("save returns false for empty key", function()
-      R.assert_false(cache.save("spec", "", { data = 1 }))
-    end)
+    R.it(
+      "save returns false for empty key",
+      function() R.assert_false(cache.save("spec", "", { data = 1 })) end
+    )
 
-    R.it("load returns nil for empty key", function()
-      R.assert_nil(cache.load("spec", ""))
-    end)
+    R.it("load returns nil for empty key", function() R.assert_nil(cache.load("spec", "")) end)
 
     R.it("ast tier round-trip works independently", function()
       local k = fresh_key("ast")
@@ -161,9 +162,7 @@ R.describe("core.compiler.cache", function()
   -- ── stats() ───────────────────────────────────────────────────────────────
 
   R.describe("stats()", function()
-    R.it("returns a table", function()
-      R.assert_type(cache.stats(), "table")
-    end)
+    R.it("returns a table", function() R.assert_type(cache.stats(), "table") end)
 
     R.it("tracks hits after successful load", function()
       local k = fresh_key("stats-hit")
@@ -187,27 +186,28 @@ R.describe("core.compiler.cache", function()
     local key_mod = require("core.compiler.cache.key")
 
     R.it("different profiles → different keys", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "minimal")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "minimal")
       if k1 ~= "" and k2 ~= "" then
         R.assert_ne(k1, k2)
       end
     end)
 
     R.it("key ends with schema version :vN", function()
-      local k = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k = key_mod.compute({ "modules.lang.lua" }, "full")
       if k ~= "" then
         R.assert_match(k, ":v%d+$")
       end
     end)
 
-    R.it("empty module list → empty key", function()
-      R.assert_eq(key_mod.compute({}, "full"), "")
-    end)
+    R.it(
+      "empty module list → empty key",
+      function() R.assert_eq(key_mod.compute({}, "full"), "") end
+    )
 
     R.it("deterministic for same inputs", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
-      local k2 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
+      local k2 = key_mod.compute({ "modules.lang.lua" }, "full")
       R.assert_eq(k1, k2)
     end)
 
@@ -219,7 +219,7 @@ R.describe("core.compiler.cache", function()
     end)
 
     R.it("different module lists → different keys", function()
-      local k1 = key_mod.compute({ "modules.lang.lua_lang" }, "full")
+      local k1 = key_mod.compute({ "modules.lang.lua" }, "full")
       local k2 = key_mod.compute({ "modules.lang.python" }, "full")
       if k1 ~= "" and k2 ~= "" then
         R.assert_ne(k1, k2)
@@ -239,3 +239,4 @@ R.describe("core.compiler.cache", function()
     end)
   end)
 end)
+

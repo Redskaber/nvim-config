@@ -33,7 +33,10 @@ R.describe("core.compiler.ir", function()
       R.assert_type(i.ext_caps, "table")
       for _, ct in ipairs(cap_types.ALL) do
         R.assert_type(i.ext_caps[ct], "table", "ext_caps." .. ct .. " must be a table")
-        R.assert_true(next(i.ext_caps[ct]) == nil, "ext_caps." .. ct .. " must be empty at construction")
+        R.assert_true(
+          next(i.ext_caps[ct]) == nil,
+          "ext_caps." .. ct .. " must be empty at construction"
+        )
       end
     end)
 
@@ -173,12 +176,11 @@ R.describe("core.compiler.ir", function()
   -- ── assert_stage() ────────────────────────────────────────────────────────
 
   R.describe("assert_stage()", function()
-    R.it("passes when stage matches", function()
-      ir.assert_stage(ir.new({}, "full"), "AST")
-    end)
-    R.it("throws on mismatch", function()
-      R.assert_false(pcall(ir.assert_stage, ir.new({}, "full"), "HIR"))
-    end)
+    R.it("passes when stage matches", function() ir.assert_stage(ir.new({}, "full"), "AST") end)
+    R.it(
+      "throws on mismatch",
+      function() R.assert_false(pcall(ir.assert_stage, ir.new({}, "full"), "HIR")) end
+    )
   end)
 
   -- ── ctx() ─────────────────────────────────────────────────────────────────
@@ -220,8 +222,10 @@ R.describe("core.compiler.ir", function()
       end
       R.assert_true(found)
     end)
-    R.it("format_diff() returns '(no changes)' for empty list", function()
-      R.assert_eq(ir.format_diff({}), "(no changes)")
-    end)
+    R.it(
+      "format_diff() returns '(no changes)' for empty list",
+      function() R.assert_eq(ir.format_diff({}), "(no changes)") end
+    )
   end)
 end)
+

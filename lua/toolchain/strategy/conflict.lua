@@ -16,8 +16,8 @@
 --       to `require("core.domain.diagnostic")` (Layer 2), consistent with
 --       AUDIT.md §3.2 fix applied to modules/capability/*.
 
-local util = require("core.kernel.util")
 local diagnostic = require("core.domain.diagnostic")
+local util = require("core.kernel.util")
 
 -- FIX-AUDIT-P0-5-CORRECTED (2026-06-23): Removed notify_warn() function that
 -- pcall-required core.compiler.ports — that was a Layer 3 → Layer 1 violation.
@@ -97,14 +97,16 @@ function M.resolve(tool, strategies, compose)
   for prio in pairs(by_priority) do
     table.insert(sorted_priorities, prio)
   end
-  table.sort(sorted_priorities, function(a, b)
-    return a > b
-  end) -- Highest priority first
+  table.sort(sorted_priorities, function(a, b) return a > b end) -- Highest priority first
 
   local highest_priority_strategies = by_priority[sorted_priorities[1]]
 
   if #highest_priority_strategies == 1 then
-    return { tool = tool, winner = highest_priority_strategies[1], resolution = M.RESOLUTION.PRIORITY }
+    return {
+      tool = tool,
+      winner = highest_priority_strategies[1],
+      resolution = M.RESOLUTION.PRIORITY,
+    }
   else
     -- Multiple strategies with the same highest priority
     if compose then
@@ -138,16 +140,12 @@ end
 ---@return table  Composed strategy
 function M.compose(tool, strategies)
   local sorted_strategies = util.deep_copy(strategies)
-  table.sort(sorted_strategies, function(a, b)
-    return (a.priority or 0) > (b.priority or 0)
-  end)
+  table.sort(sorted_strategies, function(a, b) return (a.priority or 0) > (b.priority or 0) end)
 
   return {
     name = ("%s:composed"):format(tool),
     priority = sorted_strategies[1].priority or 0, -- Use highest priority of component strategies
-    applies = function(t)
-      return t == tool
-    end,
+    applies = function(t) return t == tool end,
     resolve = function(ctx)
       local results = {}
       local composed_diags = {}
@@ -160,11 +158,12 @@ function M.compose(tool, strategies)
           -- ir.diag is a pure constructor, the discarded return value had no effect)
           -- FIX-AUDIT-P0-5(c): use domain.diagnostic, not core.compiler.ir (layer violation)
           local msg = ("Strategy '%s' failed to resolve for tool '%s': %s"):format(
-            strategy.name, tool, tostring(res)
+            strategy.name,
+            tool,
+            tostring(res)
           )
-          composed_diags[#composed_diags + 1] = diagnostic.new(
-            "strategy", strategy.name, msg, "warn"
-          )
+          composed_diags[#composed_diags + 1] =
+            diagnostic.new("strategy", strategy.name, msg, "warn")
         end
       end
       -- FIX-AUDIT-P0-5(a): CONCATENATE result lists with list_extend semantics.
@@ -185,7 +184,9 @@ function M.compose(tool, strategies)
       return setmetatable(merged, {
         __ltos_diags = composed_diags,
         __index = function(_, k)
-          if k == "diags" then return composed_diags end
+          if k == "diags" then
+            return composed_diags
+          end
           return nil
         end,
       })

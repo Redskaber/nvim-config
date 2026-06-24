@@ -56,43 +56,21 @@ function M.build(ir)
     {
       "nvim-treesitter/nvim-treesitter",
       _source = "ltos:treesitter",
-      event = { "LazyFile", "VeryLazy" },
-      cmd = { "TSUpdate", "TSInstall", "TSLog", "TSUninstall" },
       opts_extend = { "ensure_installed" },
-      ---@alias lazyvim.TSFeat { enable?: boolean, disable?: string[] }
-      ---@class lazyvim.TSConfig: TSConfig
-      opts = {
-        ensure_installed = parsers,
-        indent = { enable = true }, ---@type lazyvim.TSFeat
-        highlight = { enable = true }, ---@type lazyvim.TSFeat
-        folds = { enable = true }, ---@type lazyvim.TSFeat
-        textobjects = {
-          select = {
-            enable = true,
-            keymaps = {
-              ["af"] = "@function.outer",
-              ["if"] = "@function.inner",
-              ["ac"] = "@class.outer",
-              ["ic"] = "@class.inner",
-              ["aa"] = "@parameter.outer",
-              ["ia"] = "@parameter.inner",
-            },
-          },
-          move = {
-            enable = true,
-            set_jumps = true,
-            goto_next_start = { ["]f"] = "@function.outer", ["]c"] = "@class.outer", ["]a"] = "@parameter.inner" },
-            goto_next_end = { ["]F"] = "@function.outer", ["]C"] = "@class.outer", ["]A"] = "@parameter.inner" },
-            goto_previous_start = { ["[f"] = "@function.outer", ["[c"] = "@class.outer", ["[a"] = "@parameter.inner" },
-            goto_previous_end = { ["[F"] = "@function.outer", ["[C"] = "@class.outer", ["[A"] = "@parameter.inner" },
-          },
-          swap = {
-            enable = true,
-            swap_next = { ["<leader>a"] = "@parameter.inner" },
-            swap_previous = { ["<leader>A"] = "@parameter.inner" },
-          },
-        },
-      },
+      opts = function(_, opts)
+        opts.ensure_installed = opts.ensure_installed or {}
+        local seen = {}
+        for _, p in ipairs(opts.ensure_installed) do
+          seen[p] = true
+        end
+        for _, p in ipairs(parsers) do
+          if not seen[p] then
+            opts.ensure_installed[#opts.ensure_installed + 1] = p
+            seen[p] = true
+          end
+        end
+        return opts
+      end,
     },
   }
 end

@@ -4,12 +4,12 @@
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
-local util = require("core.kernel.util")
 local ports = require("core.compiler.ports")
+local util = require("core.kernel.util")
 -- removed modules.capability.schema — ext_schema covers all validation
-local ext_schema = require("core.domain.ext_schema")
 local cap_graph = require("modules.capability.graph")
 local cap_registry = require("modules.capability.registry")
+local ext_schema = require("core.domain.ext_schema")
 
 local _registered_modules = {}
 
@@ -25,9 +25,7 @@ function M.register(modules)
   end
 end
 
-function M.registered()
-  return _registered_modules
-end
+function M.registered() return _registered_modules end
 
 local function module_hash(mod_path)
   local path = ports.resolve_runtime_file(mod_path:gsub("%.", "/") .. ".lua")
@@ -90,7 +88,8 @@ local function validate_cap(mod_path, cap, diagnostics, stage)
     -- extract .message and .severity from Diagnostic objects.
     -- Previously passed entire table as message → tostring(table) in format_diagnostics.
     for _, d in ipairs(ext_res.diags) do
-      diagnostics[#diagnostics + 1] = ir_mod.diag(stage, mod_path, d.message or "?", d.severity or "error")
+      diagnostics[#diagnostics + 1] =
+        ir_mod.diag(stage, mod_path, d.message or "?", d.severity or "error")
     end
     return false
   end

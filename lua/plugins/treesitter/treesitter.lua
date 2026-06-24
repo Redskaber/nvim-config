@@ -16,10 +16,26 @@ return {
         set_jumps = true, -- whether to set jumps in the jumplist
         -- LazyVim extention to create buffer-local keymaps
         keys = {
-          goto_next_start = { ["]f"] = "@function.outer", ["]c"] = "@class.outer", ["]a"] = "@parameter.inner" },
-          goto_next_end = { ["]F"] = "@function.outer", ["]C"] = "@class.outer", ["]A"] = "@parameter.inner" },
-          goto_previous_start = { ["[f"] = "@function.outer", ["[c"] = "@class.outer", ["[a"] = "@parameter.inner" },
-          goto_previous_end = { ["[F"] = "@function.outer", ["[C"] = "@class.outer", ["[A"] = "@parameter.inner" },
+          goto_next_start = {
+            ["]f"] = "@function.outer",
+            ["]c"] = "@class.outer",
+            ["]a"] = "@parameter.inner",
+          },
+          goto_next_end = {
+            ["]F"] = "@function.outer",
+            ["]C"] = "@class.outer",
+            ["]A"] = "@parameter.inner",
+          },
+          goto_previous_start = {
+            ["[f"] = "@function.outer",
+            ["[c"] = "@class.outer",
+            ["[a"] = "@parameter.inner",
+          },
+          goto_previous_end = {
+            ["[F"] = "@function.outer",
+            ["[C"] = "@class.outer",
+            ["[A"] = "@parameter.inner",
+          },
         },
       },
     },
@@ -33,7 +49,9 @@ return {
 
       local function attach(buf)
         local ft = vim.bo[buf].filetype
-        if not (vim.tbl_get(opts, "move", "enable") and LazyVim.treesitter.have(ft, "textobjects")) then
+        if
+          not (vim.tbl_get(opts, "move", "enable") and LazyVim.treesitter.have(ft, "textobjects"))
+        then
           return
         end
         ---@type table<string, table<string, string>>
@@ -67,11 +85,10 @@ return {
 
       vim.api.nvim_create_autocmd("FileType", {
         group = vim.api.nvim_create_augroup("lazyvim_treesitter_textobjects", { clear = true }),
-        callback = function(ev)
-          attach(ev.buf)
-        end,
+        callback = function(ev) attach(ev.buf) end,
       })
       vim.tbl_map(attach, vim.api.nvim_list_bufs())
     end,
   },
 }
+

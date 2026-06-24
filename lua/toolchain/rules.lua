@@ -52,9 +52,7 @@ local function mapping_rule(tool, _, _)
 end
 
 --- Rule 6: identity fallback
-local function identity_rule(tool, _, _)
-  return { use_mason = true, pkg = tool }
-end
+local function identity_rule(tool, _, _) return { use_mason = true, pkg = tool } end
 
 local RULES = {
   override_rule,
@@ -86,8 +84,7 @@ end
 ---@param overrides? table
 ---@param ctx? table
 ---@return boolean
-function M.use_mason(tool, overrides, ctx)
-  return M.resolve(tool, overrides, ctx).use_mason
-end
+function M.use_mason(tool, overrides, ctx) return M.resolve(tool, overrides, ctx).use_mason end
 
 return M
+
