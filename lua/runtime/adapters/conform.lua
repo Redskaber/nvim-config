@@ -86,6 +86,14 @@ function M.build(ir)
   for _, cap in pairs(ir.caps) do
     if cap.formatters then
       for ft, fmts in pairs(cap.formatters) do
+        -- FIX (2026-06-24): Skip empty formatter lists entirely.
+        -- Empty tables (e.g., { } from commented-out formatters) would
+        -- create formatters_by_ft[ft] = {} which tells conform "this ft
+        -- has formatters but none specified" — conform then falls back
+        -- to LSP formatting. Skipping prevents unwanted LSP fallback.
+        if #fmts == 0 then
+          goto continue
+        end
         if not formatters_by_ft[ft] then
           formatters_by_ft[ft] = {}
         end
@@ -101,6 +109,7 @@ function M.build(ir)
             end
           end
         end
+        ::continue::
       end
     end
   end
