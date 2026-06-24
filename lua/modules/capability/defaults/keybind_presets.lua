@@ -21,4 +21,3 @@ return {
     { lhs = "<C-x>1", rhs = "<C-w>o", mode = "n", desc = "Close other windows" },
   },
 }
-

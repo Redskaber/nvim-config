@@ -104,4 +104,3 @@ function M.validate(mod_name, cap)
 end
 
 return M
-

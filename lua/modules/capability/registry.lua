@@ -83,4 +83,3 @@ function M.register_all(entries)
 end
 
 return M
-

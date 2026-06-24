@@ -29,4 +29,3 @@ end
 function M.is_known(preset) return defaults[preset] ~= nil end
 
 return M
-

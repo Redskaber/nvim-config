@@ -123,4 +123,3 @@ function M.is_cap_type_known(t) return _cap_types.is_known(t) end
 function M.cap_types_set() return _cap_types.as_set() end
 
 return M
-

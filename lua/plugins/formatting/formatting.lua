@@ -18,4 +18,3 @@ return {
     -- No opts here: all opts injected by runtime adapter spec
   },
 }
-

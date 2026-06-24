@@ -12,4 +12,3 @@ return {
     { lhs = "<leader>ph", rhs = ":nohlsearch<CR>", mode = "n", desc = "Clear highlight" },
   },
 }
-

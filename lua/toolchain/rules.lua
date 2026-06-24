@@ -87,4 +87,3 @@ end
 function M.use_mason(tool, overrides, ctx) return M.resolve(tool, overrides, ctx).use_mason end
 
 return M
-

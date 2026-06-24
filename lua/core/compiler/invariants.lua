@@ -105,4 +105,3 @@ function M.assert_strategy_shape(strategy, context)
 end
 
 return M
-
