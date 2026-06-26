@@ -1,6 +1,6 @@
--- lua/plugins/sys/git.lua
--- Git UI plugins: Neogit (Magit-style) + diffview.
-
+-- ~/.config/nvim/lua/plugins/git/neogit.lua
+-- Neogit (Magit-style git UI) + diffview (diff browser).
+-- Layer: git (version control integration — UI layer).
 return {
   {
     "NeogitOrg/neogit",

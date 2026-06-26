@@ -336,4 +336,3 @@ R.describe("integration: layer boundary contracts", function()
     end)
   end)
 end)
-

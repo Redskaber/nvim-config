@@ -1,6 +1,6 @@
--- lua/plugins/sys/terminal.lua
--- Terminal and file-tree plugins.
-
+-- ~/.config/nvim/lua/plugins/system/terminal.lua
+-- Terminal: toggleterm.
+-- Layer: system (host integration — terminal emulator).
 return {
   {
     "akinsho/toggleterm.nvim",
@@ -19,26 +19,6 @@ return {
           return math.floor(vim.o.columns * 0.4)
         end
       end,
-    },
-  },
-  {
-    "nvim-tree/nvim-tree.lua",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    keys = {
-      { "<leader>fe", "<cmd>NvimTreeToggle<cr>", desc = "File tree (nvim-tree)" },
-    },
-    config = function()
-      require("nvim-tree").setup({
-        sort = { sorter = "case_sensitive" },
-        view = { width = 30 },
-        renderer = { group_empty = true },
-        filters = { dotfiles = true },
-      })
-    end,
-    opts = {
-      view = { width = 30 },
-      renderer = { group_empty = true },
-      filters = { dotfiles = false },
     },
   },
 }

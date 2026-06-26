@@ -18,11 +18,15 @@ local M = {}
 local cap_registry = require("runtime.adapters.cap_registry")
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
+local ov = require("runtime.output_validate")
 
 M.pass = {
   name = "cap_resolve",
   input_state = "optimizing",
   output_state = "optimizing",
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + meta + cap_specs
+  output_validate = ov.cap_resolve,
 
   ---@param ir IR
   ---@return IR

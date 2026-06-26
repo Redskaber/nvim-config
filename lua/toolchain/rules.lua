@@ -35,7 +35,18 @@ local function system_tool_rule(tool, _, _)
 end
 
 --- Rule 4: Nix host — if binary present on PATH, use system
-local function nix_env_rule(tool, _, _)
+-- FIX-TEST-BUG (2026-06-26): Respect explicit `prefer_system=false` opt-out.
+-- Previously this rule fired whenever `env.is_nix` was true and the binary was
+-- on $PATH, ignoring the BuildRequest's `prefer_system` flag. That caused
+-- mason-installable tools that happen to be installed via Nix (e.g. stylua)
+-- to be misclassified as system tools even when the caller explicitly
+-- requested mason management — breaking the
+-- "prefer_system=false → no forced system override" contract.
+local function nix_env_rule(tool, _, ctx)
+  -- Explicit opt-out: caller does not want forced system override.
+  if ctx and ctx.prefer_system == false then
+    return nil
+  end
   if env.is_nix and env.has(tool) then
     return { use_mason = false, pkg = nil }
   end

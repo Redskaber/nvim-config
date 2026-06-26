@@ -286,4 +286,3 @@ function M.format_diags(diags)
 end
 
 return M
-

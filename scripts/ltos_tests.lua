@@ -145,6 +145,7 @@ local SPEC_CATALOGUE = {
   { suite = "runtime", module = "spec.runtime.cap_spec",            tags = { "unit", "runtime" } },
   { suite = "runtime", module = "spec.runtime.infra_spec",          tags = { "unit", "runtime" } },
   { suite = "runtime", module = "spec.runtime.commands_spec",       tags = { "unit", "runtime" } },
+  { suite = "runtime", module = "spec.runtime.p2_regression_spec",  tags = { "unit", "runtime" } },
   -- toolchain (L3)
   { suite = "toolchain", module = "spec.toolchain.strategy_spec",      tags = { "unit", "toolchain" } },
   { suite = "toolchain", module = "spec.toolchain.mappings_data_spec", tags = { "unit", "toolchain" } },

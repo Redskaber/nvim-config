@@ -552,4 +552,3 @@ R.describe("runtime.adapters.registry", function()
     R.assert_eq(#reg.list(), before, "existing adapter must not be duplicated")
   end)
 end)
-

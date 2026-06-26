@@ -173,4 +173,3 @@ R.describe("core.domain.schema", function()
     R.assert_true(#schema.format_diags(r.diags) > 0)
   end)
 end)
-

@@ -81,4 +81,3 @@ end
 function M.empty_caps() return { image = {}, media = {}, ai = {}, keybind = {}, editor = {} } end
 
 return M
-

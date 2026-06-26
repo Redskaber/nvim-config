@@ -15,14 +15,10 @@ return {
     },
   },
   formatters = {
-    java = {
-      { kind = "formatter", name = "google-java-format" },
-    },
+    java = { { kind = "formatter", name = "google-java-format" }, },
   },
   linters = {
-    java = {
-      "checkstyle",
-    },
+    java = { "checkstyle", },
   },
   mason = {
     "google-java-format",

@@ -322,4 +322,3 @@ R.describe("modules.capability.keybind_presets", function()
     R.assert_true(#kp >= 3)
   end)
 end)
-

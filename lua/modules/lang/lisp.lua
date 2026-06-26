@@ -8,17 +8,10 @@ return {
     clojure_lsp = {},
   },
   formatters = {
-    lisp = {
-      { kind = "formatter", name = "cljfmt" },
-    },
+    lisp = { { kind = "formatter", name = "cljfmt" }, },
   },
   linters = {
-    lisp = {
-      "clj-kondo",
-    },
+    lisp = { "clj-kondo", },
   },
-  mason = {
-    "cljfmt",
-    "clj-kondo",
-  },
+  mason = { "cljfmt", "clj-kondo", },
 }

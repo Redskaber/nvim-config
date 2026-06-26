@@ -60,4 +60,3 @@ function M.format(d)
 end
 
 return M
-

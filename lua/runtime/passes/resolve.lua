@@ -13,6 +13,7 @@
 -- IR output: MIR layer (+ resolved)
 
 local ir_mod = require("core.compiler.ir")
+local ov = require("runtime.output_validate")
 
 ---@type Phase
 local resolve_pass = {
@@ -25,6 +26,9 @@ local resolve_pass = {
     -- (STAGE_REQUIRED.resolve = { "caps", "meta", "symbols" })
     return ir_mod.validate(ir, "resolve")
   end,
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + resolved
+  output_validate = ov.resolve,
 
   ---@param ir IR
   ---@return IR
@@ -59,4 +63,3 @@ local resolve_pass = {
 }
 
 return resolve_pass
-

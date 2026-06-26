@@ -59,4 +59,3 @@ function M.is_nvim012()
 end
 
 return M
-

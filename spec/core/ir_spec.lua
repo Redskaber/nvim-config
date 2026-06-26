@@ -228,4 +228,3 @@ R.describe("core.compiler.ir", function()
     )
   end)
 end)
-

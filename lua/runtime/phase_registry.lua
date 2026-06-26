@@ -3,12 +3,42 @@
 -- P2: replaces hardcoded PHASES in pipeline.lua.
 -- P6-D1: Supports declarative after/before ordering in addition to numeric priority.
 --        after/before references are resolved via topological sort at list() time.
+--
+-- FIX-P2-3 (2026-06-26): Live-update support for pipeline.PHASE_ORDER.
+-- Previously pipeline.PHASE_ORDER was a require-time snapshot, so any
+-- phase registered AFTER pipeline.lua was first required would not appear
+-- in pipeline.PHASE_ORDER (stale). Now register()/register_codegen()/
+-- _reset() invoke all registered listeners, which lets pipeline.lua attach
+-- a listener that repopulates M.PHASE_ORDER as a plain table.
+-- We deliberately do NOT use a metatable proxy here — LuaJIT's ipairs()
+-- and # operator do not reliably honour __ipairs/__len on proxy tables,
+-- which broke 9 tests that do `for i,p in ipairs(PHASE_ORDER)` and
+-- `#PHASE_ORDER >= 8`. A plain table populated on-change is fully
+-- backward-compatible with all existing consumers.
 
 local M = {}
 
 local _phases = {} -- { phase, priority, after=[], before=[] }
 local _codegen = nil
 local _order_cache = nil -- invalidated on every register()
+local _listeners = {} -- { fn, fn, ... } called on every registry mutation
+
+--- Register a listener that fires whenever the registry mutates
+--- (register / register_codegen / _reset). The listener receives no
+--- arguments; it should re-read M.list() / M.phase_order() to refresh
+--- its own cached state.
+---@param fn function
+function M.add_listener(fn)
+  assert(type(fn) == "function", "listener must be a function")
+  _listeners[#_listeners + 1] = fn
+end
+
+local function _notify()
+  for _, fn in ipairs(_listeners) do
+    -- pcall: a misbehaving listener must not break the registry.
+    pcall(fn)
+  end
+end
 
 --- Register a phase with optional priority (lower runs first).
 ---@param phase table Phase object
@@ -22,6 +52,7 @@ function M.register(phase, opts)
     before = opts.before or {},
   }
   _order_cache = nil -- invalidate memoised order
+  _notify()
 end
 
 --- Register the codegen phase (special-cased last step).
@@ -29,6 +60,7 @@ end
 function M.register_codegen(phase)
   _codegen = phase
   _order_cache = nil
+  _notify()
 end
 
 -- ── Topological sort with priority tie-breaking ──────────────────────────────
@@ -150,9 +182,13 @@ function M.phase_order()
 end
 
 --- Reset registry (testing only).
+--- Also clears listeners so that re-requiring runtime.pipeline (which
+--- re-attaches its listener) does not accumulate stale listeners across
+--- test cases. Production code never calls _reset().
 function M._reset()
   _phases = {}
   _codegen = nil
   _order_cache = nil
+  _listeners = {}
 end
 return M

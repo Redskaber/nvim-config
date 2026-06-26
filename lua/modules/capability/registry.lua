@@ -48,9 +48,23 @@ end
 function M.is_registered(mod_path) return _all_modules[mod_path] == true end
 
 --- Get all registered module paths for a given capability type.
+--- FIX-P1-11 (2026-06-26): Returns a shallow copy, not the internal array.
+--- Previously: `return _registry[cap_type] or {}` — caller could
+--- `table.insert()` into the returned list and corrupt the registry.
+--- Now: always returns a fresh list so callers can mutate freely.
 ---@param cap_type string
 ---@return string[]
-function M.get_by_type(cap_type) return _registry[cap_type] or {} end
+function M.get_by_type(cap_type)
+  local list = _registry[cap_type]
+  if not list then
+    return {}
+  end
+  local copy = {}
+  for i, v in ipairs(list) do
+    copy[i] = v
+  end
+  return copy
+end
 
 --- Get all registered module paths across all capability types.
 ---@return string[]

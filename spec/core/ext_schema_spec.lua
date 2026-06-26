@@ -286,4 +286,3 @@ R.describe("core.domain.ext_schema", function()
     end
   end)
 end)
-

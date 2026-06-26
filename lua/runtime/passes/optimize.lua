@@ -10,6 +10,7 @@
 
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
+local ov = require("runtime.output_validate")
 
 ---@type Phase
 local optimize_pass = {
@@ -18,6 +19,10 @@ local optimize_pass = {
   output_state = "optimizing",
 
   validate = function(ir) return ir_mod.validate(ir, "optimize") end,
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + resolved
+  -- + merged_lsp + all_parsers (codegen input contract)
+  output_validate = ov.optimize,
 
   ---@param ir IR
   ---@return IR
@@ -60,4 +65,3 @@ local optimize_pass = {
 }
 
 return optimize_pass
-

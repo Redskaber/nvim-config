@@ -595,4 +595,3 @@ R.describe("integration: data-driven pipeline behavior", function()
     end)
   end)
 end)
-

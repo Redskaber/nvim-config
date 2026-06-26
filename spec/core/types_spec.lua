@@ -352,4 +352,3 @@ R.describe("core.domain.keybind_presets_data", function()
     end)
   end)
 end)
-

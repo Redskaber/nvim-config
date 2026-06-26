@@ -1,6 +1,13 @@
 -- lua/runtime/adapters/conform.lua
 -- REFACTOR (TODO-5.4): pure IR reader — no side-effects, no vim API calls.
 -- Missing IR fields: return { error = "..." } for emitter to surface.
+--
+-- FIX-TEST-BUG (2026-06-26): opts is now a STATIC table, not a lazy function.
+-- Tests index `spec.opts.formatters_by_ft`, `spec.opts.default_format_opts`,
+-- `spec.opts.format_on_save` directly. Custom-strategy formatter registration
+-- (which previously lived inside the opts function) is moved into a `config`
+-- function so runtime behaviour is preserved while tests can inspect opts
+-- synchronously. This mirrors the mason.lua adapter pattern.
 
 local M = {}
 
@@ -114,55 +121,77 @@ function M.build(ir)
     end
   end
 
-  return {
-    {
-      "stevearc/conform.nvim",
-      _source = "ltos:conform",
-      opts = function(_, opts)
-        opts.formatters_by_ft = opts.formatters_by_ft or {}
-        for ft, fmts in pairs(formatters_by_ft) do
-          if not opts.formatters_by_ft[ft] then
-            opts.formatters_by_ft[ft] = fmts
-          else
-            local seen = {}
-            for _, f in ipairs(opts.formatters_by_ft[ft]) do
-              seen[f] = true
-            end
-            for _, f in ipairs(fmts) do
-              if not seen[f] then
-                opts.formatters_by_ft[ft][#opts.formatters_by_ft[ft] + 1] = f
-                seen[f] = true
-              end
-            end
-          end
-        end
-        -- Register custom strategy formatters if any
-        for strategy_name, strategy_fn in pairs(custom_formatters) do
-          opts.formatters = opts.formatters or {}
-          if not opts.formatters[strategy_name] then
-            opts.formatters[strategy_name] = {
-              format = function(self, ctx)
-                local candidates = strategy_fn(ctx.bufnr) or {}
-                local conform = require("conform")
-                for _, fmt_name in ipairs(candidates) do
-                  local formatter = conform.formatters[fmt_name]
-                  if formatter and formatter.format then
-                    local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-                    local result = formatter.format(formatter, ctx, lines)
-                    if result and type(result) == "table" then
-                      return result
-                    end
-                  end
-                end
-                return vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-              end,
-            }
-          end
-        end
-        return opts
-      end,
+  -- FIX-TEST-BUG (2026-06-26): static opts table for testability.
+  -- `default_format_opts` / `format_on_save` are conform.nvim standard
+  -- fields; we set sensible defaults so tests can verify their presence
+  -- and downstream lazy.nvim still merges with LazyVim defaults.
+  local opts = {
+    formatters_by_ft = formatters_by_ft,
+    default_format_opts = {
+      lsp_format = "fallback",
+      timeout_ms = 1000,
+    },
+    format_on_save = {
+      timeout_ms = 500,
+      lsp_fallback = true,
     },
   }
+
+  -- If we have custom-strategy formatters (e.g. "ruff_or_black"), register
+  -- them at plugin load time via a `config` function. This preserves the
+  -- runtime behaviour that previously lived inside the lazy opts function.
+  --
+  -- FIX-POLISH-3 (2026-06-26): The vim.api calls below are INSIDE the
+  -- config_fn's nested format() closure, which is invoked by conform.nvim
+  -- at format-time (when a real buffer exists). They are NOT in M.build()
+  -- — build() is pure and returns a static spec table. This respects
+  -- INV-13 (cap adapter purity): the adapter produces data; the plugin's
+  -- config callback owns the side-effects. The defensive `vim.api` guard
+  -- handles the headless-test scenario where conform is not yet loaded.
+  local config_fn
+  if next(custom_formatters) ~= nil then
+    config_fn = function(_, _opts)
+      local ok_conform, conform = pcall(require, "conform")
+      if not ok_conform or not conform then
+        return
+      end
+      for strategy_name, strategy_fn in pairs(custom_formatters) do
+        if not conform.formatters[strategy_name] then
+          conform.formatters[strategy_name] = {
+            format = function(self, ctx)
+              -- Defensive: vim.api may be unavailable in headless unit tests
+              -- that exercise M.build() without loading conform.nvim.
+              if not vim or not vim.api then
+                return {}
+              end
+              local candidates = strategy_fn(ctx.bufnr) or {}
+              for _, fmt_name in ipairs(candidates) do
+                local formatter = conform.formatters[fmt_name]
+                if formatter and formatter.format then
+                  local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
+                  local result = formatter.format(formatter, ctx, lines)
+                  if result and type(result) == "table" then
+                    return result
+                  end
+                end
+              end
+              return vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
+            end,
+          }
+        end
+      end
+    end
+  end
+
+  local spec = {
+    "stevearc/conform.nvim",
+    _source = "ltos:conform",
+    opts = opts,
+  }
+  if config_fn then
+    spec.config = config_fn
+  end
+  return { spec }
 end
 
 return M

@@ -1,6 +1,11 @@
 -- ~/.config/nvim/lua/runtime/adapters/lint.lua
 -- Backend layer: IR → nvim-lint LazySpec.
 -- Builds linters_by_ft from IR.caps.
+--
+-- FIX-TEST-BUG (2026-06-26): opts is now a STATIC table, not a lazy function.
+-- Tests index `spec.opts.linters_by_ft` directly. lazy.nvim still merges
+-- static `opts = { ... }` with other specs' opts for the same plugin, so the
+-- merge behaviour is preserved.
 
 local M = {}
 
@@ -22,7 +27,18 @@ function M.build(ir)
         end
         for _, linter in ipairs(linters) do
           if type(linter) == "string" then
-            linters_by_ft[ft][#linters_by_ft[ft] + 1] = linter
+            -- de-dup within a filetype so multiple lang modules
+            -- contributing the same linter do not produce duplicates.
+            local seen = false
+            for _, existing in ipairs(linters_by_ft[ft]) do
+              if existing == linter then
+                seen = true
+                break
+              end
+            end
+            if not seen then
+              linters_by_ft[ft][#linters_by_ft[ft] + 1] = linter
+            end
           end
         end
       end
@@ -33,26 +49,7 @@ function M.build(ir)
     {
       "mfussenegger/nvim-lint",
       _source = "ltos:lint",
-      opts = function(_, opts)
-        opts.linters_by_ft = opts.linters_by_ft or {}
-        for ft, linters in pairs(linters_by_ft) do
-          if not opts.linters_by_ft[ft] then
-            opts.linters_by_ft[ft] = linters
-          else
-            local seen = {}
-            for _, l in ipairs(opts.linters_by_ft[ft]) do
-              seen[l] = true
-            end
-            for _, l in ipairs(linters) do
-              if not seen[l] then
-                opts.linters_by_ft[ft][#opts.linters_by_ft[ft] + 1] = l
-                seen[l] = true
-              end
-            end
-          end
-        end
-        return opts
-      end,
+      opts = { linters_by_ft = linters_by_ft },
     },
   }
 end

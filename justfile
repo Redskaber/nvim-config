@@ -1,4 +1,5 @@
 # justfile — LTOS development tasks
+# path: justfile
 # Usage: just check | just test | just test-suite core | just test-tags unit
 
 root := justfile_directory()

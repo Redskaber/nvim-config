@@ -61,7 +61,43 @@ register_default_phases()
 local function PHASES() return phase_registry.list() end
 local function CODEGEN() return phase_registry.codegen() end
 
-M.PHASE_ORDER = phase_registry.phase_order()
+-- FIX-P2-3 (2026-06-26): M.PHASE_ORDER is now a PLAIN TABLE that stays in
+-- sync with the phase registry via a listener callback.
+--
+-- Previous attempt used a metatable proxy (__index/__len/__pairs/__ipairs),
+-- but LuaJIT's `#` operator and `ipairs()` do not reliably honour __len /
+-- __ipairs on proxy tables, which broke 9 tests that do:
+--   `for i, p in ipairs(pipeline.PHASE_ORDER) do ... end`
+--   `#pipeline.PHASE_ORDER >= 8`
+--   `pipeline.PHASE_ORDER[#pipeline.PHASE_ORDER]`
+--
+-- The new approach: M.PHASE_ORDER is a real table (so # and ipairs work
+-- natively), and its contents are repopulated whenever the phase registry
+-- mutates (register / register_codegen / _reset). The listener is attached
+-- AFTER register_default_phases() so the initial population happens via
+-- the same code path as all subsequent updates.
+M.PHASE_ORDER = {}
+
+--- Refresh M.PHASE_ORDER from the current registry state.
+--- Called as a phase_registry listener on every mutation, and once
+--- explicitly here to populate the initial value.
+local function refresh_phase_order()
+  -- Wipe and repopulate the existing table in-place so that any external
+  -- reference to M.PHASE_ORDER (e.g. tests holding a local alias) sees
+  -- the updated contents — the table identity stays stable.
+  for i = #M.PHASE_ORDER, 1, -1 do
+    M.PHASE_ORDER[i] = nil
+  end
+  for _, name in ipairs(phase_registry.phase_order()) do
+    M.PHASE_ORDER[#M.PHASE_ORDER + 1] = name
+  end
+end
+
+-- Initial population + attach listener so future register() calls
+-- automatically refresh M.PHASE_ORDER. This closes P2-3 (stale snapshot)
+-- without resorting to a metatable proxy (which broke ipairs/# in LuaJIT).
+refresh_phase_order()
+phase_registry.add_listener(refresh_phase_order)
 
 -- ── State machine ─────────────────────────────────────────────────────────────
 
@@ -77,6 +113,24 @@ local STATES = {
   ERROR = "error",
 }
 
+-- FIX-P2-2 (2026-06-26): SM transitions are now derived from each Phase's
+-- `output_state` field, eliminating the hardcoded PHASE_NEXT_SM table that
+-- was previously decoupled from Phase metadata.
+--
+-- Rule:
+--   • If phase.output_state == phase.input_state → side phase, no SM transition
+--     (e.g. collect_ext, cap_resolve stay in the same state)
+--   • If phase.output_state ~= phase.input_state → sm.transition(output_state)
+--     (e.g. normalize: collecting → normalizing)
+--
+-- This makes Phase.input_state / output_state the single source of truth for
+-- SM behaviour. Previously PHASE_NEXT_SM was a separate table that had to be
+-- kept in sync manually, and its values did not always match the next phase's
+-- declared input_state (e.g. collect_ext.input_state="collecting" but SM was
+-- already advanced to "normalizing" by PHASE_NEXT_SM["collect"]).
+--
+-- The TRANSITIONS table below already permits every output_state → next_state
+-- edge used by the 8 default phases; no change needed there.
 local TRANSITIONS = {
   idle = { collecting = true },
   collecting = { normalizing = true, error = true },
@@ -87,12 +141,25 @@ local TRANSITIONS = {
   codegen = { done = true, error = true },
 }
 
-local PHASE_NEXT_SM = {
-  collect = STATES.NORMALIZING,
-  normalize = STATES.CANONICALIZING,
-  canonicalize = STATES.RESOLVING,
-  resolve = STATES.OPTIMIZING,
-}
+--- Derive the next SM state from a phase's declared output_state.
+--- Returns nil when no transition is needed:
+---   • side phase: output_state == input_state (e.g. collect_ext, cap_resolve)
+---   • no-op: output_state == current SM state (e.g. collect — SM already
+---     transitioned to COLLECTING before the loop, so collect.output_state
+---     "collecting" matches current state)
+---@param phase Phase
+---@param current_state string  current SM state
+---@return string|nil
+local function next_sm_state_for(phase, current_state)
+  if phase.output_state == phase.input_state then
+    return nil -- side phase: stays in current SM state
+  end
+  if phase.output_state == current_state then
+    return nil -- no-op: SM already in the target state
+  end
+  return phase.output_state
+end
+
 local function new_sm()
   local sm = { state = STATES.IDLE, timestamps = {} }
 
@@ -173,11 +240,12 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
     if stop_after == "collect" then
       return ir, nil, timings
     end
-    -- Advance SM past collecting state
-    local next_after_collect = PHASE_NEXT_SM["collect"]
-    if next_after_collect and not sm.transition(next_after_collect) then
-      return ir, nil, timings
-    end
+    -- FIX-P2-2: SM is already in COLLECTING (transitioned above before the
+    -- cache-hit branch). The old code advanced SM to NORMALIZING via
+    -- PHASE_NEXT_SM["collect"], but that was inconsistent with
+    -- collect_ext.input_state="collecting". New behaviour: leave SM in
+    -- COLLECTING; the next non-skipped phase (normalize) will transition
+    -- SM to NORMALIZING via its own output_state.
   end
   for _, phase in ipairs(phases) do
     if cached_caps and (phase.name == "collect" or phase.name == "collect_ext") then
@@ -192,7 +260,10 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
       return ir, nil, timings
     end
 
-    local next_sm_state = PHASE_NEXT_SM[phase.name]
+    -- FIX-P2-2: derive next SM state from the phase's declared output_state.
+    -- Side phases (output_state == input_state) and no-ops (output_state ==
+    -- current SM state) return nil → no transition.
+    local next_sm_state = next_sm_state_for(phase, sm.state)
     if next_sm_state and not sm.transition(next_sm_state) then
       return ir, nil, timings
     end
@@ -219,7 +290,11 @@ local function execute(lang_modules, profile, stop_after, sm, cached_caps, ast_s
   local specs = {}
 
   if #pre == 0 then
-    if not sm.transition(STATES.CODEGEN) then
+    -- FIX-P2-2: derive codegen SM transition from codegen.output_state,
+    -- consistent with the main loop. codegen.output_state="codegen",
+    -- current state="optimizing" → transition to "codegen".
+    local cg_next = next_sm_state_for(codegen, sm.state)
+    if cg_next and not sm.transition(cg_next) then
       return ir, nil, timings
     end
     local ok, result = pcall(codegen.build, ir)
@@ -343,7 +418,14 @@ function M.state() return last_run_sm.state end
 ---@return table<string, number>|nil
 function M.timings()
   -- OPT-G: return module-level var instead of vim.g
-  return _last_build_timings
+  -- FIX-POLISH-2 (2026-06-26): return a shallow copy so callers cannot
+  -- mutate the internal _last_build_timings table. Mirrors the P1-11
+  -- pattern in modules/capability/registry.lua get_by_type().
+  local copy = {}
+  for k, v in pairs(_last_build_timings) do
+    copy[k] = v
+  end
+  return copy
 end
 
 return M

@@ -7,11 +7,70 @@
 --   :LtosIR               — full LIR dump (post-optimize) in scratch buffer
 --   :LtosTrace            — per-phase execution timeline
 --   :LtosGraph            — dependency graph (module → caps used)
+--
+-- FIX-POLISH-1 (2026-06-26): Debug stage lists are now derived from
+-- pipeline.PHASE_ORDER instead of hardcoded. This eliminates the DRY
+-- violation where VALID_DEBUG_STAGES and 4 complete= functions each
+-- maintained their own copy of {collect, normalize, canonicalize,
+-- resolve, optimize}. Now a single helper `debug_stages()` computes
+-- the list from the live phase registry, filtering out:
+--   • codegen (terminal — debug_run stops BEFORE it)
+--   • side phases (input_state == output_state — collect_ext, cap_resolve
+--     are not useful debug stop points since they don't advance the IR
+--     sub-layer meaningfully for inspection)
+-- This means adding/renaming a phase automatically updates tab-completion
+-- and validation without touching commands.lua.
 
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
 local pipeline = require("runtime.pipeline")
+local phase_registry = require("runtime.phase_registry")
+
+-- ── Debug stage derivation (FIX-POLISH-1) ───────────────────────────────────
+
+--- Compute the list of valid debug stages from the live phase registry.
+--- Excludes codegen (terminal) and side phases (input_state == output_state).
+--- Side phases (collect_ext, cap_resolve) don't produce a distinct IR
+--- sub-layer worth inspecting in isolation — users debug the surrounding
+--- main phases instead.
+---@return string[]
+local function debug_stages()
+  local stages = {}
+  for _, phase in ipairs(phase_registry.list()) do
+    -- Skip side phases: input_state == output_state means the phase
+    -- doesn't advance the SM/IR sub-layer (collect_ext, cap_resolve).
+    if phase.input_state ~= phase.output_state then
+      stages[#stages + 1] = phase.name
+    end
+  end
+  return stages
+end
+
+--- Set-style lookup for O(1) validation.
+---@return table<string, boolean>
+local function debug_stages_set()
+  local set = {}
+  for _, stage in ipairs(debug_stages()) do
+    set[stage] = true
+  end
+  return set
+end
+
+-- Cache the set at module load time. Phase registry is populated during
+-- pipeline.lua require-time init (register_default_phases), which runs
+-- before commands.lua is ever required. If phases change at runtime,
+-- M.refresh_debug_stages() can be called to rebuild the cache.
+local _debug_stages_set = debug_stages_set()
+local _debug_stages_list = debug_stages()
+
+--- Refresh the cached debug stage list/set. Call after dynamically
+--- registering/deregistering phases if you want :LtosDebug completion
+--- to reflect the new phase set within the same session.
+function M.refresh_debug_stages()
+  _debug_stages_set = debug_stages_set()
+  _debug_stages_list = debug_stages()
+end
 
 -- ── Scratch buffer helper ─────────────────────────────────────────────────────
 -- Idempotent: reuses an existing buffer with the same label rather than
@@ -81,16 +140,28 @@ end
 
 -- ── :LtosDebug ───────────────────────────────────────────────────────────────
 
-local VALID_DEBUG_STAGES =
-  { collect = true, normalize = true, canonicalize = true, resolve = true, optimize = true }
+-- FIX-POLISH-1: VALID_DEBUG_STAGES is now a live view over the cached
+-- debug stages set. Using a metatable proxy ensures that
+-- M.refresh_debug_stages() (called after dynamic phase registration)
+-- is immediately visible to all validation checks without re-reading
+-- any module-level local.
+local VALID_DEBUG_STAGES = setmetatable({}, {
+  __index = function(_, key)
+    return _debug_stages_set[key]
+  end,
+  __pairs = function(_)
+    return pairs(_debug_stages_set)
+  end,
+})
 
 local function cmd_debug(opts)
   local stage = (opts.args ~= "") and opts.args or nil
 
   if stage and not VALID_DEBUG_STAGES[stage] then
     vim.notify(
-      ("[LtosDebug] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(
-        stage
+      ("[LtosDebug] unknown stage %q; valid: %s"):format(
+        stage,
+        table.concat(_debug_stages_list, ", ")
       ),
       vim.log.levels.ERROR
     )
@@ -141,8 +212,9 @@ local function cmd_ir(opts)
 
   if not VALID_DEBUG_STAGES[stage] and stage ~= "optimize" then
     vim.notify(
-      ("[LtosIR] unknown stage %q; valid: collect, normalize, canonicalize, resolve, optimize"):format(
-        stage
+      ("[LtosIR] unknown stage %q; valid: %s"):format(
+        stage,
+        table.concat(_debug_stages_list, ", ")
       ),
       vim.log.levels.ERROR
     )
@@ -450,11 +522,22 @@ end
 
 -- ── Setup ─────────────────────────────────────────────────────────────────────
 
+-- Return a fresh copy of the cached debug stages list for nvim command
+-- completion. nvim's complete= function must return a new table each
+-- call (it may mutate the result internally).
+local function complete_debug_stages()
+  local out = {}
+  for i, stage in ipairs(_debug_stages_list) do
+    out[i] = stage
+  end
+  return out
+end
+
 function M.setup()
   vim.api.nvim_create_user_command("LtosDebug", cmd_debug, {
     nargs = "?",
     desc = "Dump LTOS pipeline IR at a given stage (collect|normalize|canonicalize|resolve|optimize)",
-    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
+    complete = complete_debug_stages,
   })
 
   vim.api.nvim_create_user_command("LtosInfo", cmd_info, {
@@ -465,7 +548,7 @@ function M.setup()
   vim.api.nvim_create_user_command("LtosIR", cmd_ir, {
     nargs = "?",
     desc = "Dump LTOS IR at a given stage (collect|normalize|canonicalize|resolve|optimize, default: optimize)",
-    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
+    complete = complete_debug_stages,
   })
 
   vim.api.nvim_create_user_command("LtosTrace", cmd_trace, {
@@ -481,7 +564,7 @@ function M.setup()
   vim.api.nvim_create_user_command("LtosDiff", cmd_diff, {
     nargs = "*",
     desc = "Diff IR between two pipeline stages: LtosDiff [stage_a] [stage_b] (default: collect optimize)",
-    complete = function() return { "collect", "normalize", "canonicalize", "resolve", "optimize" } end,
+    complete = complete_debug_stages,
   })
 end
 

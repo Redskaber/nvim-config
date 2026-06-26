@@ -21,6 +21,7 @@ local build_request_mod = require("runtime.build_request")
 local ir_mod = require("core.compiler.ir")
 local mappings = require("toolchain.mappings")
 local rules = require("toolchain.rules")
+local ov = require("runtime.output_validate")
 
 ---@type Phase
 local canonicalize_pass = {
@@ -29,6 +30,9 @@ local canonicalize_pass = {
   output_state = "canonicalizing",
 
   validate = function(ir) return ir_mod.validate(ir, "canonicalize") end,
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + meta + symbols
+  output_validate = ov.canonicalize,
 
   ---@param ir IR
   ---@return IR
@@ -111,4 +115,3 @@ local canonicalize_pass = {
 }
 
 return canonicalize_pass
-

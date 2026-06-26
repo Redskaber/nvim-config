@@ -298,4 +298,3 @@ R.describe("integration: full pipeline", function()
     end)
   end)
 end)
-

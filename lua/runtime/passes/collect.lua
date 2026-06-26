@@ -20,12 +20,16 @@ local util = require("core.kernel.util")
 -- host IO must go through ports). Consistent with collect_ext.lua:33 which
 -- already uses ports.resolve_runtime_file.
 local ports = require("core.compiler.ports")
+local ov = require("runtime.output_validate")
 
 ---@type Phase
 local collect_pass = {
   name = "collect",
   input_state = "idle",
   output_state = "collecting",
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + meta
+  output_validate = ov.collect,
 
   ---@param ir IR
   ---@return IR

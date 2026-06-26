@@ -194,4 +194,3 @@ R.describe("core.kernel.util", function()
     R.it("{1} → false", function() R.assert_false(util.tbl_isempty({ 1 })) end)
   end)
 end)
-

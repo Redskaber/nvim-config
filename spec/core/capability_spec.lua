@@ -92,4 +92,3 @@ R.describe("core.domain.capability", function()
     end)
   end)
 end)
-

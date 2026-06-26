@@ -225,4 +225,3 @@ function M.merge_recursive(base, ...)
 end
 
 return M
-

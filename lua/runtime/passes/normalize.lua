@@ -12,6 +12,7 @@
 local ir_mod = require("core.compiler.ir")
 local strategies = require("toolchain.strategy.registry")
 local util = require("core.kernel.util")
+local ov = require("runtime.output_validate")
 
 ---@type Phase
 local normalize_pass = {
@@ -20,6 +21,9 @@ local normalize_pass = {
   output_state = "normalizing",
 
   validate = function(ir) return ir_mod.validate(ir, "normalize") end,
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + meta
+  output_validate = ov.normalize,
 
   ---@param ir IR
   ---@return IR
@@ -106,4 +110,3 @@ local normalize_pass = {
 }
 
 return normalize_pass
-

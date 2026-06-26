@@ -9,6 +9,7 @@
 
 local ir_mod = require("core.compiler.ir")
 local util = require("core.kernel.util")
+local ov = require("runtime.output_validate")
 
 local adapter_registry = require("runtime.adapters.registry")
 
@@ -18,6 +19,10 @@ local codegen_pass = {
   output_state = "codegen",
 
   validate = function(ir) return ir_mod.validate(ir, "codegen") end,
+
+  -- P6-D2 (2026-06-26): post-condition — terminal pass must still have
+  -- all codegen-required fields (caps + resolved + merged_lsp + all_parsers)
+  output_validate = ov.codegen,
 
   --- Phase.run: satisfies Phase interface contract.
   --- Returns IR with stage="SPEC" and embedded specs in ir._specs.
@@ -43,4 +48,3 @@ local codegen_pass = {
 }
 
 return codegen_pass
-

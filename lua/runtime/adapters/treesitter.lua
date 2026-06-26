@@ -1,5 +1,10 @@
 -- ~/.config/nvim/lua/runtime/adapters/treesitter.lua
 -- Backend layer: IR → nvim-treesitter LazySpec.
+--
+-- FIX-TEST-BUG (2026-06-26): opts is now a STATIC table, not a lazy function.
+-- Tests index `spec.opts.ensure_installed` directly. lazy.nvim still merges
+-- static `opts = { ... }` with other specs' opts via `opts_extend`, so the
+-- "merge with LazyVim defaults" behaviour is preserved.
 
 local M = {}
 
@@ -57,20 +62,7 @@ function M.build(ir)
       "nvim-treesitter/nvim-treesitter",
       _source = "ltos:treesitter",
       opts_extend = { "ensure_installed" },
-      opts = function(_, opts)
-        opts.ensure_installed = opts.ensure_installed or {}
-        local seen = {}
-        for _, p in ipairs(opts.ensure_installed) do
-          seen[p] = true
-        end
-        for _, p in ipairs(parsers) do
-          if not seen[p] then
-            opts.ensure_installed[#opts.ensure_installed + 1] = p
-            seen[p] = true
-          end
-        end
-        return opts
-      end,
+      opts = { ensure_installed = parsers },
     },
   }
 end

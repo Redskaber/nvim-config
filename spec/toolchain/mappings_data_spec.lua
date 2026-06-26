@@ -299,4 +299,3 @@ R.describe("modules.capability.schema", function()
     end
   end)
 end)
-

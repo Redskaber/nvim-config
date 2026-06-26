@@ -10,6 +10,7 @@ local util = require("core.kernel.util")
 local cap_graph = require("modules.capability.graph")
 local cap_registry = require("modules.capability.registry")
 local ext_schema = require("core.domain.ext_schema")
+local ov = require("runtime.output_validate")
 
 local _registered_modules = {}
 
@@ -105,6 +106,9 @@ M.pass = {
   name = "collect_ext",
   input_state = "collecting",
   output_state = "collecting",
+
+  -- P6-D2 (2026-06-26): post-condition — output must have caps + meta + ext_caps
+  output_validate = ov.collect_ext,
 
   run = function(ir)
     local next_ir = ir_mod.with(ir, { ext_caps = util.deep_copy(ir.ext_caps) })

@@ -89,4 +89,3 @@ R.describe("core.domain.diagnostic", function()
     end)
   end)
 end)
-
