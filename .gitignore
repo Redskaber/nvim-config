@@ -6,9 +6,5 @@ foo.*
 # lock file
 lazy-lock.json
 # dirs
-doc/tags
-debug
 .kiro
-# spec
-# scripts/
 stored
