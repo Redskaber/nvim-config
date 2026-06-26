@@ -24,8 +24,8 @@ return {
       explorer = {
         enabled = true,
         filter = {
-          hidden = true,          -- show .gitignore, .env, .stylua.toml, etc.
-          respect_gitignore = false,  -- show ALL files (not just non-ignored)
+          hidden = true, -- show .gitignore, .env, .stylua.toml, etc.
+          respect_gitignore = false, -- show ALL files (not just non-ignored)
         },
       },
       indent = { enabled = true },

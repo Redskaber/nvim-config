@@ -19,8 +19,8 @@ local util = require("core.kernel.util")
 -- (Phase purity — passes must not call vim API) and INV-10 (compiler/passes
 -- host IO must go through ports). Consistent with collect_ext.lua:33 which
 -- already uses ports.resolve_runtime_file.
-local ports = require("core.compiler.ports")
 local ov = require("runtime.output_validate")
+local ports = require("core.compiler.ports")
 
 ---@type Phase
 local collect_pass = {
@@ -127,3 +127,4 @@ local collect_pass = {
 }
 
 return collect_pass
+

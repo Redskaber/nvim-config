@@ -17,8 +17,8 @@ local M = {}
 
 local cap_registry = require("runtime.adapters.cap_registry")
 local ir_mod = require("core.compiler.ir")
-local util = require("core.kernel.util")
 local ov = require("runtime.output_validate")
+local util = require("core.kernel.util")
 
 M.pass = {
   name = "cap_resolve",
@@ -80,3 +80,4 @@ M.pass = {
 }
 
 return M
+

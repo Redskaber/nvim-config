@@ -8,8 +8,8 @@
 -- `run` is provided for interface compliance and sub-pipeline use only.
 
 local ir_mod = require("core.compiler.ir")
-local util = require("core.kernel.util")
 local ov = require("runtime.output_validate")
+local util = require("core.kernel.util")
 
 local adapter_registry = require("runtime.adapters.registry")
 
@@ -48,3 +48,4 @@ local codegen_pass = {
 }
 
 return codegen_pass
+

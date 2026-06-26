@@ -409,11 +409,15 @@ R.describe("runtime.adapters.conform", function()
 
   -- ── default opts ─────────────────────────────────────────────────────────
 
-  R.it("default_format_opts and format_on_save present", function()
+  R.it("default_format_opts present (format_on_save owned by LazyVim)", function()
     local opts = conform.build(minimal_lir())[1].opts
     R.assert_not_nil(opts.default_format_opts)
-    R.assert_not_nil(opts.format_on_save)
     R.assert_type(opts.default_format_opts.timeout_ms, "number")
+    -- FIX-LAZYVIM-FORMAT-ON-SAVE (2026-06-26): format_on_save is intentionally
+    -- NOT set by the adapter. LazyVim owns format-on-save via LazyVim.format
+    -- (BufWritePre autocmd calling conform.format()). Setting opts.format_on_save
+    -- would create a conflicting second hook. See https://www.lazyvim.org/plugins/formatting
+    R.assert_nil(opts.format_on_save, "format_on_save must NOT be set — LazyVim owns it")
   end)
 
   -- ── missing caps ─────────────────────────────────────────────────────────
@@ -552,3 +556,4 @@ R.describe("runtime.adapters.registry", function()
     R.assert_eq(#reg.list(), before, "existing adapter must not be duplicated")
   end)
 end)
+

@@ -12,7 +12,8 @@ return {
     },
   },
   linters = {
-    kotlin = { "ktlint", },
+    kotlin = { "ktlint" },
   },
-  mason = { "ktlint", "ktfmt", },
+  mason = { "ktlint", "ktfmt" },
 }
+

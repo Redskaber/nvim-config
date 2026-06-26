@@ -9,8 +9,8 @@
 -- IR output: LIR layer (+ merged_lsp, all_parsers)
 
 local ir_mod = require("core.compiler.ir")
-local util = require("core.kernel.util")
 local ov = require("runtime.output_validate")
+local util = require("core.kernel.util")
 
 ---@type Phase
 local optimize_pass = {
@@ -65,3 +65,4 @@ local optimize_pass = {
 }
 
 return optimize_pass
+

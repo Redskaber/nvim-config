@@ -226,3 +226,4 @@ nvim --headless "+lua vim.g.ltos_debug=true" "+LtosDebug collect" +qa
 ---
 
 _LTOS v5.4.7 + 2026-06-23 审计修复 · MIT License_
+

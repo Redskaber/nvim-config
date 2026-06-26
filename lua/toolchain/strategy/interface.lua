@@ -17,3 +17,4 @@
 
 -- This module exports nothing at runtime — it exists solely for LuaLS type checking.
 return {}
+

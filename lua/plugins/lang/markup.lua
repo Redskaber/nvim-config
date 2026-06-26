@@ -28,10 +28,10 @@ return {
       vim.fn["mkdp#util#install"]()
     end,
     init = function()
-      vim.g.mkdp_auto_start = 0       -- don't auto-open on every .md file
-      vim.g.mkdp_auto_close = 1       -- close preview when leaving buffer
-      vim.g.mkdp_refresh_slow = 0     -- refresh on write, not on every keystroke
-      vim.g.mkdp_browser = ""         -- use system default browser
+      vim.g.mkdp_auto_start = 0 -- don't auto-open on every .md file
+      vim.g.mkdp_auto_close = 1 -- close preview when leaving buffer
+      vim.g.mkdp_refresh_slow = 0 -- refresh on write, not on every keystroke
+      vim.g.mkdp_browser = "" -- use system default browser
       vim.g.mkdp_echo_preview_url = 1 -- echo URL for remote/headless access
     end,
     keys = {

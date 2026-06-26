@@ -69,3 +69,4 @@ fi
 
 echo ""
 echo "==> All LTOS tests passed."
+

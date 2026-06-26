@@ -51,3 +51,4 @@ if ltos_debug_env ~= "" then
   vim.g.ltos_debug_perf = flags["perf"]
   vim.g.ltos_debug_trace = flags["trace"]
 end
+

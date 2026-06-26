@@ -115,3 +115,4 @@ return {
     opts = {}, -- ensure_installed populated by runtime/adapters/mason.lua
   },
 }
+

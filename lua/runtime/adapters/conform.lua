@@ -4,10 +4,18 @@
 --
 -- FIX-TEST-BUG (2026-06-26): opts is now a STATIC table, not a lazy function.
 -- Tests index `spec.opts.formatters_by_ft`, `spec.opts.default_format_opts`,
--- `spec.opts.format_on_save` directly. Custom-strategy formatter registration
--- (which previously lived inside the opts function) is moved into a `config`
--- function so runtime behaviour is preserved while tests can inspect opts
--- synchronously. This mirrors the mason.lua adapter pattern.
+-- `spec.opts.format_on_save` directly.
+--
+-- FIX-LAZYVIM-CONFORM (2026-06-26): do NOT set `spec.config` for conform.nvim.
+-- LazyVim provides its own `config` function for conform.nvim that:
+--   1. Calls require("conform").setup(opts)
+--   2. Wires up format_on_save autocmd via LazyVim.format
+--   3. Provides <leader>cf keymap and LSP format integration
+-- Setting spec.config would OVERRIDE LazyVim's config, breaking all of the
+-- above. Instead, custom-strategy formatters are registered via
+-- `opts.formatters` (a static table) — LazyVim's config passes the full
+-- opts table to conform.setup(), which registers them automatically.
+-- See: https://www.lazyvim.org/plugins/formatting
 
 local M = {}
 
@@ -60,18 +68,11 @@ end
 --   v2.5: Parse strategy name "A_or_B" → names don't match conform formatter names
 --         (e.g., "ruff_or_black" → "ruff" but conform expects "ruff_format")
 --
--- Correct approach: register strategy as a conform custom formatter.
--- conform supports custom formatters via:
---   require("conform").formatters[strategy_name] = {
---     command = ..., -- or
---     format = function(self, ctx, lines) ... end,
---   }
---
--- But conform's formatters_by_ft still only accepts strings.
--- So we:
---   1. Register each strategy as a custom conform formatter (in config function)
---   2. Use the strategy name as a string in formatters_by_ft
---   3. conform calls the custom formatter's format() at format time
+-- Correct approach: register strategy as a conform custom formatter via
+-- `opts.formatters[strategy_name] = { format = function(...) end }`.
+-- conform.nvim's setup() accepts this table and registers the formatter.
+-- LazyVim's config calls setup(opts), so we only need to populate opts —
+-- we must NOT set spec.config (that would override LazyVim's config).
 --
 -- The custom formatter's format() calls v.fn(bufnr) to get the actual
 -- formatter list, then delegates to the first available conform formatter.
@@ -122,76 +123,75 @@ function M.build(ir)
   end
 
   -- FIX-TEST-BUG (2026-06-26): static opts table for testability.
-  -- `default_format_opts` / `format_on_save` are conform.nvim standard
-  -- fields; we set sensible defaults so tests can verify their presence
-  -- and downstream lazy.nvim still merges with LazyVim defaults.
+  -- Tests index `spec.opts.formatters_by_ft` and `spec.opts.default_format_opts`
+  -- directly.
+  --
+  -- FIX-LAZYVIM-CONFORM (2026-06-26): `formatters` field holds custom
+  -- formatter definitions. LazyVim's config calls conform.setup(opts),
+  -- which registers these. We do NOT set spec.config — that would
+  -- override LazyVim's config and break format_on_save / keymaps.
+  --
+  -- FIX-LAZYVIM-FORMAT-ON-SAVE (2026-06-26): do NOT set opts.format_on_save.
+  -- LazyVim manages format-on-save via LazyVim.format (an autocmd that
+  -- calls conform.format() on BufWritePre). Setting opts.format_on_save
+  -- here would create a SECOND format-on-save hook that conflicts with
+  -- LazyVim's, causing double-format attempts or LSP/conform races.
+  -- See: https://www.lazyvim.org/plugins/formatting
   local opts = {
     formatters_by_ft = formatters_by_ft,
+    formatters = {},
     default_format_opts = {
       lsp_format = "fallback",
       timeout_ms = 1000,
     },
-    format_on_save = {
-      timeout_ms = 500,
-      lsp_fallback = true,
+    -- format_on_save intentionally omitted — LazyVim owns this via LazyVim.format
+  }
+
+  -- Register custom-strategy formatters via opts.formatters (static table).
+  -- Each entry is a conform formatter definition with a `format` closure.
+  -- The closure captures `strategy_fn` at build time but only executes at
+  -- format-time (when conform is loaded and a real buffer exists).
+  --
+  -- FIX-POLISH-3 (2026-06-26): defensive vim.api guard handles headless
+  -- test scenarios where conform is not yet loaded. The format function
+  -- is inside opts (NOT in a config function), respecting INV-13.
+  for strategy_name, strategy_fn in pairs(custom_formatters) do
+    opts.formatters[strategy_name] = {
+      format = function(self, ctx, lines)
+        -- Defensive: vim.api may be unavailable in headless unit tests
+        -- that exercise M.build() without loading conform.nvim.
+        if not vim or not vim.api then
+          return lines or {}
+        end
+        -- conform.nvim passes `lines` (3rd arg) in newer versions;
+        -- fall back to fetching from buffer for older API compatibility.
+        lines = lines or vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
+        local candidates = strategy_fn(ctx.bufnr) or {}
+        local conform = require("conform")
+        for _, fmt_name in ipairs(candidates) do
+          local formatter = conform.formatters[fmt_name]
+          if formatter and formatter.format then
+            local result = formatter.format(formatter, ctx, lines)
+            if result and type(result) == "table" then
+              return result
+            end
+          end
+        end
+        -- No candidate worked — return original lines unchanged
+        return lines
+      end,
+    }
+  end
+
+  -- No spec.config — LazyVim's conform config handles setup(opts).
+  -- See: https://www.lazyvim.org/plugins/formatting
+  return {
+    {
+      "stevearc/conform.nvim",
+      _source = "ltos:conform",
+      opts = opts,
     },
   }
-
-  -- If we have custom-strategy formatters (e.g. "ruff_or_black"), register
-  -- them at plugin load time via a `config` function. This preserves the
-  -- runtime behaviour that previously lived inside the lazy opts function.
-  --
-  -- FIX-POLISH-3 (2026-06-26): The vim.api calls below are INSIDE the
-  -- config_fn's nested format() closure, which is invoked by conform.nvim
-  -- at format-time (when a real buffer exists). They are NOT in M.build()
-  -- — build() is pure and returns a static spec table. This respects
-  -- INV-13 (cap adapter purity): the adapter produces data; the plugin's
-  -- config callback owns the side-effects. The defensive `vim.api` guard
-  -- handles the headless-test scenario where conform is not yet loaded.
-  local config_fn
-  if next(custom_formatters) ~= nil then
-    config_fn = function(_, _opts)
-      local ok_conform, conform = pcall(require, "conform")
-      if not ok_conform or not conform then
-        return
-      end
-      for strategy_name, strategy_fn in pairs(custom_formatters) do
-        if not conform.formatters[strategy_name] then
-          conform.formatters[strategy_name] = {
-            format = function(self, ctx)
-              -- Defensive: vim.api may be unavailable in headless unit tests
-              -- that exercise M.build() without loading conform.nvim.
-              if not vim or not vim.api then
-                return {}
-              end
-              local candidates = strategy_fn(ctx.bufnr) or {}
-              for _, fmt_name in ipairs(candidates) do
-                local formatter = conform.formatters[fmt_name]
-                if formatter and formatter.format then
-                  local lines = vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-                  local result = formatter.format(formatter, ctx, lines)
-                  if result and type(result) == "table" then
-                    return result
-                  end
-                end
-              end
-              return vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
-            end,
-          }
-        end
-      end
-    end
-  end
-
-  local spec = {
-    "stevearc/conform.nvim",
-    _source = "ltos:conform",
-    opts = opts,
-  }
-  if config_fn then
-    spec.config = config_fn
-  end
-  return { spec }
 end
 
 return M

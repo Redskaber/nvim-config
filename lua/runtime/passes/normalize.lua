@@ -10,9 +10,9 @@
 -- IR output: HIR layer (caps with FormatterNode.fn injected)
 
 local ir_mod = require("core.compiler.ir")
+local ov = require("runtime.output_validate")
 local strategies = require("toolchain.strategy.registry")
 local util = require("core.kernel.util")
-local ov = require("runtime.output_validate")
 
 ---@type Phase
 local normalize_pass = {
@@ -110,3 +110,4 @@ local normalize_pass = {
 }
 
 return normalize_pass
+

@@ -18,16 +18,16 @@ local _spec_providers = {}
 
 --- Register a spec provider: fn() → lazy spec table[]
 ---@param fn fun(): table[]
-function M.register_spec(fn)
-  _spec_providers[#_spec_providers + 1] = fn
-end
+function M.register_spec(fn) _spec_providers[#_spec_providers + 1] = fn end
 
-M.register_spec(function()
-  return {
-    { "LazyVim/LazyVim", import = "lazyvim.plugins" },
-    { import = "plugins" },
-  }
-end)
+M.register_spec(
+  function()
+    return {
+      { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+      { import = "plugins" },
+    }
+  end
+)
 
 ---@param lang_specs table[]  capability-derived specs from runtime.build()
 ---@return table  lazy.setup() options table
@@ -54,3 +54,4 @@ function M.build_setup_opts(lang_specs)
 end
 
 return M
+

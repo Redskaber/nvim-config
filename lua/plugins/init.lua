@@ -104,3 +104,4 @@ for _, filepath in ipairs(plugin_files) do
 end
 
 return specs
+

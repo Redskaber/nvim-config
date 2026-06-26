@@ -8,3 +8,4 @@ return {
   { path = "runtime.adapters.conform", priority = 40 },
   { path = "runtime.adapters.lint", priority = 50 },
 }
+

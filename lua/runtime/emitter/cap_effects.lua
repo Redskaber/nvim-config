@@ -47,3 +47,4 @@ function M.apply_all(ir) M.apply_keybinds(ir) end
 function M._reset() _applied = false end
 
 return M
+

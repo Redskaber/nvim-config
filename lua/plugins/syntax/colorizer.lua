@@ -40,23 +40,21 @@ return {
         "*", -- fallback: enable for all filetypes (cheap, lazy)
       },
       user_default_options = {
-        RGB = true,      -- #RGB hex codes
-        RRGGBB = true,   -- #RRGGBB hex codes
-        names = true,    -- "Name" codes like Blue
+        RGB = true, -- #RGB hex codes
+        RRGGBB = true, -- #RRGGBB hex codes
+        names = true, -- "Name" codes like Blue
         RRGGBBAA = true, -- #RRGGBBAA hex codes
-        AARRGGBB = false,-- 0xAARRGGBB hex codes
-        rgb_fn = true,   -- CSS rgb() and rgba() functions
-        hsl_fn = true,   -- CSS hsl() and hsla() functions
-        css = true,      -- Enable all CSS features
-        css_fn = true,   -- Enable all CSS *functions*
+        AARRGGBB = false, -- 0xAARRGGBB hex codes
+        rgb_fn = true, -- CSS rgb() and rgba() functions
+        hsl_fn = true, -- CSS hsl() and hsla() functions
+        css = true, -- Enable all CSS features
+        css_fn = true, -- Enable all CSS *functions*
         mode = "background", -- 'background' | 'foreground' | 'virtualtext'
         tailwind = true, -- LSP-based tailwind colors (if tailwind LSP active)
         always_update = false,
       },
       buftypes = {},
     },
-    config = function(_, opts)
-      require("colorizer").setup(opts)
-    end,
+    config = function(_, opts) require("colorizer").setup(opts) end,
   },
 }

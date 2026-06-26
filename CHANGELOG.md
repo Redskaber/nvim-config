@@ -73,11 +73,12 @@
 ### 语言工具插件补充（5 文件，贵精不贵多）
 
 新增 `plugins/lang/` 目录，按语言组织编辑增强插件。严格遵守职责分离：
+
 - **LTOS adapter**（`runtime/adapters/`）继续负责 LSP/formatter/linter/mason/treesitter
 - **plugins/lang/** 只负责编辑层增强（DAP/依赖管理/编译检查），纯 LazySpec，零 LTOS 引用
 
 | 文件 | 插件 | 语言 | 职责 |
-|------|------|------|------|
+| ------ | ------ | ------ | ------ |
 | `plugins/lang/go.lua` | `leoluz/nvim-dap-go` | Go | Delve DAP 集成（debug go test） |
 | `plugins/lang/python.lua` | `mfussenegger/nvim-dap-python` | Python | debugpy DAP 集成（mason 自动检测） |
 | `plugins/lang/lua.lua` | `jbyuki/one-small-step-for-vimkind` | Lua | Lua DAP（attach 到 nvim 实例调试 config） |
@@ -87,12 +88,13 @@
 **第二轮补充**（3 文件，覆盖剩余高频语言）：
 
 | 文件 | 插件 | 语言 | 职责 |
-|------|------|------|------|
+| ------ | ------ | ------ | ------ |
 | `plugins/lang/c_cpp.lua` | `p00f/clangd_extensions.nvim` | C/C++ | clangd 增强（source/header 切换 + inlay hints） |
 | `plugins/lang/lisp.lua` | `Olical/conjure` | Lisp 系 | REPL 评估（Clojure/Scheme/Common Lisp，REPL 驱动开发核心） |
 | `plugins/lang/markup.lua` | `iamcco/markdown-preview.nvim` | Markdown | 浏览器实时预览（补 render-markdown 的 in-editor 渲染） |
 
 **未补充的语言**（违反"贵精"原则，跳过）：
+
 - `asm` — 汇编生态在 nvim 无成熟专用插件
 - `java` — nvim-java 太重（违反贵精），jdtls 已由 LTOS adapter 管
 - `kotlin` — 缺少成熟 nvim 专用插件
@@ -107,13 +109,14 @@
 补充通用编辑增强插件，严格遵守职责分离：纯 LazySpec，零 LTOS 引用。
 
 | 文件 | 插件 | 职责 | 选型理由 |
-|------|------|------|----------|
+| ------ | ------ | ------ | ---------- |
 | `plugins/coding/surround.lua` | `nvim-mini/mini.surround` | Surround 操作（sa/sd/sr 添加/删除/替换括号引号标签） | 与 mini.ai/mini.pairs 同生态；每天高频；~150 LOC |
 | `plugins/coding/move.lua` | `nvim-mini/mini.move` | 行/块移动（Alt+j/k 上下移动） | 与 mini 生态一致；自动重缩进；~80 LOC |
 | `plugins/coding/colorizer.lua` | `NvChad/nvim-colorizer.lua` | 颜色代码高亮（#hex/rgb()/hsl()/CSS/tailwind） | 2024+ 高性能 Lua 实现；前端/CSS/markdown 刚需 |
 | `plugins/treesitter/context.lua` | `nvim-treesitter/nvim-treesitter-context` | Sticky context header（滚动时顶部固定函数签名） | "我现在在哪个函数里"高频问题；extmarks 实现零滚动开销 |
 
 **刻意跳过的通用插件**（违反"贵精"或与现有重复）：
+
 - `Comment.nvim` / `vim-commentary` — `ts-comments.nvim` 已覆盖（2024+ treesitter 感知注释）
 - `nvim-spectre` — `grug-far.nvim` 已覆盖项目级查找替换
 - `refactoring.nvim` — 较重，违反贵精原则
@@ -124,6 +127,7 @@
 将原来的 9 个松散目录（coding/editor/lsp/linting/formatting/sys/treesitter/ui/ai）重组为 **11 个职责清晰的层级目录**，每个文件一个能力（max cohesion）。
 
 **重组原则**：
+
 - **职责分离**：每个文件只负责一个能力（如 `surround.lua` 只管 surround 操作）
 - **能力分类**：按插件功能而非"放置位置"分类（DAP 插件从 lang/ 移到 debug/）
 - **层级关系**：editing < syntax < toolchain < debug < git < ui < system（从核心编辑到系统集成）
@@ -131,7 +135,7 @@
 **旧 → 新目录映射**：
 
 | 旧目录 | 新目录 | 文件数 | 职责 |
-|--------|--------|--------|------|
+| -------- | -------- | -------- | ------ |
 | coding/ | editing/ | 6 | 文本编辑原语（pairs/surround/move/comments/textobjects/visual-multi） |
 | coding/ | completion/ | 3 | 补全（cmp/luasnip/snippets） |
 | coding/ | syntax/ | 4 | 语法（treesitter/context/colorizer/markdown-render） |
@@ -145,11 +149,52 @@
 | lang/ (非 DAP) | lang/ | 5 | 语言专用增强（crates/tsc/conjure/clangd_extensions/markdown-preview） |
 
 **消除的"抽屉文件"**：
+
 - `coding/coding.lua`（6 个无关插件）→ 拆分到 editing/ + completion/ + syntax/ + system/ + debug/
 - `editor/editor.lua`（7 个无关插件）→ 拆分到 ui/（flash/which-key/trouble/todo-comments/grug-far/neo-tree-disable）+ git/（gitsigns）
 - `ui/ui.lua`（8 个无关插件）→ 拆分到 ui/（bufferline/lualine/noice/icons/snacks）+ system/（persistence）
 
 **DAP 职责归位**：`lang/{go,python,lua}.lua` 中的 DAP 插件移到 `debug/{dap-go,dap-python,dap-lua}.lua`，因为 DAP 是调试能力，不是语言工具链。lang/ 现只保留与语言工具链无关的增强（依赖管理/编译检查/REPL/预览）。
+
+### FIX-LAZYVIM-CONFORM：移除 conform.nvim 的 spec.config
+
+**Bug**：`runtime/adapters/conform.lua` 设置了 `spec.config = config_fn`，覆盖了 LazyVim 自带的 conform config 函数，导致：
+
+- `format_on_save` 自动格式化不工作
+- LazyVim 的 `<leader>cf` 格式化快捷键失效
+- LSP 格式化集成丢失
+
+**根因**：LazyVim 的 conform spec 有自己的 `config` 函数，负责：
+
+1. 调用 `require("conform").setup(opts)`
+2. 通过 `LazyVim.format` 连接 `format_on_save` autocmd
+3. 提供 `<leader>cf` 快捷键和 LSP format 集成
+
+设置 `spec.config` 会**覆盖**这个函数。
+
+**修复**（参考 <https://www.lazyvim.org/plugins/formatting）：>
+
+- 移除 `spec.config`，不再覆盖 LazyVim config
+- 自定义 strategy formatter（如 `ruff_or_black`）改通过 `opts.formatters` 静态表注册
+- `opts.formatters[strategy_name] = { format = function(self, ctx, lines) ... end }` 是 conform.nvim 的标准自定义 formatter API
+- LazyVim 的 config 调用 `conform.setup(opts)` 时自动注册这些 formatter
+- `format` 闭包在 build 时捕获 `strategy_fn`，在 format-time 执行（延迟求值）
+
+### FIX-LAZYVIM-FORMAT-ON-SAVE：移除 conform.nvim 的 opts.format_on_save
+
+**Bug**：`runtime/adapters/conform.lua` 设置了 `opts.format_on_save = { timeout_ms = 500, lsp_fallback = true }`，与 LazyVim 的 format-on-save 机制冲突。
+
+**根因**：LazyVim 通过 `LazyVim.format`（一个 `BufWritePre` autocmd 调用 `conform.format()`）管理保存时格式化。设置 `opts.format_on_save` 会创建**第二个** format-on-save hook，导致：
+
+- 双重格式化尝试（LazyVim hook + conform hook）
+- LSP/conform 竞态条件
+- 格式化行为不可预测
+
+**修复**（参考 <https://www.lazyvim.org/plugins/formatting）：>
+
+- 移除 `opts.format_on_save`，完全交由 LazyVim 管理
+- 更新 `spec/runtime/adapters_spec.lua` 测试：从断言 `format_on_save` 存在改为断言其**不存在**（`R.assert_nil(opts.format_on_save)`）
+- 测试描述更新为 `default_format_opts present (format_on_save owned by LazyVim)`
 
 ### 不变量合规率
 
@@ -164,12 +209,13 @@
 suites=28  passed=1066  failed=0  skipped=0
 [ltos_tests] all 1066 passed
 ```
+
 （1059 + 7 POLISH-1/POLISH-2 回归用例）
 
 ### 修复文件清单（本轮 15 文件）
 
 | 文件 | 修复 | 类别 |
-|------|------|------|
+| ------ | ------ | ------ |
 | `lua/toolchain/rules.lua` | nix_env_rule 尊重 prefer_system=false | TEST-BUG-1 |
 | `lua/runtime/adapters/lsp.lua` | opts 改静态表 | TEST-BUG-2 |
 | `lua/runtime/adapters/treesitter.lua` | opts 改静态表 | TEST-BUG-2 |
@@ -178,7 +224,7 @@ suites=28  passed=1066  failed=0  skipped=0
 | `lua/core/compiler/ports.lua` | ensure_cache_dir 改 libuv | P1-10 |
 | `lua/modules/capability/registry.lua` | get_by_type 返回浅拷贝 | P1-11 |
 | `lua/runtime/pipeline.lua` | PHASE_ORDER listener 实时表 + SM 从 output_state 派生 + timings() 浅拷贝 | P2-2, P2-3, POLISH-2 |
-| `lua/runtime/phase_registry.lua` | 新增 add_listener() + _notify() | P2-3 |
+| `lua/runtime/phase_registry.lua` | 新增 add_listener() +_notify() | P2-3 |
 | `lua/runtime/commands.lua` | debug stages 从 phase registry 派生 | POLISH-1 |
 | `lua/modules/capability/defaults/keybind_presets.lua` | 引用 data 模块常量 | P2-6 |
 | `lua/runtime/output_validate.lua` | 新增共享验证器 | P2-1 |
@@ -233,3 +279,4 @@ suites=28  passed=1066  failed=0  skipped=0
 - DIP 抽象层
 - 14 个语言模块 + 7 个能力模块
 - 30 个 spec 文件，~880 个测试用例
+

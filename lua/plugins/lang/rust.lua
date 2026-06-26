@@ -37,10 +37,25 @@ return {
         pattern = "Cargo.toml",
         callback = function()
           local crates = require("crates")
-          vim.keymap.set("n", "<leader>rcu", crates.upgrade_all_crates, { buffer = true, desc = "Upgrade all crates" })
+          vim.keymap.set(
+            "n",
+            "<leader>rcu",
+            crates.upgrade_all_crates,
+            { buffer = true, desc = "Upgrade all crates" }
+          )
           vim.keymap.set("n", "<leader>rt", crates.toggle, { buffer = true, desc = "Toggle crate" })
-          vim.keymap.set("n", "<leader>rv", crates.show_versions_popup, { buffer = true, desc = "Show versions" })
-          vim.keymap.set("n", "<leader>rf", crates.show_features_popup, { buffer = true, desc = "Show features" })
+          vim.keymap.set(
+            "n",
+            "<leader>rv",
+            crates.show_versions_popup,
+            { buffer = true, desc = "Show versions" }
+          )
+          vim.keymap.set(
+            "n",
+            "<leader>rf",
+            crates.show_features_popup,
+            { buffer = true, desc = "Show features" }
+          )
         end,
       })
     end,

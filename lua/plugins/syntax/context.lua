@@ -19,13 +19,13 @@ return {
     dependencies = { "nvim-treesitter/nvim-treesitter" },
     opts = {
       enable = true,
-      max_lines = 0,        -- 0 = no limit (show full context stack)
+      max_lines = 0, -- 0 = no limit (show full context stack)
       min_window_height = 0,
       line_numbers = true,
       multiline_threshold = 20, -- max multi-line node size before truncation
       trim_scope = "outer", -- 'outer' | 'inner'
-      mode = "cursor",      -- 'cursor' | 'topline'
-      separator = nil,      -- no separator line (use default highlight)
+      mode = "cursor", -- 'cursor' | 'topline'
+      separator = nil, -- no separator line (use default highlight)
       zindex = 20,
       on_attach = nil,
     },

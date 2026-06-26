@@ -24,8 +24,8 @@
 local M = {}
 
 local ir_mod = require("core.compiler.ir")
-local pipeline = require("runtime.pipeline")
 local phase_registry = require("runtime.phase_registry")
+local pipeline = require("runtime.pipeline")
 
 -- ── Debug stage derivation (FIX-POLISH-1) ───────────────────────────────────
 
@@ -146,12 +146,8 @@ end
 -- is immediately visible to all validation checks without re-reading
 -- any module-level local.
 local VALID_DEBUG_STAGES = setmetatable({}, {
-  __index = function(_, key)
-    return _debug_stages_set[key]
-  end,
-  __pairs = function(_)
-    return pairs(_debug_stages_set)
-  end,
+  __index = function(_, key) return _debug_stages_set[key] end,
+  __pairs = function(_) return pairs(_debug_stages_set) end,
 })
 
 local function cmd_debug(opts)
@@ -212,10 +208,7 @@ local function cmd_ir(opts)
 
   if not VALID_DEBUG_STAGES[stage] and stage ~= "optimize" then
     vim.notify(
-      ("[LtosIR] unknown stage %q; valid: %s"):format(
-        stage,
-        table.concat(_debug_stages_list, ", ")
-      ),
+      ("[LtosIR] unknown stage %q; valid: %s"):format(stage, table.concat(_debug_stages_list, ", ")),
       vim.log.levels.ERROR
     )
     return
@@ -569,3 +562,4 @@ function M.setup()
 end
 
 return M
+

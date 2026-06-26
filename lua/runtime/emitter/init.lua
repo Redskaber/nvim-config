@@ -45,3 +45,4 @@ function M.emit(ir, adapters)
 end
 
 return M
+

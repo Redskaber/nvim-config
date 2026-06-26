@@ -19,8 +19,6 @@ return {
     ft = "go",
     dependencies = { "mfussenegger/nvim-dap" },
     opts = {}, -- uses sane defaults: delve path auto-detected via mason
-    config = function(_, opts)
-      require("dap-go").setup(opts)
-    end,
+    config = function(_, opts) require("dap-go").setup(opts) end,
   },
 }

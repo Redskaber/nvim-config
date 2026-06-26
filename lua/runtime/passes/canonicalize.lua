@@ -20,8 +20,8 @@
 local build_request_mod = require("runtime.build_request")
 local ir_mod = require("core.compiler.ir")
 local mappings = require("toolchain.mappings")
-local rules = require("toolchain.rules")
 local ov = require("runtime.output_validate")
+local rules = require("toolchain.rules")
 
 ---@type Phase
 local canonicalize_pass = {
@@ -115,3 +115,4 @@ local canonicalize_pass = {
 }
 
 return canonicalize_pass
+

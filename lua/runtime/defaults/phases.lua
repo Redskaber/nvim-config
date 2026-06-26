@@ -56,3 +56,4 @@ return {
   -- Codegen is always last — handled separately by PhaseRegistry.register_codegen()
   codegen = "runtime.passes.codegen",
 }
+
