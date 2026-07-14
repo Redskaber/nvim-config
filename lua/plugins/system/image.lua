@@ -1,4 +1,4 @@
--- lua/plugins/sys/img.lua
+-- lua/plugins/system/img.lua
 -- dep:
 --  backend-sup(kitty, Uberzug, ...)
 --  imagemagick | ueberzugpp
@@ -89,4 +89,3 @@ return {
     end,
   },
 }
-

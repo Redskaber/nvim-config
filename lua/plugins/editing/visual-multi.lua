@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/editor/cursor.lua
+-- ~/.config/nvim/lua/plugins/editing/visual-multi.lua
 return {
   {
     "mg979/vim-visual-multi",
@@ -20,4 +20,3 @@ return {
     end,
   },
 }
-

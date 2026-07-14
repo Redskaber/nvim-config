@@ -1,6 +1,6 @@
 # nvim-config
 
-A Neovim configuration built on **LazyVim** with a custom compiler-inspired toolchain layer — **LTOS** (Language Toolchain Orchestration System). Lang modules are a pure declarative DSL; a six-layer architecture and five-phase compiler pipeline transform them into `lazy.nvim` plugin specs at startup.
+A Neovim configuration built on **LazyVim** with a custom compiler-inspired toolchain layer — **LTOS** (Language Toolchain Orchestration System). Lang modules are a pure declarative DSL; a seven-layer architecture and eight-phase compiler pipeline (6 main + 2 side phases) transform them into `lazy.nvim` plugin specs at startup.
 
 ## Requirements
 
@@ -60,7 +60,7 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 ├──────────────────────────────────────────────────────────────────────┤
 │  Layer 1 · compiler         core/compiler/ir  core/compiler/pass     │
 │                              core/compiler/cache                     │
-│             CompilerContext · Phase interface · three-tier cache.    │
+│             CompilerContext · Phase interface · two-tier cache (ast + spec). │
 │             No vim API. No plugin knowledge.                         │
 ├──────────────────────────────────────────────────────────────────────┤
 │  Layer 0 · kernel           core/kernel/bootstrap  core/kernel/env   │
@@ -181,14 +181,13 @@ Strategies encapsulate toolchain decisions behind a uniform interface, decoupled
 
 ---
 
-### Three-Tier Cache (`core/cache.lua`)
+### Two-Tier Cache (`core/cache.lua`)
 
-Cache lives under `stdpath("cache")/ltos/`, keyed by `sha256(module_file_contents) + ":" + profile`.
+Cache lives under `.cache/ltos/` (relative path; `ports_bootstrap.lua` overrides to `vim.fn.stdpath("cache") .. "/ltos"`), keyed by `FNV-1a(module_file_contents) + ":" + profile + ":v<schema_version>"`.
 
 | Tier   | Key unit             | Invalidation                 |
 | ------ | -------------------- | ---------------------------- |
 | `ast`  | per-module file hash | file content change          |
-| `ir`   | IR segment hash      | upstream module change       |
 | `spec` | full build hash      | any module or profile change |
 
 Spec-tier hit skips the pipeline entirely. Specs containing function values set `_no_cache = true` and are excluded from serialization.
@@ -200,9 +199,10 @@ Spec-tier hit skips the pipeline entirely. Specs containing function values set 
 Adapters implement the backend interface and are the only layer that produces `LazySpec[]`. They read the IR; they never write it.
 
 ```lua
----@class Backend
----@field supports fun(cap: string): boolean
----@field emit     fun(ir: IR): LazySpec[]
+-- Lang adapters
+function M.build(ir)                       -- takes IR, returns LazySpec[]
+-- Cap adapters
+function M.build(ir, caps_by_name)         -- takes IR + caps table, returns LazySpec[]
 ```
 
 | Adapter          | Capability driven       |
@@ -318,16 +318,18 @@ lua/
 │   └── options.lua                all vim.opt.* settings
 │
 └── plugins/                       Layer 5: UI / editor / AI — no toolchain logic
-    ├── ai/ai.lua
-    ├── coding/                    coding.lua · comments.lua · pairs.lua · snip.lua
-    ├── editor/                    editor.lua · cursor.lua
-    ├── formatting/formatting.lua
-    ├── linting/linting.lua
-    ├── lsp/lsp.lua
-    ├── sys/                       git.lua · terminal.lua
-    ├── theme/theme.lua
-    ├── treesitter/treesitter.lua
-    └── ui/                        ui.lua · snacks.lua
+    ├── ai/              # AI assistant (placeholder)
+    ├── completion/      # nvim-cmp, blink.cmp, LuaSnip, snippets
+    ├── debug/           # nvim-dap + per-lang DAP adapters
+    ├── editing/         # mini.ai, mini.surround, mini.move, pairs, comments, visual-multi
+    ├── git/             # gitsigns, neogit, diffview
+    ├── lang/            # language-specific enhancements (crates, tsc, conjure, etc.)
+    ├── syntax/          # treesitter, context, colorizer, markdown-render
+    ├── system/          # terminal, image, img-clip, persistence
+    ├── theme/           # catppuccin, transparency
+    ├── toolchain/       # LSP, lint, format engines (LTOS adapter targets)
+    ├── ui/              # bufferline, lualine, noice, snacks, flash, which-key, etc.
+    └── init.lua         # auto-discovery aggregator
 ```
 
 ---
@@ -491,7 +493,7 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | Kotlin                          | kotlin_language_server | ktfmt                       | ktlint             |
 | Lisp / Clojure                  | clojure_lsp            | cljfmt                      | clj-kondo          |
 | Lua                             | lua_ls                 | stylua                      | —                  |
-| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo  | taplo / prettierd           | —                  |
+| Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo, marksman | taplo / prettierd           | markdownlint       |
 | Nix                             | nil_ls                 | nixpkgs_fmt (system)        | —                  |
 | Python                          | pyright                | ruff-or-black               | ruff               |
 | Rust                            | rust_analyzer          | rustfmt (system)            | clippy (system)    |
@@ -530,7 +532,7 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | `gr`              | references                |
 | `K`               | hover                     |
 
-> [more keymaps](./KEYMAPS.md)
+> See `:help keymaps` or `:WhichKey` for available keymaps
 
 ---
 

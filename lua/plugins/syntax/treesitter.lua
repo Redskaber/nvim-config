@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/treesitter/treesitter.lua
+-- ~/.config/nvim/lua/plugins/syntax/treesitter.lua
 -- Engine declaration only. ensure_installed + opts built by runtime adapter.
 
 return {
@@ -91,4 +91,3 @@ return {
     end,
   },
 }
-

@@ -164,15 +164,21 @@ M.fnv1a = fnv1a_jit
 M.fnv1a_fallback = fnv1a_lua
 
 --- Hash the contents of a file. Returns nil if file cannot be read.
+--- Accepts an optional `reader` function (default: io.open-based) so that
+--- Layer 1+ callers (e.g. collect pass, cache/key) can inject `ports.read_file`
+--- without Layer 0 (this module) taking a reverse dependency on ports.
 ---@param path string
+---@param reader? fun(p: string): string|nil  optional content reader
 ---@return string|nil  8-char hex string
-function M.file_content_hash(path)
-  local f = io.open(path, "r")
-  if not f then
-    return nil
+function M.file_content_hash(path, reader)
+  reader = reader or function(p)
+    local f = io.open(p, "r")
+    if not f then return nil end
+    local content = f:read("*a")
+    f:close()
+    return content
   end
-  local content = f:read("*a")
-  f:close()
+  local content = reader(path)
   if not content then
     return nil
   end

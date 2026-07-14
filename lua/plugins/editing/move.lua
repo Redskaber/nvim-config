@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/move.lua
+-- ~/.config/nvim/lua/plugins/editing/move.lua
 -- Move lines and selections up/down — high-frequency editing operation.
 --
 -- Responsibility boundary (职责分离):

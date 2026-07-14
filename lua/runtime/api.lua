@@ -18,13 +18,19 @@ function M.on_ready(fn)
   local lifecycle = require("runtime.lifecycle")
   -- If already READY, execute immediately
   if lifecycle.is_ready() then
-    pcall(fn)
+    local ok, err = pcall(fn)
+    if not ok then
+      vim.notify(("[ltos:on_ready] callback failed: %s"):format(tostring(err)), vim.log.levels.WARN)
+    end
     return
   end
   -- Otherwise, observe for future READY transition
   lifecycle.observe(function(state, _)
     if state == "READY" then
-      pcall(fn)
+      local ok, err = pcall(fn)
+      if not ok then
+        vim.notify(("[ltos:on_ready] callback failed: %s"):format(tostring(err)), vim.log.levels.WARN)
+      end
     end
   end)
 end
@@ -213,4 +219,3 @@ M.ui = {
 }
 
 return M
-

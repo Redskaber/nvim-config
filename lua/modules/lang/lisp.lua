@@ -15,4 +15,3 @@ return {
   },
   mason = { "cljfmt", "clj-kondo" },
 }
-

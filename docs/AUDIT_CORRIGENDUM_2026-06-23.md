@@ -57,7 +57,7 @@
 
 **实际验证**：
 
-- 实际只有 **30 个 spec 文件**（879 个 R.it 用例）
+- 实际只有 **28 个 spec 文件**（2026-07-15 更新，879 个 R.it 用例）
 - 缺口 18 个文件
 
 **修正状态**：⚠️ 文档需更新
@@ -245,6 +245,33 @@ then
 ---
 
 ## 六、待修复项（P1/P2，未在本轮修复）
+
+> **⚠️ 更新通知（2026-07-15）**：以下列表为 2026-06-23 审查时的状态。
+> 截至 2026-07-15，下列项目已修复（详见 CHANGELOG.md）：
+>
+> - P1-1 ✅ collect.lua vim.api → ports
+> - P1-2a ✅ collect_ext.lua require-time → setup()
+> - P1-3 ✅ store.lua 原子写入
+> - P1-4 ✅ policy.lua 环检测
+> - P1-5 ✅ lifecycle.lua 迁移到 domain.diagnostic
+> - P1-8 ✅ cache/key.lua io.open → ports.read_file
+> - P1-10 ✅ ports.lua 命令注入 → libuv fs_mkdir
+> - P1-11 ✅ registry.lua get_by_type → 浅拷贝
+> - P1-12 ✅ api.lua on_ready → 立即执行
+> - P2-1 ✅ 8 phases output_validate
+> - P2-3 ✅ PHASE_ORDER listener 实时表
+> - P2-6 ✅ keybind_presets 引用 data 模块
+> - P2-7 ✅ toolchain 纯 Lua
+>
+> 以下项目截至 2026-07-15 仍未修复或有意保留：
+>
+> - P1-2b ⚠️ 有意回退（编排器例外，详见 §9）
+> - P1-6 ⚠️ defaults/keybind_presets 已通过 P2-6 修复
+> - P1-7 ✅ check 脚本 5 个规则（7a-7c 已实现；7d/7e 待实现）
+> - P1-9 ✅ 与 P1-4 相同
+> - P2-2 ✅ collect_ext SM 一致性（2026-06-26 通过 P2-2 修复）
+> - P2-4 ✅ adapters/ai.lua 死代码（文件已不存在）
+> - P2-5 ✅ Layer 2 diag 协议统一
 
 ### P1 应修复
 
@@ -469,3 +496,4 @@ P1-2b 在架构层面是正确的（P6-C2 一致性），但在实践层面破�
 ---
 
 _本修正增补基于 2026-06-23 完整代码级审查。所有 P0 修复已应用至 `/home/z/my-project/download/ltos-fixes/` 目录，可通过统一 patch 文件应用到实际项目。_
+

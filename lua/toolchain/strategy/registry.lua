@@ -78,7 +78,6 @@ function M.list()
     names[#names + 1] = k
   end
   table.sort(names)
-  table.sort(names)
   return names
 end
 
@@ -100,4 +99,3 @@ end
 function M.lock() _locked = true end
 
 return M
-

@@ -11,4 +11,3 @@ return {
   }, -- system binary; skipped by mason adapter
   mason = {}, -- zls resolved via mappings.lsp_pkg("zls"); zigfmt is system-managed
 }
-

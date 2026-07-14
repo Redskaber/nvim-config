@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/formatting/formatting.lua
+-- ~/.config/nvim/lua/plugins/toolchain/formatting.lua
 -- Engine declaration only. formatters_by_ft built by runtime/adapters/conform.lua.
 
 return {
@@ -18,4 +18,3 @@ return {
     -- No opts here: all opts injected by runtime adapter spec
   },
 }
-

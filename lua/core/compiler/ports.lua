@@ -55,8 +55,10 @@ local function fs_mkdir_p(dir)
         return
       end
     else
-      -- 493 = 0o755 (rwxr-xr-x)
-      local ok = uv.fs_mkdir(cur, 493)
+      -- FIX-P2 (2026-07-15): named constant instead of magic number.
+      -- 0x1ED = 493 = 0o755 (rwxr-xr-x) in Lua's numeric format.
+      local DIR_MODE_755 = 493
+      local ok = uv.fs_mkdir(cur, DIR_MODE_755)
       if not ok then
         -- Race condition: another process may have created it.
         -- Verify it's now a directory; if not, bail out.
@@ -83,6 +85,13 @@ local _ports = {
   ensure_cache_dir = fs_mkdir_p,
 }
 
+-- FIX-P3 (2026-07-22): Memoize resolve_runtime_file. The module→path
+-- mapping is constant within a session, but the function is called ~88
+-- times per cold startup (once per module, across cache.key/collect/
+-- collect_ext). The cache key is the `rel` argument; we store both nil
+-- and string results so we don't repeatedly ask nvim for the same file.
+local _path_cache = {}
+
 ---@class CompilerPorts
 ---@field cache_dir fun(): string
 ---@field json_encode fun(table): string
@@ -99,6 +108,10 @@ function M.configure(opts)
       _ports[k] = v
     end
   end
+  -- Defensive: if anything called resolve_runtime_file before configure()
+  -- (which would have hit the default nil-returning impl), drop those stale
+  -- entries so the freshly-injected impl is consulted on next call.
+  _path_cache = {}
 end
 
 function M.cache_dir() return _ports.cache_dir() end
@@ -112,7 +125,24 @@ function M.json_decode(s) return _ports.json_decode(s) end
 ---@return string|nil
 function M.read_file(path) return _ports.read_file(path) end
 
-function M.resolve_runtime_file(rel) return _ports.resolve_runtime_file(rel) end
+function M.resolve_runtime_file(rel)
+  if _path_cache[rel] ~= nil then
+    -- Translate the `false` sentinel (cached nil result) back to nil so
+    -- callers always see the documented `string|nil` return type.
+    local cached = _path_cache[rel]
+    return cached or nil
+  end
+  local result = _ports.resolve_runtime_file(rel)
+  -- Cache the resolved path (string) or `false` sentinel for nil results,
+  -- so negative lookups are also memoized.
+  _path_cache[rel] = result or false
+  return result
+end
+
+--- Clear the resolve_runtime_file memoization cache.
+--- Intended for tests that swap `_ports.resolve_runtime_file` and need
+--- the new implementation to take effect for already-seen `rel` values.
+function M._clear_path_cache() _path_cache = {} end
 
 function M.debug_cache() return _ports.debug_cache() end
 
@@ -121,3 +151,4 @@ function M.notify(level, msg) _ports.notify(level, msg) end
 function M.ensure_cache_dir(dir) _ports.ensure_cache_dir(dir) end
 
 return M
+

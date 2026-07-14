@@ -25,7 +25,14 @@ function M.get(cap_type)
   if not path then
     return nil
   end
-  return require(path)
+  -- FIX-P1 (2026-07-15): pcall-protect the require so a broken adapter
+  -- module (syntax error, missing dependency) doesn't crash the pipeline.
+  -- Mirrors the pattern in runtime/emitter/init.lua:20.
+  local ok, adapter = pcall(require, path)
+  if not ok then
+    return nil, adapter -- adapter is the error string
+  end
+  return adapter
 end
 
 ---@return string[]
@@ -58,4 +65,3 @@ function M.setup()
 end
 
 return M
-

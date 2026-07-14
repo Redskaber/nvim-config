@@ -37,6 +37,16 @@ vim.g.markdown_recommended_style = 0
 -- vim.g.ltos_base_parsers     = { "bash", "c", ... }
 -- vim.g.ltos_disabled_plugins = { "gzip", "matchit", ... }
 
+-- FIX-AUTO-UPDATE (2026-07-15): plugin auto-update control.
+-- Default: false (no background update check on startup).
+-- Set to true to enable lazy.nvim's checker (hourly background git-fetch
+-- with notification when updates are found).
+-- Manual alternative: :Lazy update (update all) / :Lazy check (check only)
+--
+-- NOTE: vim.g.ltos_auto_update is set in core/kernel/bootstrap.lua (Layer 0)
+-- because build_setup_opts() reads it BEFORE globals.lua loads. To override,
+-- set it in bootstrap.lua or in your init.lua before requiring config.lazy.
+
 -- LTOS_DEBUG environment variable support
 -- Set LTOS_DEBUG=trace,ir,cache,perf before launching nvim
 local ltos_debug_env = vim.env.LTOS_DEBUG or ""

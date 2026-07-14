@@ -110,4 +110,3 @@ local normalize_pass = {
 }
 
 return normalize_pass
-

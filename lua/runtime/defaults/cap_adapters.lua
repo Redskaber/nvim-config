@@ -7,4 +7,3 @@ return {
   { cap_type = "ai", path = "runtime.adapters.ai_cap" },
   { cap_type = "keybind", path = "runtime.adapters.keybind" },
 }
-

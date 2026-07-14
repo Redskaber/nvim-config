@@ -30,7 +30,10 @@ local _last_fail_reason = nil
 
 local function notify_observers(next_state, prev_state)
   for _, fn in ipairs(_observers) do
-    pcall(fn, next_state, prev_state)
+    local ok, err = pcall(fn, next_state, prev_state)
+    if not ok then
+      vim.notify(("[ltos:lifecycle] observer failed: %s"):format(tostring(err)), vim.log.levels.WARN)
+    end
   end
 end
 
@@ -96,4 +99,3 @@ function M._reset()
 end
 
 return M
-

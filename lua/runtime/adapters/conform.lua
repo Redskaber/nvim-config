@@ -155,6 +155,8 @@ function M.build(ir)
   -- FIX-POLISH-3 (2026-06-26): defensive vim.api guard handles headless
   -- test scenarios where conform is not yet loaded. The format function
   -- is inside opts (NOT in a config function), respecting INV-13.
+  -- FIX-P1 (2026-07-15): pcall-protect require("conform") and the inner
+  -- formatter.format() call so format-on-save degrades gracefully.
   for strategy_name, strategy_fn in pairs(custom_formatters) do
     opts.formatters[strategy_name] = {
       format = function(self, ctx, lines)
@@ -163,16 +165,21 @@ function M.build(ir)
         if not vim or not vim.api then
           return lines or {}
         end
+        -- Defensive: conform may not be loaded yet (user disabled it, or
+        -- format triggered before plugin load). Return lines unchanged.
+        local ok_conform, conform = pcall(require, "conform")
+        if not ok_conform or not conform then
+          return lines or {}
+        end
         -- conform.nvim passes `lines` (3rd arg) in newer versions;
         -- fall back to fetching from buffer for older API compatibility.
         lines = lines or vim.api.nvim_buf_get_lines(ctx.bufnr, 0, -1, false)
         local candidates = strategy_fn(ctx.bufnr) or {}
-        local conform = require("conform")
         for _, fmt_name in ipairs(candidates) do
           local formatter = conform.formatters[fmt_name]
           if formatter and formatter.format then
-            local result = formatter.format(formatter, ctx, lines)
-            if result and type(result) == "table" then
+            local ok_fmt, result = pcall(formatter.format, formatter, ctx, lines)
+            if ok_fmt and result and type(result) == "table" then
               return result
             end
           end

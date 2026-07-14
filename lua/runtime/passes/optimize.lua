@@ -65,4 +65,3 @@ local optimize_pass = {
 }
 
 return optimize_pass
-

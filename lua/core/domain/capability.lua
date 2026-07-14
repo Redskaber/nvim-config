@@ -180,8 +180,4 @@ function M.dump(set)
   return serialize(set)
 end
 
--- Backward-compat: M.reset() is a no-op; call M.new() instead.
--- Kept to avoid breaking any external callers during migration.
-function M.reset() end
-
 return M

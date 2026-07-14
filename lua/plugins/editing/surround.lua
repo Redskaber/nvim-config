@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/surround.lua
+-- ~/.config/nvim/lua/plugins/editing/surround.lua
 -- Surround operations: add / change / delete surrounding pairs.
 --
 -- Responsibility boundary (职责分离):

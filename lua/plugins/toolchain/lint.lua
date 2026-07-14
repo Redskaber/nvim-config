@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/linting/linting.lua
+-- ~/.config/nvim/lua/plugins/toolchain/linting.lua
 -- Engine declaration only. linters_by_ft built by runtime/adapters/lint.lua.
 
 return {
@@ -7,4 +7,3 @@ return {
     -- No opts here: all opts injected by runtime adapter spec
   },
 }
-

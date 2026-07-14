@@ -27,4 +27,3 @@ return {
     -- "clang-format"
   }, -- clangd resolved via mappings.lsp_pkg("clangd")
 }
-

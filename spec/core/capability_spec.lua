@@ -70,13 +70,7 @@ R.describe("core.domain.capability", function()
     end)
   end)
 
-  -- ── reset() backward-compat ───────────────────────────────────────────────
-
-  R.describe("reset() backward-compat", function()
-    R.it("is a no-op (does not error)", function() cap.reset() end)
-  end)
-
-  -- ── golden: lua DSL round-trip ───────────────────────────────────────
+  -- ── golden: lua DSL round-trip ───────────────────────────────────────────
 
   R.describe("golden: lua DSL", function()
     R.it("produces expected capability shape from real module", function()

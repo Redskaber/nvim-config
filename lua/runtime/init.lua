@@ -122,36 +122,32 @@ local function ast_reuse_strategy(lang_modules, cap_mods, cached_entry)
   return "full", nil
 end
 
-local function try_cache(modules, profile)
-  local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile, cap_modules())
+local function try_cache(key)
   if key == "" then
     return nil
   end
+  local cache = require("core.compiler.cache")
   return cache.load("spec", key)
 end
 
-local function persist_cache(modules, profile, specs)
-  local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile, cap_modules())
+local function persist_cache(key, specs)
   if key ~= "" then
+    local cache = require("core.compiler.cache")
     cache.save("spec", key, specs)
   end
 end
 
-local function try_ast_cache(modules, profile)
-  local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile, cap_modules())
+local function try_ast_cache(key)
   if key == "" then
     return nil
   end
+  local cache = require("core.compiler.cache")
   return normalise_ast_payload(cache.load("ast", key))
 end
 
-local function persist_ast_cache(modules, profile, caps, ext_caps, module_hashes)
-  local cache = require("core.compiler.cache")
-  local key = cache.key(modules, profile, cap_modules())
+local function persist_ast_cache(key, caps, ext_caps, module_hashes)
   if key ~= "" then
+    local cache = require("core.compiler.cache")
     cache.save("ast", key, {
       caps = caps,
       ext_caps = ext_caps or {},
@@ -190,14 +186,22 @@ function M.build()
 
   lifecycle.transition("COMPILE")
 
-  local cached = try_cache(modules, profile)
+  -- Compute the cache key ONCE for the whole build. Previously each of
+  -- try_cache / try_ast_cache / persist_cache / persist_ast_cache called
+  -- cache.key(modules, profile, cap_modules()) independently, and each
+  -- call re-reads all ~22 module files to compute FNV-1a hashes. The
+  -- (modules, profile, caps) triple is constant within a single build().
+  local cache = require("core.compiler.cache")
+  local key = cache.key(modules, profile, caps)
+
+  local cached = try_cache(key)
   if cached then
     lifecycle.transition("EMIT")
     lifecycle.transition("READY")
     return cached
   end
 
-  local cached_ast = try_ast_cache(modules, profile)
+  local cached_ast = try_ast_cache(key)
   local cached_caps = nil
   local ast_seed = nil
 
@@ -216,11 +220,11 @@ function M.build()
 
   lifecycle.transition("EMIT")
   require("runtime.emitter.cap_effects").apply_all(run_ir)
-  persist_cache(modules, profile, specs)
+  persist_cache(key, specs)
 
   if run_ir and run_ir.caps then
     local hashes = run_ir.meta and run_ir.meta.module_hashes or compute_all_hashes(modules, caps)
-    persist_ast_cache(modules, profile, run_ir.caps, run_ir.ext_caps, hashes)
+    persist_ast_cache(key, run_ir.caps, run_ir.ext_caps, hashes)
   end
 
   lifecycle.transition("READY")
@@ -230,4 +234,3 @@ end
 function M.setup_commands() require("runtime.commands").setup() end
 
 return M
-

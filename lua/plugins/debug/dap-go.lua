@@ -9,7 +9,7 @@
 --     concern (run/debug breakpoints), not a build-time concern.
 --
 -- nvim-dap-go: Delve-based Go debugger. Integrates with the existing
--- nvim-dap + nvim-dap-ui setup in plugins/coding/coding.lua. Adds:
+-- nvim-dap + nvim-dap-ui setup in plugins/debug/dap.lua. Adds:
 --   • <leader>dgt — debug go test (current test under cursor)
 --   • <leader>dgl — debug last go test
 --   • <leader>dga — debug go test (all tests in package)

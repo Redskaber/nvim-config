@@ -1,5 +1,10 @@
 # LTOS Test-Fix + P1/P2 Closure Patch — 2026-06-26
 
+> **⚠️ SUPERSEDED** — This document covers the 2026-06-26 patch only.
+> For the complete cumulative patch (including LazyVim conform fixes,
+> plugins/ reorganization, and auto-update opt-in), see
+> **`PATCH_NOTES_2026-07-15.md`**.
+>
 > **Drop-in deployment package** for the `nvim-config` project.
 > Apply over an existing `~/.config/nvim/` (or replace that directory
 > entirely) — all `.lua` source files + spec files + scripts + docs are
@@ -10,7 +15,7 @@
 ### Round 1 — Test-fail fixes (5 files, 21 failing tests → 0)
 
 | File | Bug | Fix |
-|------|-----|-----|
+| ------ | ----- | ----- |
 | `lua/toolchain/rules.lua` | `nix_env_rule` ignored `prefer_system=false` | Skip rule when `ctx.prefer_system == false` |
 | `lua/runtime/adapters/lsp.lua` | `opts = function(...)` — tests index `spec.opts.servers` | `opts = { servers = ... }` static table |
 | `lua/runtime/adapters/treesitter.lua` | Same | `opts = { ensure_installed = ... }` static table |
@@ -20,7 +25,7 @@
 ### Round 2 — P1/P2 closure (7 files, 15→15 invariants)
 
 | File | Item | Fix |
-|------|------|-----|
+| ------ | ------ | ----- |
 | `lua/core/compiler/ports.lua` | P1-10 command injection | `ensure_cache_dir` uses libuv `vim.loop.fs_mkdir` (no shell) |
 | `lua/modules/capability/registry.lua` | P1-11 internal ref leak | `get_by_type` returns shallow copy |
 | `lua/runtime/pipeline.lua` | P2-2 SM decoupled from Phase metadata + P2-3 stale PHASE_ORDER snapshot | SM transitions derived from `Phase.output_state` via `next_sm_state_for()`; PHASE_ORDER is a listener-driven plain table (in-place repopulation) |
@@ -32,7 +37,7 @@
 ### Round 3 — Polish (3 files, DRY + defensive coding)
 
 | File | Item | Fix |
-|------|------|-----|
+| ------ | ------ | ----- |
 | `lua/runtime/commands.lua` | POLISH-1 hardcoded stage lists | Derive `VALID_DEBUG_STAGES` + 4 `complete` functions from `phase_registry.list()`; filter side phases + codegen; metatable live view; `M.refresh_debug_stages()` for dynamic phases |
 | `lua/runtime/pipeline.lua` | POLISH-2 timings() internal ref leak | `timings()` returns shallow copy (mirrors P1-11 pattern) |
 | `lua/runtime/adapters/conform.lua` | POLISH-3 config_fn defensive guards | `pcall(require, "conform")` + `vim.api` availability check; documented INV-13 boundary |
@@ -45,7 +50,7 @@ Registered in `scripts/ltos_tests.lua` catalogue.
 ## Test impact
 
 | Spec file | Before Round 1 | After Round 2 | After P2-2 | After Polish |
-|-----------|----------------|---------------|------------|--------------|
+| ----------- | ---------------- | --------------- | ------------ | -------------- |
 | `runtime.passes_spec` | 67/2 | 69/0 | 69/0 | 69/0 |
 | `runtime.adapters_spec` | 27/12 | 39/0 | 39/0 | 39/0 |
 | `toolchain.strategy_spec` | 46/1 | 47/0 | 47/0 | 47/0 |
@@ -92,3 +97,4 @@ cd ~/.config/nvim
 just check   # → Layer boundary check: PASSED
 just test    # → [ltos_tests] suites=28  passed=1046  failed=0
 ```
+

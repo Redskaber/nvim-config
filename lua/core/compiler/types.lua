@@ -68,23 +68,18 @@ local _cap_types = {
 --- Configure concrete implementations from domain layer
 ---@param opts { diagnostic_factory: DiagnosticFactory, cap_types: AbstractCapTypes }
 function M.configure(opts)
+  -- FIX-P2 (2026-07-15): removed dead if/else branches (both arms were identical).
+  -- Accept any value type; the consumer (diagnostic_factory / cap_types) decides
+  -- how to use it. No type validation needed at this layer.
   if opts.diagnostic_factory then
     for k, v in pairs(opts.diagnostic_factory) do
-      if type(v) == "function" then
-        _diagnostic_factory[k] = v
-      else
-        _diagnostic_factory[k] = v
-      end
+      _diagnostic_factory[k] = v
     end
   end
 
   if opts.cap_types then
     for k, v in pairs(opts.cap_types) do
-      if type(v) == "function" then
-        _cap_types[k] = v
-      else
-        _cap_types[k] = v
-      end
+      _cap_types[k] = v
     end
   end
 end

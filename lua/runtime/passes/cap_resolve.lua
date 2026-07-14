@@ -43,13 +43,19 @@ M.pass = {
         goto continue
       end
 
-      local adapter = cap_registry.get(cap_type)
+      local adapter, load_err = cap_registry.get(cap_type)
       if not adapter then
         -- §3.10: lowercase, consistent with other warn messages
+        -- If load_err is non-nil, the adapter module failed to load (pcall
+        -- in cap_registry.get caught a syntax/runtime error). Include it.
+        local msg = ("no capability adapter registered for cap_type '%s'"):format(cap_type)
+        if load_err then
+          msg = msg .. (" (load error: %s)"):format(tostring(load_err))
+        end
         diagnostics[#diagnostics + 1] = ir_mod.diag(
           next_ir.stage,
           cap_type,
-          ("no capability adapter registered for cap_type '%s'"):format(cap_type),
+          msg,
           "warn"
         )
         goto continue
@@ -80,4 +86,3 @@ M.pass = {
 }
 
 return M
-

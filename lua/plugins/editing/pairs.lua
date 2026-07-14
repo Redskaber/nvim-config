@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/pairs.lua
+-- ~/.config/nvim/lua/plugins/editing/pairs.lua
 
 return {
   {

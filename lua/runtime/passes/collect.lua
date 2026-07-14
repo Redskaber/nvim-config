@@ -127,4 +127,3 @@ local collect_pass = {
 }
 
 return collect_pass
-

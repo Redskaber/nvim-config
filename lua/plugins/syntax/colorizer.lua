@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/colorizer.lua
+-- ~/.config/nvim/lua/plugins/syntax/colorizer.lua
 -- Highlight color codes (#fff, rgb(), hsl()) with their actual color.
 --
 -- Responsibility boundary (职责分离):

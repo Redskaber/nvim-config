@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/treesitter/context.lua
+-- ~/.config/nvim/lua/plugins/syntax/context.lua
 -- Sticky context header: pins the current function/class signature at top.
 --
 -- Responsibility boundary (职责分离):

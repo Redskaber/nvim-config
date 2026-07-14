@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/lsp/lsp.lua
+-- ~/.config/nvim/lua/plugins/toolchain/lsp.lua
 -- LSP engine wiring only. Server configs come from runtime/adapters/lsp.lua.
 
 return {
@@ -115,4 +115,3 @@ return {
     opts = {}, -- ensure_installed populated by runtime/adapters/mason.lua
   },
 }
-

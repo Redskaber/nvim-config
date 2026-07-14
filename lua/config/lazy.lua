@@ -25,7 +25,21 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 local runtime = require("runtime")
-local lang_specs = runtime.build()
+-- FIX-P1 (2026-07-15): top-level pcall around runtime.build().
+-- If the LTOS compiler pipeline crashes (syntax error in a module, broken
+-- adapter, cache corruption), nvim still starts with LazyVim defaults
+-- instead of showing a raw Lua stack trace. The error is surfaced via
+-- vim.notify so the user can diagnose.
+local lang_specs
+local ok, build_err = pcall(function() lang_specs = runtime.build() end)
+if not ok then
+  vim.notify(
+    "[LTOS] runtime.build() failed — starting with LazyVim defaults only:\n"
+      .. tostring(build_err),
+    vim.log.levels.ERROR
+  )
+  lang_specs = {}
+end
 
 vim.api.nvim_create_autocmd("User", {
   pattern = "VeryLazy",
@@ -35,3 +49,4 @@ vim.api.nvim_create_autocmd("User", {
 
 local config_provider = require("runtime.providers.config")
 require("lazy").setup(config_provider.build_setup_opts(lang_specs))
+

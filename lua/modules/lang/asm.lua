@@ -16,4 +16,3 @@ return {
   -- asm-lsp is installed via the LSP adapter (lsp_to_mason["asm_lsp"] = "asm-lsp").
   mason = {},
 }
-

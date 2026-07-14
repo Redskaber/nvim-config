@@ -91,6 +91,7 @@ function M.validate(mod_name, cap)
           diags,
           ("Keybind capability in module '%s': unknown preset '%s'."):format(mod_name, cap.preset)
         )
+        ok = false
       end
     end
   end

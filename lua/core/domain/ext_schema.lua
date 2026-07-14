@@ -446,7 +446,7 @@ function M.format_diags(diags)
   for _, d in ipairs(diags) do
     parts[#parts + 1] = ("[%s] %s: %s"):format(
       d.severity or "error",
-      d.path or "?",
+      d.path or d.node or "?",
       d.message or "?"
     )
   end

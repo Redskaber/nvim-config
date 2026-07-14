@@ -22,4 +22,3 @@ while IFS= read -r filepath; do
     echo "警告: 文件不存在或不可读: $filepath" >&2
   fi
 done <"$PATH_LIST"
-

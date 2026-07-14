@@ -68,6 +68,7 @@ ci: check test
 
 # Dump current project file tree + concat to stored/
 dump:
+  @mkdir -p stored
   @bash scripts/grep_paths.sh -l -e "*.sh" -o stored/sh_paths.txt
   @bash scripts/concat_files.sh stored/sh_paths.txt stored/sh.txt
   @bash scripts/grep_paths.sh -l -e "*.md" -o stored/md_paths.txt

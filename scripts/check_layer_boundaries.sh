@@ -5,7 +5,9 @@
 #           INV-11/13/15, reverse layer violations, require-time side effects,
 #           ports.notify argument order.
 #
-# FIX-AUDIT-P1-7 (2026-06-23): Added rules 7a-7e for systemic problem patterns.
+# FIX-AUDIT-P1-7 (2026-06-23): Added rules 7a-7c for systemic problem patterns.
+# (7d: toolchain vim.* purity beyond vim.g; 7e: ports.notify argument order —
+#  documented in AUDIT_CORRIGENDUM but not yet implemented.)
 
 set -uo pipefail
 LUA=lua/

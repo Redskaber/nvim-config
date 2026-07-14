@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/snip.lua
+-- ~/.config/nvim/lua/plugins/completion/luasnip.lua
 
 return {
   {
@@ -7,4 +7,3 @@ return {
     build = "make install_jsregexp",
   },
 }
-

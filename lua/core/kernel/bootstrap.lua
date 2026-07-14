@@ -26,3 +26,12 @@ vim.g.maplocalleader = "\\"
 -- at spec-construction time and skips neo-tree entirely.
 -- Keymaps: <leader>e (root dir) and <leader>E (cwd) in plugins/ui/ui.lua.
 vim.g.lazyvim_file_explorer = "snacks"
+
+-- FIX-AUTO-UPDATE (2026-07-15): disable lazy.nvim background update checker.
+-- MUST be set here in bootstrap, before build_setup_opts() reads it.
+-- Previously checker = { enabled = true } ran a background git-fetch on every
+-- startup, slowing startup and updating plugins without consent.
+-- Default: false (no auto-update). Set to true to opt in:
+--   vim.g.ltos_auto_update = true
+-- Or run :Lazy update / :Lazy check manually.
+vim.g.ltos_auto_update = false

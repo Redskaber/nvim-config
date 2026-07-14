@@ -170,4 +170,3 @@ if [ -n "$OUTPUT_FILE" ]; then
 else
   emit
 fi
-

@@ -345,3 +345,4 @@ function M.format_diff(changes)
   return table.concat(lines, "\n")
 end
 return M
+

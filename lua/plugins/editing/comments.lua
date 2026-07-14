@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/coding/comments.lua
+-- ~/.config/nvim/lua/plugins/editing/comments.lua
 
 return {
   {

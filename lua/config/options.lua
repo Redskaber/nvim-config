@@ -105,3 +105,4 @@ opt.jumpoptions = "view"
 opt.virtualedit = "block"
 opt.spelllang = { "en" }
 opt.smoothscroll = true
+

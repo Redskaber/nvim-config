@@ -24,4 +24,3 @@ function M.build(ir, caps_by_name)
 end
 
 return M
-

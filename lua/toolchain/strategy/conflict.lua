@@ -150,7 +150,10 @@ function M.compose(tool, strategies)
       local results = {}
       local composed_diags = {}
       for _, strategy in ipairs(sorted_strategies) do
-        local ok, res = pcall(strategy.resolve, strategy, ctx)
+        -- FIX-P1 (2026-07-15): strategy.resolve is `function(bufnr)` (no self),
+        -- matching builtin.lua:15,29,43 and interface.lua:15. Previously passed
+        -- `strategy` as first arg (same bug pattern as the applies() fix at L44-48).
+        local ok, res = pcall(strategy.resolve, ctx)
         if ok then
           table.insert(results, res)
         else
@@ -208,4 +211,3 @@ function M.resolve_all(tools, all_strategies)
 end
 
 return M
-

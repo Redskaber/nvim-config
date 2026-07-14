@@ -1,5 +1,173 @@
 # CHANGELOG
 
+## [2026-07-15] — 审查报告修复第三轮 + 鲁棒性增强
+
+### 代码修复（5 项）
+
+- **[P2-4b]** `modules/capability/_schema.lua:94` unknown preset 未设 `ok = false`
+  - 修复前：未知 keybind preset 只追加 diagnostic 但 `ok` 保持 `true`，验证静默通过
+  - 修复后：追加 `ok = false`，验证正确失败
+
+- **[P3-1b]** `runtime/api.lua` on_ready pcall 吞错误 → 现在通过 `vim.notify(WARN)` 暴露
+  - 两处 `pcall(fn)`（立即执行路径 + observer 路径）改为 `ok, err = pcall(fn)` + `vim.notify("[ltos:on_ready] callback failed: ...")`
+
+- **[P3-1c]** `runtime/lifecycle.lua` notify_observers pcall 吞错误 → 同上处理
+  - `pcall(fn, ...)` 改为捕获 `ok, err` + `vim.notify("[ltos:lifecycle] observer failed: ...")`
+
+- **[P3-1d]** `core/domain/capability.lua` 删除死函数 `M.reset()`
+  - 迁移已完成（`_store` 已移除），`M.reset() end` 无任何调用方
+  - 同步删除 `spec/core/capability_spec.lua` 中的 backward-compat 测试块
+
+- **[Perf-3]** `core/kernel/util.lua` `file_content_hash` 接受注入 reader
+  - 修复前：直接 `io.open(path, "r")` 绕过 ports 抽象
+  - 修复后：`M.file_content_hash(path, reader)` 接受可选 reader 函数，默认回退 `io.open` 闭包
+  - Layer 0 保持纯净（不 require Layer 1 ports），但 Layer 1+ 调用方可注入 `ports.read_file`
+
+### 文档修复（2 项）
+
+- **[P3-1e]** `docs/ARCHITECTURE.md` 修复对已删除死函数的引用
+  - `assert_stage_forward`/`assert_ir_shape`/`assert_strategy_shape` 引用更新为实际机制描述
+
+- **[P3-1f]** `scripts/check_layer_boundaries.sh:8` 修正 7a-7e 虚假声明
+  - `7a-7e` → `7a-7c`（7d/7e 在 AUDIT_CORRIGENDUM 中有文档但未实现，注释中标注）
+
+---
+
+## [2026-07-15] — 审查报告修复第二轮 + 文档同步
+
+### 代码修复（4 项）
+
+- **[P2-4]** `core/domain/ext_schema.lua:449` Diagnostic 形状统一
+  - 修复前：`format_diags` 读 `d.path`，但 ext_schema 诊断把路径放在 `d.node` → 永远打印 `?`
+  - 修复后：`d.path or d.node or "?"` 回退到 `d.node`
+
+- **[P3-1]** `core/compiler/invariants.lua` 删除 3 个死函数
+  - `assert_stage_forward`、`assert_ir_shape`、`assert_strategy_shape` 从未被调用
+  - 保留 `enable`/`disable`/`is_enabled`/`check_phase_output`（唯一被 pass.lua 调用的）
+  - 同步清理 `spec/core/invariants_spec.lua` 中对应的测试块
+
+- **[Perf-1]** `core/compiler/ports.lua` `resolve_runtime_file` 加路径缓存
+  - 修复前：每次调用都执行 `vim.api.nvim_get_runtime_file`，冷启动 ~88 次调用
+  - 修复后：`_path_cache` 表缓存模块→路径映射，同 session 内零重复调用
+
+- **[Perf-2]** `runtime/init.lua` `cache.key()` 计算去重
+  - 修复前：`try_cache` 和 `try_ast_cache` 各调一次 `cache.key()`，每次读 ~22 个文件
+  - 修复后：`M.build()` 顶部计算一次，传给所有 4 个 helper（try_cache/try_ast_cache/persist_cache/persist_ast_cache）
+
+### 文档修复（3 项）
+
+- **[P1-5]** `README.md` 7 处过时内容修复
+  - "五阶段" → "八阶段（6 主 + 2 辅）"
+  - "六层架构" → "七层架构"
+  - "三层缓存" → "两层缓存（ast + spec）"
+  - `sha256` → `FNV-1a`
+  - `stdpath("cache")/ltos/` → `.cache/ltos/`（+ ports_bootstrap 覆盖说明）
+  - `Backend` 接口 `supports()`/`emit()` → 实际 `M.build(ir)` / `M.build(ir, caps_by_name)`
+  - plugins/ 文件结构树更新为 11 目录新布局
+  - Markup 语言表补 `marksman` LSP + `markdownlint` linter
+  - `KEYMAPS.md` 死链改为 `:help keymaps` 提示
+
+- **[P3-2]** 新增 `LICENSE`（MIT，copyright 2026 kilig）
+
+- **[P3-3]** `docs/AUDIT_CORRIGENDUM_2026-06-23.md` 更新
+  - §六 "待修复项" 顶部加更新通知（13 项已修复，7 项有意保留/未修复）
+  - §1.3 spec 文件数 30 → 28
+
+---
+
+## [2026-07-15] — 审查报告修复 + 文档标准化
+
+### P0 修复（3 项）
+
+- **[P0-1]** 删除 7 个旧 plugin 目录（`coding/` `editor/` `sys/` `treesitter/` `lsp/` `formatting/` `linting/`）
+  - 修复前：新旧目录共存，`globpath("lua/plugins/**/*.lua")` 加载重复 spec，~21 组重复、~750 行死代码
+  - 修复后：只保留 11 个新目录（editing/completion/syntax/toolchain/debug/git/ui/system/theme/ai/lang），49 个 plugin 文件
+  - 影响：启动减少 ~10-30ms spec 解析开销，消除 nvim-tree 残留等漂移风险
+
+- **[P0-2]** `config/lazy.lua` 顶层 pcall 包裹 `runtime.build()`
+  - 修复前：LTOS pipeline 崩溃 → nvim 无法启动，显示原始 Lua 堆栈
+  - 修复后：崩溃时 `vim.notify(ERROR)` + 返回空 specs，nvim 以 LazyVim 默认配置启动
+
+- **[P0-3]** `cap_registry.get()` 的 `require()` 加 pcall 保护
+  - 修复前：有语法错误的 cap adapter 模块会导致 nvim 启动崩溃
+  - 修复后：加载失败返回 `nil, error`，`cap_resolve` 产出 warn diagnostic 而非崩溃
+
+### P1 修复（4 项）
+
+- **[P1-1]** `toolchain/strategy/conflict.lua:153` `strategy.resolve` 自传递 bug
+  - 修复前：`pcall(strategy.resolve, strategy, ctx)` 把 strategy 表当 bufnr 传入
+  - 修复后：`pcall(strategy.resolve, ctx)` 匹配 `resolve = function(bufnr)` 签名
+
+- **[P1-2]** `runtime/adapters/conform.lua` format() 闭包加 pcall 保护
+  - 修复前：`require("conform")` 和 `formatter.format()` 无保护，format-on-save 崩溃
+  - 修复后：`pcall(require, "conform")` + `pcall(formatter.format, ...)`，失败返回原文不崩
+
+- **[P1-3]** 删除根目录重复 `PATCH_NOTES_2026-06-26.md`（无 SUPERSEDED 标记的副本）
+
+- **[P1-4]** 修复所有移动文件的 stale 路径注释（11 个文件，如 `editing/surround.lua` 头部从 `coding/surround.lua` 改为正确路径）
+
+### P2 代码质量修复（4 项）
+
+- **[P2-1]** `toolchain/strategy/registry.lua:80-81` 删除重复 `table.sort(names)`
+- **[P2-2]** `core/compiler/types.lua:70-85` 删除死的 if/else 分支（两臂相同）
+- **[P2-3]** `core/compiler/ports.lua:58-61` 魔法数字 `493` 改为命名常量 `DIR_MODE_755`
+- **[P2-4]** `init.lua:2` 版本号 `v4` 更新为 `v5.5.0`
+
+### 文档标准化（3 新文件 + 结构整理）
+
+新增 `docs/` 目录下 3 个标准化文档：
+
+| 文件 | 行数 | 内容 |
+| ------ | ------ | ------ |
+| `docs/ARCHITECTURE.md` | 354 | 七层架构 + IR 子层 + 8 阶段管道 + 双 SM + 两级缓存 + 15 不变量 + Ports 抽象 + 插件自动发现 + Phase 模式 + 层边界规则 |
+| `docs/CONFIGURATION.md` | 121 | 所有 `vim.g.*` 旋钮集中表（LTOS 运行时 / LazyVim 功能 / 其他 / 环境变量）+ 覆盖方式说明 |
+| `docs/CONTRIBUTING.md` | 249 | 开发环境 + 如何添加语言/插件/cap 模块 + Phase 模式 + FIX- 约定 + 层边界规则 + 测试约定 |
+
+`docs/` 目录标准化结构：
+
+```
+docs/
+├── ARCHITECTURE.md              # 架构参考（新增，权威文档）
+├── CONFIGURATION.md             # 配置旋钮参考（新增）
+├── CONTRIBUTING.md              # 贡献者指南（新增）
+├── PATCH_NOTES_2026-07-15.md    # 最新补丁说明
+├── PATCH_NOTES_2026-06-26.md    # 历史补丁说明（标记 SUPERSEDED）
+├── AUDIT_CORRIGENDUM_2026-06-23.md  # 审计修正记录
+└── ARCHITECTURE_UPDATE_2026-06-23.md # 架构更新记录
+```
+
+---
+
+## [2026-07-15] — 自动更新 opt-in + 文档同步
+
+### FIX-AUTO-UPDATE：插件自动更新改为 opt-in
+
+**Bug**：每次进入 nvim 都会在后台运行插件更新检查（`checker = { enabled = true, notify = true }`），导致：
+
+- 启动变慢（每个插件一次网络往返）
+- 慢/不稳定网络下可能卡住
+- 未经用户同意更新插件（可能引入 breaking change）
+
+**修复**（3 文件）：
+
+1. **`lua/core/kernel/bootstrap.lua`**：新增 `vim.g.ltos_auto_update = false`（Layer 0 早期设置，在 `build_setup_opts()` 读取前生效）
+2. **`lua/runtime/providers/config.lua`**：`checker` 配置改为根据 `vim.g.ltos_auto_update` 派生：
+   - `false`（默认）→ `checker = { enabled = false }`（无后台更新）
+   - `true` → `checker = { enabled = true, notify = true }`（启用 + 通知）
+3. **`lua/config/globals.lua`**：文档化该开关（注释说明位置和用法，不重复赋值，因 bootstrap 已设）
+
+**使用方式**：
+
+- 默认：不自动更新，手动 `:Lazy update` 或 `:Lazy check`
+- 启用自动更新：在 `bootstrap.lua` 或 `init.lua` 中设置 `vim.g.ltos_auto_update = true`
+
+### 文档同步
+
+- **`docs/PATCH_NOTES_2026-07-15.md`**：新增，覆盖所有 2026-06-26 + 2026-07-15 修复
+- **`docs/PATCH_NOTES_2026-06-26.md`**：保留作历史记录，标注已被 2026-07-15 版本取代
+
+---
+
 ## [2026-06-26] — 测试失败修复 + P1/P2 闭环
 
 ### 测试失败修复（5 文件，21 用例归零）
