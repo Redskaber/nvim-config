@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/lang/python.lua
+-- ~/.config/nvim/lua/plugins/debug/dap-python.lua
 -- Python language editing enhancements.
 --
 -- Responsibility boundary (职责分离):

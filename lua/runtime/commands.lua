@@ -9,7 +9,7 @@
 --   :LtosGraph            — dependency graph (module → caps used)
 --
 -- FIX-POLISH-1 (2026-06-26): Debug stage lists are now derived from
--- pipeline.PHASE_ORDER instead of hardcoded. This eliminates the DRY
+-- phase_registry.list() instead of hardcoded. This eliminates the DRY
 -- violation where VALID_DEBUG_STAGES and 4 complete= functions each
 -- maintained their own copy of {collect, normalize, canonicalize,
 -- resolve, optimize}. Now a single helper `debug_stages()` computes
@@ -288,7 +288,7 @@ local function cmd_graph(opts)
       "LTOS Pipeline DAG",
       "=================",
       "",
-      "  [modules/lang/*]  ──►  collect  ──►  normalize  ──►  canonicalize  ──►  resolve  ──►  optimize  ──►  codegen  ──►  LazySpec[]",
+      "  [modules/lang/*]  ──►  collect  ──►  normalize  ──►  canonicalize  ──►  resolve  ──►  optimize  ──►  cap_resolve  ──►  codegen  ──►  LazySpec[]",
       "",
       "State machine transitions:",
       "  idle → collecting → normalizing → canonicalizing → resolving → optimizing → codegen → done",

@@ -1,15 +1,15 @@
 -- lua/runtime/ports_bootstrap.lua
 -- Layer 4: wire vim host APIs into core/compiler ports (once per session).
+--
+-- FIX (2026-07-15): _done guard is removed so that setup() can be called
+-- again after a spec (e.g. ports_spec) resets ports to broken defaults via
+-- its after_each. The configure() call is idempotent (overwrites all keys),
+-- so calling it multiple times is safe. The _done flag was preventing
+-- re-configuration after test suites polluted the ports state.
 
 local M = {}
-local _done = false
 
 function M.setup()
-  if _done then
-    return
-  end
-  _done = true
-
   local ports = require("core.compiler.ports")
   ports.configure({
     cache_dir = function() return vim.fn.stdpath("cache") .. "/ltos" end,

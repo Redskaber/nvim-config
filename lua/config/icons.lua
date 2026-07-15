@@ -3,4 +3,3 @@
 -- Re-exports from core/domain/icons.lua for use in plugins and config.
 
 return require("core.domain.icons")
-

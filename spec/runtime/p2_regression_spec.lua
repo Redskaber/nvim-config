@@ -268,18 +268,27 @@ R.describe("P2-2: SM transitions derived from Phase.output_state", function()
   R.it("no hardcoded PHASE_NEXT_SM table in pipeline.lua source", function()
     -- The old table was removed; SM now derives transitions from output_state.
     -- Read the source file to confirm PHASE_NEXT_SM is gone.
+    -- FIX (2026-07-15): try multiple path resolution strategies for headless test env.
+    local f
+    -- Strategy 1: vim.fn.stdpath("config") (works in real nvim install)
     local path = vim.fn.stdpath("config") .. "/lua/runtime/pipeline.lua"
-    -- Fall back to runtime file resolution if stdpath doesn't point at project
-    local f = io.open(path, "r")
+    f = io.open(path, "r")
+    -- Strategy 2: ports.resolve_runtime_file (works when rtp is set via --cmd)
     if not f then
-      -- In test env, use ports.resolve_runtime_file
       local ports = require("core.compiler.ports")
-      path = ports.resolve_runtime_file("runtime/pipeline.lua")
+      path = ports.resolve_runtime_file("lua/runtime/pipeline.lua")
       if path then
         f = io.open(path, "r")
       end
     end
-    R.assert_not_nil(f, "pipeline.lua source must be readable")
+    -- Strategy 3: search rtp directly
+    if not f then
+      local results = vim.api.nvim_get_runtime_file("lua/runtime/pipeline.lua", false)
+      if results and results[1] then
+        f = io.open(results[1], "r")
+      end
+    end
+    R.assert_not_nil(f, "pipeline.lua source must be readable (tried stdpath + ports + rtp)")
     if f then
       local src = f:read("*a")
       f:close()

@@ -199,9 +199,6 @@ local function validate_image(mod_name, cap, diags)
   end
 end
 
--- editor shares image shape
-local function validate_editor(mod_name, cap, diags) validate_image(mod_name, cap, diags) end
-
 local function validate_media(mod_name, cap, diags)
   local pp = ("media capability for '%s'"):format(mod_name)
 
@@ -376,7 +373,6 @@ end
 
 local VALIDATORS = {
   [cap_types.IMAGE] = validate_image,
-  [cap_types.EDITOR] = validate_editor,
   [cap_types.MEDIA] = validate_media,
   [cap_types.AI] = validate_ai,
   [cap_types.KEYBIND] = validate_keybind,

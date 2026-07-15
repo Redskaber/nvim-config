@@ -132,6 +132,7 @@ local SPEC_CATALOGUE = {
   { suite = "core", module = "spec.core.cache_spec",       tags = { "unit", "core" } },
   { suite = "core", module = "spec.core.invariants_spec",  tags = { "unit", "core" } },
   { suite = "core", module = "spec.core.types_spec",       tags = { "unit", "core" } },
+  { suite = "core", module = "spec.core.ports_spec",       tags = { "unit", "core" } },
   -- modules (L5–L6)
   { suite = "modules", module = "spec.modules.capability_spec", tags = { "unit", "modules" } },
   { suite = "modules", module = "spec.modules.ai_keybind_spec", tags = { "unit", "modules" } },
@@ -146,6 +147,8 @@ local SPEC_CATALOGUE = {
   { suite = "runtime", module = "spec.runtime.infra_spec",          tags = { "unit", "runtime" } },
   { suite = "runtime", module = "spec.runtime.commands_spec",       tags = { "unit", "runtime" } },
   { suite = "runtime", module = "spec.runtime.p2_regression_spec",  tags = { "unit", "runtime" } },
+  { suite = "runtime", module = "spec.runtime.output_validate_spec", tags = { "unit", "runtime" } },
+  { suite = "runtime", module = "spec.runtime.api_spec",            tags = { "unit", "runtime" } },
   -- toolchain (L3)
   { suite = "toolchain", module = "spec.toolchain.strategy_spec",      tags = { "unit", "toolchain" } },
   { suite = "toolchain", module = "spec.toolchain.mappings_data_spec", tags = { "unit", "toolchain" } },

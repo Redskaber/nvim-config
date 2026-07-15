@@ -65,7 +65,7 @@ Registered in `scripts/ltos_tests.lua` catalogue.
 ## Verification performed
 
 - `bash scripts/check_layer_boundaries.sh` → **PASSED**
-  (all 5 patched files comply with INV-1…INV-15 + rules 7a-7e)
+  (all 5 patched files comply with INV-1…INV-15 + rules 7a-7c (7d/7e documented but unimplemented))
 - Lua syntax parse on all `.lua` files → **all OK / 0 FAIL**
 - Manual logic-trace of every previously-failing assertion → **all pass**
 - New `p2_regression_spec` covers all P1/P2 fixes

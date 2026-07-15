@@ -100,7 +100,7 @@ R.describe("integration: IR as pipeline communication protocol", function()
   -- ── ext_caps bucket protocol ──────────────────────────────────────────────
 
   R.describe("ext_caps bucket protocol", function()
-    R.it("all 5 buckets initialized at IR construction", function()
+    R.it("all 4 buckets initialized at IR construction", function()
       local cap_types = require("core.domain.cap_types")
       local ir = ir_mod.new({}, "full")
       for _, ct in ipairs(cap_types.ALL) do

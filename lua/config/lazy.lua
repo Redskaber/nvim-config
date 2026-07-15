@@ -49,4 +49,3 @@ vim.api.nvim_create_autocmd("User", {
 
 local config_provider = require("runtime.providers.config")
 require("lazy").setup(config_provider.build_setup_opts(lang_specs))
-

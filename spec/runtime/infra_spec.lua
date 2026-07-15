@@ -251,6 +251,23 @@ R.describe("runtime.providers.config", function()
       local opts = config.build_setup_opts({})
       R.assert_false(opts.rocks.enabled)
     end)
+
+    R.it("checker.enabled = false by default (FIX-AUTO-UPDATE)", function()
+      local saved = vim.g.ltos_auto_update
+      vim.g.ltos_auto_update = nil
+      local opts = config.build_setup_opts({})
+      R.assert_false(opts.checker.enabled, "auto-update must be opt-in by default")
+      vim.g.ltos_auto_update = saved
+    end)
+
+    R.it("checker.enabled = true when vim.g.ltos_auto_update = true", function()
+      local saved = vim.g.ltos_auto_update
+      vim.g.ltos_auto_update = true
+      local opts = config.build_setup_opts({})
+      R.assert_true(opts.checker.enabled, "checker must be enabled when opt-in")
+      R.assert_true(opts.checker.notify, "notify must be true when enabled")
+      vim.g.ltos_auto_update = saved
+    end)
   end)
 
   -- ── register_spec() ──────────────────────────────────────────────────────
@@ -591,7 +608,7 @@ R.describe("runtime.defaults data integrity", function()
 
     R.it("has modules list", function()
       R.assert_type(defaults.modules, "table")
-      R.assert_true(#defaults.modules >= 5)
+      R.assert_true(#defaults.modules >= 4)
     end)
 
     R.it("each cap module path is a non-empty string", function()

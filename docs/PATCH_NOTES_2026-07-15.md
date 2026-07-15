@@ -88,7 +88,7 @@ Eliminated "drawer files": `coding/coding.lua`, `editor/editor.lua`, `ui/ui.lua`
 
 - `bash scripts/check_layer_boundaries.sh` → **PASSED**
 - Lua syntax on all 178 `.lua` files → **all OK / 0 FAIL**
-- Layer boundary rules 7a-7e → **all pass**
+- Layer boundary rules 7a-7c (7d/7e documented but unimplemented) → **all pass**
 - No LTOS runtime references in `plugins/` → **confirmed pure**
 
 ## Deploy
@@ -121,3 +121,4 @@ vim.g.ltos_auto_update = true
 ```
 
 Or run `:Lazy update` / `:Lazy check` manually.
+

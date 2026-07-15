@@ -57,8 +57,7 @@ local _cap_types = {
   MEDIA = "media",
   AI = "ai",
   KEYBIND = "keybind",
-  EDITOR = "editor",
-  ALL = { "image", "media", "ai", "keybind", "editor" },
+  ALL = { "image", "media", "ai", "keybind" },
   is_known = function(t) error("compiler types: cap_types not configured", 2) end,
   as_set = function() error("compiler types: cap_types not configured", 2) end,
 }

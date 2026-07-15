@@ -8,11 +8,11 @@ return {
   lsp = {
     asm_lsp = {},
   },
-  formatters = {
-    asm = { { kind = "formatter", name = "nasmfmt" } },
-  },
+  formatters = {},
   linters = {},
   -- No formatters or linters: no widely-available mason-installable tools for asm.
+  -- nasmfmt was previously listed but is NOT a mason package — it caused
+  -- "Cannot find package nasmfmt" crashes in mason-registry.
   -- asm-lsp is installed via the LSP adapter (lsp_to_mason["asm_lsp"] = "asm-lsp").
   mason = {},
 }

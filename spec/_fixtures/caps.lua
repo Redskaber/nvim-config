@@ -73,11 +73,10 @@ function M.all_caps()
     media = { media = M.media_cap() },
     ai = { ai = M.ai_cap() },
     keybind = { keybind = M.keybind_cap() },
-    editor = {},
   }
 end
 
 --- Empty cap buckets baseline.
-function M.empty_caps() return { image = {}, media = {}, ai = {}, keybind = {}, editor = {} } end
+function M.empty_caps() return { image = {}, media = {}, ai = {}, keybind = {} } end
 
 return M

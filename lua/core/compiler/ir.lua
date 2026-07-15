@@ -160,7 +160,6 @@ function M.new(lang_modules, profile)
       [cap_types.MEDIA] = {},
       [cap_types.AI] = {},
       [cap_types.KEYBIND] = {},
-      [cap_types.EDITOR] = {},
     },
     cap_specs = {},
   }
@@ -300,7 +299,22 @@ end
 function M.diff(old, new)
   local changes = {}
 
+  -- Cycle detection: track visited (a, b) table pairs to prevent infinite
+  -- recursion on cyclic / self-referential tables (mirrors the visited-set
+  -- pattern used in cache/policy.lua is_cacheable_inner). Keyed by identity:
+  -- visited[a] is a set of `b` tables already walked against this `a`.
+  local visited = {}
+
   local function walk(a, b, path)
+    if not visited[a] then
+      visited[a] = {}
+    end
+    if visited[a][b] then
+      -- Already walked this pair — skip without adding to changes.
+      return
+    end
+    visited[a][b] = true
+
     -- Compare top-level keys present in either
     local keys = {}
     for k in pairs(a) do
@@ -345,4 +359,3 @@ function M.format_diff(changes)
   return table.concat(lines, "\n")
 end
 return M
-

@@ -34,6 +34,7 @@ return {
       scroll = { enabled = true },
       notifier = { enabled = true },
       picker = { enabled = true },
+      profiler = { enabled = true }, -- FIX-P3 (2026-07-15): lualine.lua references Snacks.profiler.status() and <leader>dps keymap below — module must be enabled.
       quickfile = { enabled = true },
       words = { enabled = true },
       styles = { notification = {} },
@@ -81,7 +82,7 @@ return {
       { "<leader>fb",      function() Snacks.picker.buffers()         end, desc = "Buffers" },
       { "<leader>fc",      function() Snacks.picker.files({ cwd = vim.fn.stdpath("config"), hidden = true, respects_gitignore = false }) end, desc = "Find config file" },
       { "<leader>ff",      function() Snacks.picker.files({ hidden = true, respects_gitignore = false }) end, desc = "Find files" },
-      { "<leader>fg",      function() Snacks.picker.git_files()       end, desc = "Find git files" },
+      { "<leader>fG",      function() Snacks.picker.git_files()       end, desc = "Find git files" },
       { "<leader>fp",      function() Snacks.picker.projects()        end, desc = "Projects" },
       { "<leader>fr",      function() Snacks.picker.recent()          end, desc = "Recent files" },
       -- git

@@ -14,8 +14,8 @@ R.describe("runtime.passes.collect_ext", function()
 
   R.describe("registered()", function()
     R.it(
-      "returns the current cap module list (>= 5 defaults)",
-      function() R.assert_true(#collect_ext.registered() >= 5) end
+      "returns the current cap module list (>= 4 defaults)",
+      function() R.assert_true(#collect_ext.registered() >= 4) end
     )
     R.it("register() updates the module list", function()
       local orig = collect_ext.registered()
@@ -61,8 +61,9 @@ R.describe("runtime.passes.collect_ext", function()
         end
       end
       R.assert_eq(err_count, 0, "valid cap module must not produce error diagnostics")
-      -- restore
-      collect_ext.register(require("runtime.defaults.caps").modules)
+      -- restore (use setup() to eagerly discover; the lazy metatable in
+      -- runtime.defaults.caps.modules does not work with ipairs in LuaJIT)
+      collect_ext.setup()
     end)
   end)
 end)

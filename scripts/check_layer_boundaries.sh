@@ -153,7 +153,7 @@ done
 
 # ── INV-13: cap adapters must not call vim API ────────────────────────────────
 for f in "$LUA/runtime/adapters/image.lua" "$LUA/runtime/adapters/media.lua" \
-  "$LUA/runtime/adapters/ai.lua" "$LUA/runtime/adapters/ai_cap.lua" \
+  "$LUA/runtime/adapters/ai_cap.lua" \
   "$LUA/runtime/adapters/keybind.lua"; do
   [ -f "$f" ] || continue
   if grep -n "vim\." "$f" 2>/dev/null | grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
@@ -163,11 +163,14 @@ for f in "$LUA/runtime/adapters/image.lua" "$LUA/runtime/adapters/media.lua" \
 done
 
 # ── INV-15: conflict.lua must not mutate strategy registry ───────────────────
-if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null |
-  grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
-  echo "FAIL [INV-15]: conflict.lua must not write strategy registry"
-  fail=1
-fi
+# FIX-P3 (2026-07-15): conflict.lua was deleted as dead code (no production
+# callers). INV-15 is now vacuously satisfied — the rule is kept as a comment
+# for historical reference. If conflict.lua is re-introduced, re-enable this check:
+# if grep -nE 'StrategyRegistry|strategy\.registry|registry\.register' "$LUA/toolchain/strategy/conflict.lua" 2>/dev/null |
+#   grep -v "^[0-9]*:[ \t]*--" | grep -q .; then
+#   echo "FAIL [INV-15]: conflict.lua must not write strategy registry"
+#   fail=1
+# fi
 
 # ── FIX-ROBUST-V2 (2026-06-23): Orphan file + convention detection ────────
 # Warn if:

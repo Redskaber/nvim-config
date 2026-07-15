@@ -1,7 +1,7 @@
 # LTOS nvim-config — 部署指南
 
 > 完整可部署的 Neovim 配置，基于 LazyVim + 自研 LTOS 编译器内核
-> 版本：v5.4.7 + P0/P1 审计修复（2026-06-23）
+> 版本：v5.5.0 + 全部审计修复（截至 2026-07-15）
 
 ---
 
@@ -64,7 +64,7 @@ nvim
 ```bash
 cd ~/.config/nvim
 
-# 层边界检查（含 7a-7e 新规则）
+# 层边界检查（含 7a-7c 新规则）
 just check
 # 期望：Layer boundary check: PASSED
 
@@ -217,7 +217,7 @@ nvim --headless "+lua vim.g.ltos_debug=true" "+LtosDebug collect" +qa
 ### 新增护栏
 
 - 6 个回归测试（cap_specs 内容验证）
-- 5 个 layer boundary check 规则（7a-7e）
+- 3 个 layer boundary check 规则（7a-7c，7d/7e 文档化但未实现）
 
 ### 不变量合规率
 
@@ -225,5 +225,5 @@ nvim --headless "+lua vim.g.ltos_debug=true" "+LtosDebug collect" +qa
 
 ---
 
-_LTOS v5.4.7 + 2026-06-23 审计修复 · MIT License_
+_LTOS v5.5.0 + 全部审计修复（截至 2026-07-15） · MIT License_
 

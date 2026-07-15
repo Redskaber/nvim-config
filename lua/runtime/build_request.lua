@@ -4,7 +4,7 @@
 
 local M = {}
 
-local DEFAULT_BASE_TOOLS = { "codespell" }
+M.DEFAULT_BASE_TOOLS = { "codespell" }
 
 -- Debug flags read from vim.g once in BuildRequest,
 -- then passed through IR.meta.build_request. Pipeline reads these from
@@ -45,7 +45,7 @@ function M.from_vim(profile, modules)
 
   local base_tools = vim.g.ltos_base_mason_tools
   if type(base_tools) ~= "table" then
-    base_tools = DEFAULT_BASE_TOOLS
+    base_tools = M.DEFAULT_BASE_TOOLS
   end
 
   local base_parsers = vim.g.ltos_base_parsers

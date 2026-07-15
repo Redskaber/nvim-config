@@ -37,12 +37,15 @@ Mason installs LSP servers, formatters, and linters automatically on first start
 
 ## LTOS — Language Toolchain Orchestration System
 
-### Six-Layer Architecture
+### Seven-Layer Architecture
 
 LTOS enforces strict layer boundaries. Each layer may only depend on layers below it; upward dependencies are forbidden.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
+│  Layer 6 · cap DSL          modules/cap  modules/ai                  │
+│             Capability DSL extensions (AI, cap modules).             │
+├──────────────────────────────────────────────────────────────────────┤
 │  Layer 5 · app / config     config/  plugins/  modules/lang/         │
 │             Zero compiler knowledge. Pure DSL declarations.          │
 ├──────────────────────────────────────────────────────────────────────┤
@@ -60,7 +63,8 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 ├──────────────────────────────────────────────────────────────────────┤
 │  Layer 1 · compiler         core/compiler/ir  core/compiler/pass     │
 │                              core/compiler/cache                     │
-│             CompilerContext · Phase interface · two-tier cache (ast + spec). │
+│             CompilerContext · Phase interface · two-tier cache (     │
+│                                                         ast + spec). │
 │             No vim API. No plugin knowledge.                         │
 ├──────────────────────────────────────────────────────────────────────┤
 │  Layer 0 · kernel           core/kernel/bootstrap  core/kernel/env   │
@@ -85,7 +89,7 @@ LTOS enforces strict layer boundaries. Each layer may only depend on layers belo
 ### Compiler Pipeline
 
 ```
-modules/lang/*.lua  ──►  Pipeline (5 phases)  ──►  LazySpec[]
+modules/lang/*.lua  ──►  Pipeline (8 phases: 6 main + 2 side)  ──►  LazySpec[]
       (DSL / AST)                                  (codegen output)
 ```
 
@@ -97,7 +101,7 @@ init.lua
   └─ config/lazy.lua
        └─ runtime.build()    (Layer 5 → compiler entry point)
             └─ runtime/init.lua   (profile resolution, spec-tier cache)
-                 └─ runtime/pipeline.lua  (state machine + 5 phases)
+                 └─ runtime/pipeline.lua  (state machine + 8 phases)
 ```
 
 #### State machine
@@ -109,7 +113,7 @@ idle → collecting → normalizing → canonicalizing → resolving → optimiz
                                                                                     ↘ error
 ```
 
-#### Five phases
+#### Eight phases (6 main + 2 side)
 
 | Phase            | SM transition                | IR layer in | IR layer out | Responsibility                                                              |
 | ---------------- | ---------------------------- | ----------- | ------------ | --------------------------------------------------------------------------- |
@@ -119,6 +123,8 @@ idle → collecting → normalizing → canonicalizing → resolving → optimiz
 | **resolve**      | canonicalizing → resolving   | HIR+        | MIR          | Project `IR.symbols` → `IR.resolved` (mason/system decisions)               |
 | **optimize**     | resolving → optimizing       | MIR         | LIR          | Dedup parsers, deep-merge LSP configs → `IR.merged_lsp`, `IR.all_parsers`   |
 | **codegen**      | optimizing → codegen         | LIR         | SPEC         | Drive backend adapters → `LazySpec[]`                                       |
+
+> **Side phases** (not shown in the table): `collect_ext` (collect-time extensions) and `cap_resolve` (capability resolution) bring the total to **8 phases** (6 main + 2 side).
 
 #### IR sub-layers (immutable, copy-on-write)
 
@@ -164,9 +170,10 @@ Strategies encapsulate toolchain decisions behind a uniform interface, decoupled
 
 ```lua
 ---@class Strategy
----@field applies   fun(ctx, node): boolean
----@field transform fun(ctx, node): node
----@field priority  number
+---@field name     string
+---@field applies  fun(tool: string, env: EnvContext): boolean
+---@field resolve  fun(bufnr: integer): string[]
+---@field priority integer
 ```
 
 **StrategyRegistry** (`toolchain/strategy/registry.lua`) supports `register(strategy)` and `get(name)` / `list()`. Built-in strategy kinds: `formatter`.
@@ -175,7 +182,7 @@ Strategies encapsulate toolchain decisions behind a uniform interface, decoupled
 
 1. User overrides (`vim.g.ltos_tool_overrides` or `toolchain/mappings.lua` `overrides`)
 2. `system_tools` set (rustfmt, gofmt, zigfmt, fish, nixpkgs_fmt, …)
-3. Nix environment (`core/env.lua` `M.is_nix`)
+3. Nix environment (`core/kernel/env.lua` `M.is_nix`)
 4. `tool_to_mason` mapping table
 5. Identity fallback
 
@@ -235,7 +242,7 @@ vim.g.ltos_profile = "minimal"  -- "full" (default) | "minimal" | "nix"
 | Command              | Description                                                              |
 | -------------------- | ------------------------------------------------------------------------ |
 | `:LtosInfo`          | profile, pipeline state, modules, tools, strategies, per-stage timings   |
-| `:LtosDebug [stage]` | foldable IR snapshot at `collect` / `normalize` / `resolve` / `optimize` |
+| `:LtosDebug [stage]` | foldable IR snapshot at `collect` / `normalize` / `canonicalize` / `resolve` / `optimize` |
 | `:LtosIR`            | full LIR dump (post-optimize) in a scratch buffer                        |
 | `:LtosTrace`         | per-phase execution timeline with ASCII bar chart                        |
 | `:LtosGraph`         | module → capability dependency graph                                     |
@@ -257,7 +264,13 @@ lua/
 │   │   ├── ir.lua                 IR struct, CompilerContext, deterministic diagnostics
 │   │   ├── pass.lua               Phase interface + protected run_phase()
 │   │   ├── ports.lua              injectable host ports (cache/json/runtime-file)
-│   │   └── cache.lua              two-tier FNV-1a content-keyed cache (ast / spec)
+│   │   ├── invariants.lua         IR invariant checks
+│   │   ├── types.lua              type contracts (LuaLS annotations)
+│   │   └── cache/                 two-tier FNV-1a content-keyed cache (ast / spec)
+│   │       ├── key.lua            cache key construction
+│   │       ├── store.lua          cache storage / persistence
+│   │       ├── policy.lua         invalidation policy (ast / spec tiers)
+│   │       └── version.lua        schema version stamp
 │   │
 │   └── domain/                    [L2] domain IR, immutable value objects
 │       ├── schema.lua             typed validator, error recovery, diagnostics
@@ -276,7 +289,7 @@ lua/
 │   ├── init.lua                   orchestrator: BuildRequest, profile, two-tier cache
 │   ├── build_request.lua          sole vim.g entry for compilation config
 │   ├── ports_bootstrap.lua        injects vim APIs into core/compiler/ports
-│   ├── pipeline.lua               state machine + 5-phase compiler kernel
+│   ├── pipeline.lua               state machine + 8-phase compiler kernel
 │   ├── commands.lua               observability commands: LtosInfo/Debug/IR/Trace/Graph
 │   ├── api.lua                    editor façade: api.editor / api.lsp / api.diagnostics / api.find
 │   ├── passes/                    [L4] compiler phases (pure IR transforms, copy-on-write)
@@ -463,7 +476,7 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | `folke/ts-comments.nvim`                                                             | treesitter-aware comments for 30+ languages                   |
 | `nvim-mini/mini.ai`                                                                  | extended text objects (`af`, `ac`, `ao`, `at`, `ad`, `ae`, …) |
 | `L3MON4D3/LuaSnip`                                                                   | snippet engine                                                |
-| `hrsh7th/nvim-cmp` + `hrsh7th/cmp-emoji`                                             | completion + emoji source                                     |
+| `hrsh7th/nvim-cmp` + `hrsh7th/cmp-emoji` + `Saghen/blink.cmp`                        | completion + emoji source                                     |
 | `mfussenegger/nvim-dap` + `rcarriga/nvim-dap-ui` + `theHamsta/nvim-dap-virtual-text` | debug adapter protocol                                        |
 
 ### AI
@@ -478,7 +491,6 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | Plugin                    | Purpose                                               |
 | ------------------------- | ----------------------------------------------------- |
 | `akinsho/toggleterm.nvim` | floating / horizontal terminal (`<C-t>`, `<leader>t`) |
-| `nvim-tree/nvim-tree.lua` | file tree sidebar (`<leader>fe`)                      |
 
 ---
 
@@ -486,15 +498,15 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 
 | Language                        | LSP                    | Formatter                   | Linter             |
 | ------------------------------- | ---------------------- | --------------------------- | ------------------ |
-| Assembly (x86/x64)              | asm_lsp                | —                           | —                  |
+| Assembly (x86/x64)              | asm_lsp                | nasmfmt                     | —                  |
 | C / C++                         | clangd                 | clang-format                | clangtidy (system) |
 | Go                              | gopls                  | gofmt (system), goimports   | —                  |
 | Java                            | jdtls                  | google-java-format          | checkstyle         |
 | Kotlin                          | kotlin_language_server | ktfmt                       | ktlint             |
 | Lisp / Clojure                  | clojure_lsp            | cljfmt                      | clj-kondo          |
-| Lua                             | lua_ls                 | stylua                      | —                  |
+| Lua                             | lua_ls                 | stylua                      | luacheck           |
 | Markup (JSON/YAML/TOML/HTML/MD) | jsonls, yamlls, taplo, marksman | taplo / prettierd           | markdownlint       |
-| Nix                             | nil_ls                 | nixpkgs_fmt (system)        | —                  |
+| Nix                             | nil_ls                 | —                           | statix             |
 | Python                          | pyright                | ruff-or-black               | ruff               |
 | Rust                            | rust_analyzer          | rustfmt (system)            | clippy (system)    |
 | Shell (Bash/Fish)               | bashls                 | shfmt, fish_indent (system) | shellcheck         |
@@ -510,9 +522,8 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | `<leader><space>` | smart find files (snacks) |
 | `<leader>/`       | grep                      |
 | `<leader>e`       | file explorer (snacks)    |
-| `<leader>fe`      | nvim-tree toggle          |
 | `<leader>ff`      | find files                |
-| `<leader>fg`      | find git files            |
+| `<leader>fg`      | live grep                 |
 | `<leader>fr`      | recent files              |
 | `<leader>sg`      | grep                      |
 | `<leader>ss`      | LSP symbols               |
@@ -520,8 +531,6 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 | `<leader>ca`      | code action               |
 | `<leader>cr`      | rename symbol             |
 | `<leader>cd`      | diagnostic float          |
-| `<leader>ai`      | AI chat toggle            |
-| `<leader>aa`      | AI actions                |
 | `<C-n>`           | multi-cursor add next     |
 | `<C-t>`           | toggle terminal           |
 | `<leader>t`       | float terminal            |
@@ -555,7 +564,8 @@ Built on **LazyVim v8** (`LazyVim/LazyVim`). All plugins below are layered on to
 
 ```bash
 just check   # layer boundary violations (scripts/check_layer_boundaries.sh)
-just test    # 19 headless LTOS regression tests (scripts/run_ltos_tests.sh)
+just test    # 28 headless LTOS regression tests (scripts/run_ltos_tests.sh)
 ```
 
 Coverage includes: cache ports, ir/schema deterministic diagnostics, BuildRequest, nix profile, adapter registry, pipeline `PHASE_ORDER`, `runtime.build()`, ConfigProvider, terminal API.
+

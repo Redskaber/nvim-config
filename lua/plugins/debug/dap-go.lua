@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/lang/go.lua
+-- ~/.config/nvim/lua/plugins/debug/dap-go.lua
 -- Go language editing enhancements.
 --
 -- Responsibility boundary (职责分离):

@@ -18,27 +18,25 @@ function M.build(ir)
 
   -- Merge all linter maps: { [ft]: string[] }
   local linters_by_ft = {}
+  -- FIX-P3 (2026-07-15): O(n²) dedup → O(n) via per-ft seen-set.
+  -- Previously inner-looped over linters_by_ft[ft] for each linter, which
+  -- degraded quadratically as the list grew. seen_by_ft persists across caps
+  -- so duplicate linters contributed by multiple lang modules for the same ft
+  -- are still suppressed (preserves original cross-module dedup intent).
+  local seen_by_ft = {}
 
   for _, cap in pairs(ir.caps) do
     if cap.linters then
       for ft, linters in pairs(cap.linters) do
         if not linters_by_ft[ft] then
           linters_by_ft[ft] = {}
+          seen_by_ft[ft] = {}
         end
+        local seen = seen_by_ft[ft]
         for _, linter in ipairs(linters) do
-          if type(linter) == "string" then
-            -- de-dup within a filetype so multiple lang modules
-            -- contributing the same linter do not produce duplicates.
-            local seen = false
-            for _, existing in ipairs(linters_by_ft[ft]) do
-              if existing == linter then
-                seen = true
-                break
-              end
-            end
-            if not seen then
-              linters_by_ft[ft][#linters_by_ft[ft] + 1] = linter
-            end
+          if type(linter) == "string" and not seen[linter] then
+            seen[linter] = true
+            linters_by_ft[ft][#linters_by_ft[ft] + 1] = linter
           end
         end
       end

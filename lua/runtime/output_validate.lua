@@ -1,4 +1,4 @@
--- lua/runtime/passes/_output_validate.lua
+-- lua/runtime/output_validate.lua
 -- Shared post-condition validators for pipeline phases (P6-D2).
 --
 -- Each phase's output_validate receives the IR AFTER the phase's run()

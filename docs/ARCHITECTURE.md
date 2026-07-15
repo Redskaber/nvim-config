@@ -28,7 +28,7 @@ LTOS 是一个七层分层编译器:声明式 DSL (语言/capability 模块) →
 | **L0 kernel** | `lua/core/kernel/` | 早期 bootstrap、leader、util (deep_copy/merge/hash/freeze) | compiler / domain / toolchain / runtime / vim API (除 bootstrap) |
 | **L1 compiler** | `lua/core/compiler/` | IR 类型、Phase 接口、invariants、cache、ports | domain / toolchain / runtime / 任何 `vim.*` (除 `ports.lua`) |
 | **L2 domain** | `lua/core/domain/` | 纯领域模型:`capability`、`diagnostic`、`ext_schema` | compiler / toolchain / runtime |
-| **L3 toolchain** | `lua/toolchain/` | strategy 注册表与策略:`prefer_mason`、`prefer_system`、`conflict` | compiler / runtime / adapters / `vim.g` |
+| **L3 toolchain** | `lua/toolchain/` | strategy 注册表与策略:`ruff_or_black`、`prettierd_or_prettier`、`stylua_or_lua_format` | compiler / runtime / adapters / `vim.g` |
 | **L4 runtime** | `lua/runtime/` | orchestrator:pipeline、phase_registry、passes、adapters、emitter、lifecycle、providers | (允许向下,但 passes/adapters 自身有纯度约束) |
 | **L5 app/config** | `lua/config/`、`lua/plugins/` | lazy.nvim 启动、plugin spec 聚合 | runtime.adapters / runtime.pipeline (反向) |
 | **L6 cap DSL** | `lua/modules/cap/`、`modules/ai/`、`modules/editor/`、`modules/keybind/` | 用户声明式 capability 模块 (`cap_type` + `version`) | runtime.pipeline / runtime.adapters |
@@ -292,7 +292,7 @@ end
 - `core/compiler/**/*.lua` (除 `ports.lua`) 不得调 `vim.*`
 - `toolchain/**` 不得读 `vim.g`
 - INV-11:除 `collect_ext.lua` 外,任何 pass 不得赋值 `ext_caps`
-- INV-13:`adapters/image.lua`、`media.lua`、`ai.lua`、`ai_cap.lua`、
+- INV-13:`adapters/image.lua`、`media.lua`、`ai_cap.lua`、
   `keybind.lua` 不得调 `vim.*`
 - INV-15:`toolchain/strategy/conflict.lua` 不得调 `StrategyRegistry` /
   `registry.register`
@@ -355,3 +355,4 @@ WARN (非 FAIL):
 ---
 
 *Document version: 1.0 · synced with source as of v5.5.0.*
+

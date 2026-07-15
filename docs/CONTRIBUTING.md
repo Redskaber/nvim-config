@@ -1,6 +1,6 @@
 # 贡献指南 (CONTRIBUTING)
 
-> nvim-config onboarding 指南。项目采用 LTOS 分层架构 (Layer 0 kernel → Layer 5 app → Layer 6 runtime)，
+> nvim-config onboarding 指南。项目采用 LTOS 分层架构 (Layer 0 kernel → Layer 4 runtime, Layer 6 cap DSL)，
 > 所有贡献须通过 `just check` + `just test` 才能合入。
 
 ---
@@ -206,6 +206,11 @@ FIX-<NAME> (YYYY-MM-DD): description
 违反即 `FAIL`，CI 阻断。修复方式见每个 `FAIL` 提示（如 "use ports.* abstraction"、
 "use util.merge/deep_merge/deep_copy"、"inject via BuildRequest"）。
 
+**规则数量**：`check_layer_boundaries.sh` 当前实现了 **3 个 layer boundary check
+规则（7a-7c）**：7a (reverse layer violations)、7b (Phase.run 禁用 `vim.api`)、
+7c (require-time side effects)。规则 7d（toolchain `vim.*` 纯度扩展至 `vim.g`
+之外）与 7e（`ports.notify` 参数顺序）已在 `AUDIT_CORRIGENDUM` 中记录但**尚未实现**。
+
 ---
 
 ## 8. 测试约定
@@ -248,3 +253,4 @@ end)
 - [ ] 新 spec 已加入 `SPEC_CATALOGUE` 且 `just test` 全绿
 - [ ] 代码改动打上 `FIX-<NAME> (YYYY-MM-DD):` 标记
 - [ ] DSL module 保持 plain table、无 `require("runtime.*")`（INV-8）；Phase.run 纯函数（INV-2）
+

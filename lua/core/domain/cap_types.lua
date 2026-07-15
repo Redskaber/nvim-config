@@ -5,7 +5,6 @@
 -- - core/compiler/ir.lua (ext_caps initialization)
 -- - core/domain/ext_schema.lua (validation)
 -- - runtime/defaults/cap_adapters.lua (routing)
--- - modules/capability/schema.lua (validation)
 --
 -- Adding a new cap_type requires only extending this list.
 
@@ -16,15 +15,14 @@ M.IMAGE = "image"
 M.MEDIA = "media"
 M.AI = "ai"
 M.KEYBIND = "keybind"
-M.EDITOR = "editor"
 
 --- All known cap_types in canonical order.
+-- FIX-P3 (2026-07-15): EDITOR removed — no adapter registered (half-implementation).
 M.ALL = {
   M.IMAGE,
   M.MEDIA,
   M.AI,
   M.KEYBIND,
-  M.EDITOR,
 }
 
 --- Check if a string is a known cap_type.

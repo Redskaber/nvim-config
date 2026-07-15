@@ -24,7 +24,7 @@ vim.g.maplocalleader = "\\"
 -- which loads inside lazy.setup() — too late, LazyVim had already built
 -- the neo-tree spec. Moving to bootstrap ensures LazyVim sees "snacks"
 -- at spec-construction time and skips neo-tree entirely.
--- Keymaps: <leader>e (root dir) and <leader>E (cwd) in plugins/ui/ui.lua.
+-- Keymaps: <leader>e (root dir) and <leader>E (cwd) in plugins/ui/snacks.lua.
 vim.g.lazyvim_file_explorer = "snacks"
 
 -- FIX-AUTO-UPDATE (2026-07-15): disable lazy.nvim background update checker.

@@ -112,7 +112,7 @@ M.pass = {
 
   run = function(ir)
     local next_ir = ir_mod.with(ir, { ext_caps = util.deep_copy(ir.ext_caps) })
-    local module_hashes = util.deep_copy(ir.meta.module_hashes or {})
+    local module_hashes = util.deep_copy((ir.meta and ir.meta.module_hashes) or {})
     local diagnostics = util.deep_copy(ir.diagnostics or {})
     local ast_seed = ir.meta and ir.meta.ast_seed
     local graph_input = {}
@@ -160,9 +160,12 @@ M.pass = {
 local cap_defaults = require("runtime.defaults.caps")
 
 --- Re-register default cap modules. Safe to call multiple times (register() replaces).
+--- Eagerly calls discover() to populate a plain list — LuaJIT's ipairs() and #
+--- operator do NOT trigger the __index/__len metamethods on the lazy metatable
+--- defined in runtime.defaults.caps, so we materialise the list here.
 ---@return boolean always true
 function M.setup()
-  M.register(cap_defaults.modules)
+  M.register(cap_defaults.discover())
   return true
 end
 

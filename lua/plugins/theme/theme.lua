@@ -1,6 +1,6 @@
 -- ~/.config/nvim/lua/plugins/theme/theme.lua
 -- Catppuccin Mocha with transparent background.
--- custom_highlights are kept in a dedicated features/transparency.lua table
+-- custom_highlights are kept in a dedicated plugins/theme/_transparency.lua table
 -- and merged here to keep this file manageable.
 
 local transparency = require("plugins.theme._transparency")

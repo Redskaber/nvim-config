@@ -34,7 +34,7 @@ local collect_pass = {
   ---@param ir IR
   ---@return IR
   run = function(ir)
-    local lang_modules = ir.meta.lang_modules or {}
+    local lang_modules = (ir.meta and ir.meta.lang_modules) or {}
     local ast_seed = ir.meta and ir.meta.ast_seed
 
     local cap_set = cap_mod.new()

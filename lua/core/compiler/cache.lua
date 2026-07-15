@@ -24,4 +24,3 @@ function M.load_specs(key) return M.load("spec", key) end
 function M.save_specs(key, specs) M.save("spec", key, specs) end
 
 return M
-

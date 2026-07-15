@@ -46,9 +46,9 @@ bootstrap.lua 的所有设置都是**"必须在 lazy.setup() 之前设置的全�
 
 ## 其他架构更新
 
-### editor.lua 新增 neo-tree 禁用
+### neo-tree 禁用
 
-`lua/plugins/editor/editor.lua` 新增 `{ "nvim-neo-tree/neo-tree.nvim", enabled = false }`，作为双保险确保 neo-tree 永不加载（即使 LazyVim 某些版本仍尝试加载）。
+`lua/plugins/ui/neo-tree-disable.lua` 新增 `{ "nvim-neo-tree/neo-tree.nvim", enabled = false }`，作为双保险确保 neo-tree 永不加载（即使 LazyVim 某些版本仍尝试加载）。
 
 ### autocmds.lua 新增 Snacks explorer 自动打开
 

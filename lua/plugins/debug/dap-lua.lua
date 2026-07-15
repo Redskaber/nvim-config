@@ -1,4 +1,4 @@
--- ~/.config/nvim/lua/plugins/lang/lua.lua
+-- ~/.config/nvim/lua/plugins/debug/dap-lua.lua
 -- Lua language editing enhancements.
 --
 -- Responsibility boundary (职责分离):

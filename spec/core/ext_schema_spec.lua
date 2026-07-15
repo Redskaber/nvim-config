@@ -55,13 +55,13 @@ R.describe("core.domain.ext_schema", function()
 
   -- ── known_cap_types() ─────────────────────────────────────────────────────
 
-  R.it("known_cap_types() includes all five types", function()
+  R.it("known_cap_types() includes all four types", function()
     local types = ext.known_cap_types()
     local set = {}
     for _, t in ipairs(types) do
       set[t] = true
     end
-    for _, expected in ipairs({ "image", "media", "ai", "keybind", "editor" }) do
+    for _, expected in ipairs({ "image", "media", "ai", "keybind" }) do
       R.assert_true(set[expected], "missing: " .. expected)
     end
   end)

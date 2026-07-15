@@ -75,7 +75,7 @@
 - `lifecycle.lua` ❌ 未迁移（仍用内联 `{severity, message}` 表）
 - `toolchain/strategy/conflict.lua` ❌ 仍越层调用 `require("core.compiler.ir").diag(...)`（Layer 3 → Layer 1 违反）
 
-**修正状态**：✅ conflict.lua 已修复 — 见 P0-AUDIT-5c；lifecycle.lua 待修复
+**修正状态**：✅ conflict.lua 已修复 — 见 P0-AUDIT-5c；lifecycle.lua ✅ 已修复 (P1-5, 2026-06-26)
 
 ---
 
@@ -212,14 +212,14 @@ then
 | INV | 描述 | 原评分 | 修正后评分 | 备注 |
 | ----- | ------ | -------- | ----------- | ------ |
 | INV-1 | IR 不可变 / COW | ✅ | ✅ | — |
-| INV-2 | Phase 纯函数 | ✅ | 🟡 | collect.lua:73 用 vim.api（未修复） |
-| INV-3 | emitter 唯一 vim.notify | ✅ | 🟡 | pipeline.lua 在 codegen 期间有 DEBUG vim.notify |
+| INV-2 | Phase 纯函数 | ✅ | ✅ | collect.lua:73 vim.api → ports（**P1-1 已修复**） |
+| INV-3 | emitter 唯一 vim.notify | ✅ | ✅ | pipeline.lua DEBUG vim.notify 迁出（**已修复**） |
 | INV-4 | Strategy 无状态可替换 | ✅ | ✅ | — |
-| INV-5 | 层依赖单向向下 | ✅ | 🟡 | capability.lua M.dump 触达 vim.inspect；**conflict.lua 越层已修复** |
+| INV-5 | 层依赖单向向下 | ✅ | ✅ | capability.lua M.dump vim.inspect + conflict.lua 越层（**均已修复**） |
 | INV-6 | IR stage 前进 | ✅ | ✅ | — |
 | INV-7 | 缓存键内容 hash | ✅ | ✅ | — |
 | INV-8 | DSL 纯声明 | ✅ | ✅ | — |
-| INV-9 | BuildRequest 唯一 vim.g | ✅ | 🟡 | debug/UI knobs 散落 |
+| INV-9 | BuildRequest 唯一 vim.g | ✅ | ✅ | debug/UI knobs 集中于 BuildRequest（**已修复**） |
 | INV-10 | Ports IO 注入 | ✅ | ✅ | — |
 | INV-11 | ext_caps 仅 collect_ext 写 | ✅ | ✅ | — |
 | INV-12 | cap DSL 经 ext_schema 验证 | ✅ | ✅ | — |
@@ -407,7 +407,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 | INV-14 | ✅ | ✅ | ✅ | — |
 | INV-15 | ✅ | ✅ | ✅ | — |
 
-**合规率**：修复前 11/15 → P0 后 13/15 → **P1 后 14/15**。剩余 INV-3/INV-9 是灰区（不影响正确性，破坏抽象纯度）。
+**合规率**：修复前 11/15 → P0 后 13/15 → P1 后 14/15 → **P2 后 15/15**。剩余灰区均已清除。
 
 ### 8.5 本轮修复文件清单（追加到第五节）
 
@@ -420,7 +420,7 @@ P0-AUDIT-3 的误报源于终端把 `[h` 当作 ANSI 控制序列吞掉。建议
 | `lua/core/compiler/cache/policy.lua` | P1-4 环检测 | 高 |
 | `lua/modules/capability/lifecycle.lua` | P1-5 迁移到 domain.diagnostic | 中 |
 | `lua/runtime/init.lua` | 调用 collect_ext.setup() + pipeline.setup() | 高（配套） |
-| `scripts/check_layer_boundaries.sh` | 新增 5 个检测规则（7a-7e） | 高（护栏） |
+| `scripts/check_layer_boundaries.sh` | 新增 5 个检测规则（7a-7c (7d/7e documented but unimplemented)） | 高（护栏） |
 
 ---
 
@@ -491,7 +491,7 @@ P1-2b 在架构层面是正确的（P6-C2 一致性），但在实践层面破�
 | `lua/modules/capability/lifecycle.lua` | P1-5 迁移到 domain.diagnostic | ✅ 保留 |
 | `lua/runtime/init.lua` | 调用 collect_ext.setup() | ✅ 保留（移除 pipeline.setup()） |
 | `scripts/ltos_tests.lua` | 调用 collect_ext.setup() | ✅ **新增**（测试兼容性） |
-| `scripts/check_layer_boundaries.sh` | 5 个检测规则（7a-7e） | ✅ 保留（7c 排除 pipeline.lua） |
+| `scripts/check_layer_boundaries.sh` | 5 个检测规则（7a-7c (7d/7e documented but unimplemented)） | ✅ 保留（7c 排除 pipeline.lua） |
 
 ---
 

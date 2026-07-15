@@ -151,4 +151,3 @@ function M.notify(level, msg) _ports.notify(level, msg) end
 function M.ensure_cache_dir(dir) _ports.ensure_cache_dir(dir) end
 
 return M
-

@@ -86,6 +86,17 @@ end
 
 -- Backward-compatible: return table with .modules key
 -- This is consumed by collect_ext.setup() which expects { modules = { ... } }
+-- FIX-P3 (2026-07-15): lazy discovery via metatable was originally attempted
+-- to avoid running globpath at require time. However, LuaJIT's `ipairs()` and
+-- `#` operator do NOT trigger the __index/__len metamethods on tables, so the
+-- lazy metatable appeared empty when iterated. We now eagerly populate
+-- M.modules at require time. This is safe because runtime.defaults.caps is
+-- only ever required from runtime/passes/collect_ext.lua, which itself is
+-- only loaded after ports_bootstrap.setup() has run (so vim.o.rtp is set).
 M.modules = M.discover()
+
+-- Refresh the cached modules list (useful after registering new cap modules
+-- at runtime, or in tests that need a fresh discovery).
+function M.refresh() M.modules = M.discover() end
 
 return M

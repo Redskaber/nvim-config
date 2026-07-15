@@ -6,15 +6,14 @@
 local M = {}
 
 local util = require("core.kernel.util")
-
-local DEFAULT_BASE_TOOLS = { "codespell" }
+local build_request_mod = require("runtime.build_request")
 
 local function base_tools_from_ir(ir)
   local req = ir.meta and ir.meta.build_request
   if req and type(req.base_tools) == "table" then
     return req.base_tools
   end
-  return DEFAULT_BASE_TOOLS
+  return build_request_mod.DEFAULT_BASE_TOOLS
 end
 
 --- Shallow-copy a list.
@@ -35,128 +34,80 @@ function M.build(ir)
     return { { _ltos_error = "[ltos:mason] IR missing required field: caps" } }
   end
 
+  -- Guard: the canonicalize pass always produces ir.symbols. If absent, the
+  -- IR is malformed (or the pipeline was bypassed) — bail with an error spec
+  -- rather than silently falling back to a stale mappings-driven path that
+  -- duplicates canonicalize's logic (and has historically drifted from it).
+  if not ir.symbols then
+    return { { _ltos_error = "[ltos:mason] IR missing required field: symbols (canonicalize pass not run?)" } }
+  end
+
   local raw = list_copy(base_tools_from_ir(ir))
   local seen = {}
 
-  -- Use ir.symbols when available (post-canonicalize); fall back to ir.resolved
   local symbols = ir.symbols
 
-  if symbols then
-    -- ── LSP packages from ir.symbols.lsp ─────────────────────────────────
-    for server, sym in pairs(symbols.lsp) do
-      local want = ir.resolved and ir.resolved.lsp[server]
-      if want and sym.mason and not seen[sym.mason] then
-        seen[sym.mason] = true
-        raw[#raw + 1] = sym.mason
-      end
-    end
-
-    -- ── Tool packages from ir.symbols.tools ───────────────────────────────
-    for tool, sym in pairs(symbols.tools) do
-      local want = ir.resolved and ir.resolved.tools[tool]
-      if want and sym.mason and not seen[sym.mason] then
-        seen[sym.mason] = true
-        raw[#raw + 1] = sym.mason
-      end
-    end
-  else
-    -- Fallback path (no canonicalize pass — should not happen in normal pipeline)
-    local mappings = require("toolchain.mappings")
-    local rules = require("toolchain.rules")
-    local build_request_mod = require("runtime.build_request")
-    local req = ir.meta and ir.meta.build_request or {}
-    local overrides = req.overrides or {}
-    local ctx = build_request_mod.rules_ctx(req)
-    for server, _ in pairs(ir.merged_lsp or {}) do
-      local want = ir.resolved and ir.resolved.lsp[server]
-      if want then
-        local pkg = mappings.lsp_pkg(server)
-        if pkg and not seen[pkg] then
-          seen[pkg] = true
-          raw[#raw + 1] = pkg
-        end
-      end
-    end
-    for _, cap in pairs(ir.caps) do
-      -- explicit mason[] list
-      for _, t in ipairs(cap.mason or {}) do
-        local want = ir.resolved and ir.resolved.tools[t]
-        if want and not seen[t] then
-          seen[t] = true
-          raw[#raw + 1] = t
-        end
-      end
-      -- formatter tools
-      for _, fmts in pairs(cap.formatters or {}) do
-        for _, v in ipairs(fmts) do
-          local tool = type(v) == "string" and v or (type(v) == "table" and v.name)
-          if tool then
-            local want = ir.resolved and ir.resolved.tools[tool]
-            local res = rules.resolve(tool, overrides, ctx)
-            if want and res.use_mason and res.pkg and not seen[res.pkg] then
-              seen[res.pkg] = true
-              raw[#raw + 1] = res.pkg
-            end
-          end
-        end
-      end
-      -- linter tools
-      for _, lints in pairs(cap.linters or {}) do
-        for _, tool in ipairs(lints) do
-          if type(tool) == "string" then
-            local want = ir.resolved and ir.resolved.tools[tool]
-            local res = rules.resolve(tool, overrides, ctx)
-            if want and res.use_mason and res.pkg and not seen[res.pkg] then
-              seen[res.pkg] = true
-              raw[#raw + 1] = res.pkg
-            end
-          end
-        end
-      end
+  -- ── LSP packages from ir.symbols.lsp ─────────────────────────────────
+  for server, sym in pairs(symbols.lsp) do
+    local want = ir.resolved and ir.resolved.lsp[server]
+    if want and sym.mason and not seen[sym.mason] then
+      seen[sym.mason] = true
+      raw[#raw + 1] = sym.mason
     end
   end
 
-  -- Output mason.nvim spec with
-  -- ensure_installed in opts (for test compatibility — tests check this field).
-  -- BUT use a custom config function that:
-  --   1. Saves the ensure_installed list
-  --   2. Clears it before calling mason.setup() (prevents auto-install race)
-  --   3. Installs packages on VeryLazy (after LazyVim's lsp config has run)
-  -- This avoids "Package is already installing" race while keeping tests passing.
-  local ensure_installed = util.dedup(raw)
+  -- ── Tool packages from ir.symbols.tools ───────────────────────────────
+  for tool, sym in pairs(symbols.tools) do
+    local want = ir.resolved and ir.resolved.tools[tool]
+    if want and sym.mason and not seen[sym.mason] then
+      seen[sym.mason] = true
+      raw[#raw + 1] = sym.mason
+    end
+  end
 
+  -- Build the deduplicated ensure_installed list. mason.nvim itself does
+  -- NOT install these (LazyVim disables mason's auto-install); the
+  -- mason-tool-installer.nvim dependency handles deferred installation.
+  --
+  -- FIX-MASON-UNKNOWN-PKG (2026-07-15): Filter out packages that are not
+  -- real mason registry packages. When rules.resolve() falls back to
+  -- identity (use_mason=true, pkg=tool_name) for an unmapped tool, the
+  -- tool name may not exist in mason-registry. mason-tool-installer.nvim
+  -- calls registry.get_package(pkg) which THROWS "Cannot find package"
+  -- for unknown names, crashing the LazyVim mason config function.
+  --
+  -- We maintain a Known Non-Mason Tools set — tools that are commonly
+  -- declared in lang modules but are NOT mason packages. These are
+  -- system binaries or tools installed outside mason.
+  local NON_MASON_TOOLS = {
+    nasmfmt = true,   -- NASM formatter, system binary only
+    gasfmt = true,    -- GAS formatter, not a mason package
+  }
+
+  local filtered = {}
+  for _, pkg in ipairs(util.dedup(raw)) do
+    if not NON_MASON_TOOLS[pkg] then
+      filtered[#filtered + 1] = pkg
+    end
+  end
+  local ensure_installed = filtered
+
+  -- mason.nvim spec: no custom config — defer to LazyVim's mason config.
+  -- mason-tool-installer.nvim (a LazyVim-managed dependency) handles the
+  -- deferred install of `ensure_installed` packages on VeryLazy, avoiding
+  -- the "Package is already installing" race that the previous manual
+  -- config was working around.
+  -- `opts_extend = { "ensure_installed" }` lets LazyVim merge our list
+  -- with any list it already maintains for mason.nvim.
   return {
     {
       "mason-org/mason.nvim",
       _source = "ltos:mason",
+      opts_extend = { "ensure_installed" },
       opts = { ensure_installed = ensure_installed },
-      config = function(_, opts)
-        -- Save package list, then clear to prevent mason.nvim auto-install
-        local packages = opts.ensure_installed or {}
-        opts.ensure_installed = {}
-        -- Call mason setup with cleared ensure_installed (no auto-install race)
-        require("mason").setup(opts)
-        -- Install packages on VeryLazy (after LazyVim lsp config MasonInstall)
-        if #packages > 0 then
-          vim.api.nvim_create_autocmd("User", {
-            pattern = "VeryLazy",
-            once = true,
-            callback = function()
-              local ok, registry = pcall(require, "mason-registry")
-              if not ok then
-                return
-              end
-              for _, pkg_name in ipairs(packages) do
-                local p_ok, pkg = pcall(registry.get_package, pkg_name)
-                if p_ok and pkg and not pkg:is_installed() then
-                  -- pcall swallows "already installing" errors gracefully
-                  pcall(function() pkg:install() end)
-                end
-              end
-            end,
-          })
-        end
-      end,
+      dependencies = {
+        "WhoIsSethDaniel/mason-tool-installer.nvim",
+      },
     },
   }
 end

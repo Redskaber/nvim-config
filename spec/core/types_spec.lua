@@ -56,9 +56,10 @@ R.describe("core.compiler.types", function()
       R.assert_true(#out > 0)
     end)
 
-    R.it("cap_types() returns table with all five type constants", function()
+    -- FIX-P3 (2026-07-15): EDITOR removed (no adapter registered) — count is now 4.
+    R.it("cap_types() returns table with all four type constants", function()
       local ct = types.cap_types()
-      for _, key in ipairs({ "IMAGE", "MEDIA", "AI", "KEYBIND", "EDITOR" }) do
+      for _, key in ipairs({ "IMAGE", "MEDIA", "AI", "KEYBIND" }) do
         R.assert_type(ct[key], "string", "cap_types()." .. key .. " must be string")
       end
     end)
@@ -68,7 +69,6 @@ R.describe("core.compiler.types", function()
       R.assert_true(types.is_cap_type_known("media"))
       R.assert_true(types.is_cap_type_known("ai"))
       R.assert_true(types.is_cap_type_known("keybind"))
-      R.assert_true(types.is_cap_type_known("editor"))
     end)
 
     R.it(
@@ -118,19 +118,20 @@ R.describe("core.domain.cap_types", function()
     R.it("MEDIA = 'media'", function() R.assert_eq(ct.MEDIA, "media") end)
     R.it("AI = 'ai'", function() R.assert_eq(ct.AI, "ai") end)
     R.it("KEYBIND = 'keybind'", function() R.assert_eq(ct.KEYBIND, "keybind") end)
-    R.it("EDITOR = 'editor'", function() R.assert_eq(ct.EDITOR, "editor") end)
+    -- FIX-P3 (2026-07-15): EDITOR constant removed (no adapter registered).
   end)
 
   -- ── ALL list ──────────────────────────────────────────────────────────────
 
   R.describe("ALL list", function()
-    R.it("has exactly 5 entries", function() R.assert_eq(#ct.ALL, 5) end)
-    R.it("contains all five type strings", function()
+    -- FIX-P3 (2026-07-15): EDITOR removed — ALL now has 4 entries.
+    R.it("has exactly 4 entries", function() R.assert_eq(#ct.ALL, 4) end)
+    R.it("contains all four type strings", function()
       local set = {}
       for _, v in ipairs(ct.ALL) do
         set[v] = true
       end
-      for _, key in ipairs({ "image", "media", "ai", "keybind", "editor" }) do
+      for _, key in ipairs({ "image", "media", "ai", "keybind" }) do
         R.assert_true(set[key], key .. " must be in ALL")
       end
     end)
@@ -167,13 +168,14 @@ R.describe("core.domain.cap_types", function()
         R.assert_true(s[t] == true, t .. " must be true in set")
       end
     end)
-    R.it("set has exactly 5 entries", function()
+    -- FIX-P3 (2026-07-15): EDITOR removed — set has 4 entries now.
+    R.it("set has exactly 4 entries", function()
       local s = ct.as_set()
       local cnt = 0
       for _ in pairs(s) do
         cnt = cnt + 1
       end
-      R.assert_eq(cnt, 5)
+      R.assert_eq(cnt, 4)
     end)
     R.it("unknown key is absent (nil, not false)", function()
       local s = ct.as_set()
@@ -194,7 +196,8 @@ R.describe("core.domain.cap_types", function()
     package.loaded["core.domain.cap_types"] = nil
     local ok, m = pcall(require, "core.domain.cap_types")
     R.assert_true(ok, "cap_types must load in pure Lua context")
-    R.assert_eq(#m.ALL, 5)
+    -- FIX-P3 (2026-07-15): EDITOR removed — ALL now has 4 entries.
+    R.assert_eq(#m.ALL, 4)
     -- restore
     package.loaded["core.domain.cap_types"] = ct
   end)

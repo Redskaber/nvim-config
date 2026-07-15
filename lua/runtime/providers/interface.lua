@@ -13,7 +13,7 @@ function M.discover()
   for _, path in ipairs(files) do
     local name = path:match("([^/]+)%.lua$")
     if name and name ~= "init" then
-      local mod_name = (name == "lua") and "lua" or name
+      local mod_name = name
       local mod_path = "modules.lang." .. mod_name
       if not seen[mod_path] then
         seen[mod_path] = true

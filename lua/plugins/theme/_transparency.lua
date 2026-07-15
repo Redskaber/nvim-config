@@ -1,4 +1,4 @@
--- lua/plugins/theme/transparency.lua
+-- lua/plugins/theme/_transparency.lua
 
 local M = {}
 

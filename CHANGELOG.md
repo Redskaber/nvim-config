@@ -1,5 +1,260 @@
 # CHANGELOG
 
+## [2026-07-15] — 测试覆盖矩阵补全（3 新 spec 文件）
+
+### 新增测试套件（3 文件，~60 用例）
+
+| 文件 | 用例数 | 覆盖模块 | 测试内容 |
+| ------ | -------- | ---------- | ---------- |
+| `spec/core/ports_spec.lua` | ~22 | `core/compiler/ports.lua` | 默认行为、configure() 注入、路径缓存（正/负结果 memoization）、ensure_cache_dir libuv mkdir |
+| `spec/runtime/output_validate_spec.lua` | ~25 | `runtime/output_validate.lua` | M.make() 工厂、8 个 per-phase 验证器、字段缺失检测、stage 校验、Diagnostic 形状 |
+| `spec/runtime/api_spec.lua` | ~15 | `runtime/api.lua` | API 表面、picker 后端注册、graceful degradation（无 picker/conform 时不崩）、on_ready pcall 保护 |
+
+### 注册到测试目录
+
+`scripts/ltos_tests.lua` SPEC_CATALOGUE 新增 3 条目：
+
+- `spec.core.ports_spec`（core suite）
+- `spec.runtime.output_validate_spec`（runtime suite）
+- `spec.runtime.api_spec`（runtime suite）
+
+套件总数：28 → **31**
+
+### 覆盖缺口填补
+
+审查报告识别的高风险未测试模块：
+
+- ✅ `ports.lua` — 关键 IO 抽象，之前仅通过 cache_spec 间接测试
+- ✅ `output_validate.lua` — 8 个 phase 依赖，之前仅通过 p2_regression 间接测试
+- ✅ `api.lua` — 用户门面，之前仅通过 infra_spec 测 API 表面（type == "function"），现在测行为
+
+---
+
+## [2026-07-15] — 测试失败修复（EDITOR 移除 + caps.lua lazy 回退）
+
+### P0 修复（3 项）
+
+- **[P0-1]** `runtime/defaults/caps.lua` 回退 lazy metatable → eager discover
+  - **Bug**：P3-1 引入的 metatable lazy-access 在 LuaJIT 中不工作——`ipairs()` 和 `#` 操作符不触发 `__index`/`__len` 元方法
+  - **影响**：`#collect_ext.registered()` 返回 0，`ipairs()` 迭代 0 次，导致 7 个测试失败
+  - **修复**：回退为 `M.modules = M.discover()`（eager），添加 `M.refresh()` 用于运行时重新发现
+
+- **[P0-2]** `runtime/passes/collect_ext.lua` setup() 改用 `cap_defaults.discover()`
+  - 之前传 `cap_defaults.modules`（broken metatable）给 `M.register()`
+  - 现在直接调 `cap_defaults.discover()` 获取 plain table
+
+- **[P0-3]** `spec/runtime/p2_regression_spec.lua` 修复 pipeline.lua 源码读取
+  - **Bug**：`ports.resolve_runtime_file("runtime/pipeline.lua")` 在 headless 测试环境中找不到文件
+  - **修复**：3 策略回退——stdpath → ports.resolve_runtime_file("lua/runtime/pipeline.lua") → nvim_get_runtime_file
+
+### P1 修复（6 项 — EDITOR 移除后 spec 同步）
+
+| 文件 | 修复 |
+| ------ | ------ |
+| `spec/core/ext_schema_spec.lua` | "five types" → "four"；移除 `"editor"` 从期望列表 |
+| `spec/core/types_spec.lua` | `#m.ALL == 5` → `4` |
+| `spec/runtime/cap_spec.lua` | `>= 5 defaults` → `>= 4`；改用 `collect_ext.setup()` 替代 broken metatable |
+| `spec/runtime/infra_spec.lua` | `#defaults.modules >= 5` → `>= 4` |
+| `spec/integration/pipeline_invariants_spec.lua` | "all 5 buckets" → "all 4 buckets" |
+| `spec/_fixtures/caps.lua` | 移除 `editor = {}` 从 `all_caps()` 和 `empty_caps()` |
+
+### 根因分析
+
+P3-2 移除 EDITOR cap_type 时，agent 更新了 3 个 spec 文件但遗漏了 6 个。
+P3-1 引入的 caps.lua lazy metatable 在 LuaJIT 中根本不工作（`ipairs`/`#` 不触发元方法）。
+两个问题叠加导致 9 个测试失败。
+
+---
+
+## [2026-07-15] — P3 低优先级打磨 + 死代码清理
+
+### 代码修复（6 项）
+
+- **[P3-1]** `runtime/defaults/caps.lua` 移除 require-time副作用
+  - 修复前：`M.modules = M.discover()` 在模块加载时执行 globpath + pcall(require)，违反 P6-C2
+  - 修复后：metatable lazy-access 模式，首次访问时才触发 discover()
+
+- **[P3-2]** 移除 EDITOR cap_type 半实现
+  - cap_types.lua 声明了 EDITOR + ir.lua 初始化了 ext_caps[EDITOR] + ext_schema.lua 有验证器
+  - 但**无 adapter 注册**（cap_adapters.lua 只有 image/media/ai/keybind）
+  - 修复：从 cap_types/ir/ext_schema 中移除 EDITOR，同步更新 3 个 spec 文件
+
+- **[P3-3]** 删除 `toolchain/strategy/conflict.lua` 死代码（~210 行）
+  - 无任何生产代码 require 它（仅测试引用）
+  - 同步删除 strategy_spec.lua + layer_boundary_spec.lua 中的测试块
+  - check_layer_boundaries.sh INV-15 规则注释化（conflict.lua 不存在，规则空满足）
+
+- **[P3-4]** `plugins/ui/snacks.lua` 启用 profiler
+  - lualine.lua 引用 `Snacks.profiler.status()` + snacks.lua 有 `<leader>dps` 键映射
+  - 但 opts 中未 `profiler = { enabled = true }` → 引用会报错
+  - 修复：添加 `profiler = { enabled = true }`
+
+- **[P3-5]** `runtime/adapters/lint.lua` O(n²) 去重 → O(n) seen-set 模式
+  - 修复前：内层 `for _, existing in ipairs(...)` 线性扫描
+  - 修复后：per-ft `seen_by_ft` 表，O(1) 查找
+
+- **[P3-6]** `runtime/commands.lua` :LtosGraph DAG 图补 cap_resolve
+  - 硬编码的 pipeline 图遗漏了 cap_resolve 阶段（optimize 和 codegen 之间）
+  - 修复：在 DAG 字符串中添加 cap_resolve
+
+### 清理统计
+
+| 删除文件 | 行数 | 原因 |
+|----------|------|------|
+| `lua/toolchain/strategy/conflict.lua` | ~210 | 死代码，无生产调用方 |
+| **总计** | ~210 | |
+
+---
+
+## [2026-07-15] — mason "Cannot find package nasmfmt" 崩溃修复
+
+### P0 修复（2 项）
+
+- **[P0-1]** `modules/lang/asm.lua` 移除 `nasmfmt` formatter 声明
+  - **Bug**：`nasmfmt` 不是 mason 包，但 `rules.resolve("nasmfmt")` 的 identity fallback 返回 `use_mason=true, pkg="nasmfmt"`，导致 mason-tool-installer 调用 `registry.get_package("nasmfmt")` 时崩溃：`Cannot find package "nasmfmt"`
+  - **修复**：`formatters = {}`（asm 无 mason 可安装的格式化工具）
+  - nasmfmt 是系统二进制，不应通过 mason 管理
+
+- **[P0-2]** `runtime/adapters/mason.lua` 添加 `NON_MASON_TOOLS` 防御性过滤
+  - 在 `ensure_installed` 列表构建时过滤已知非 mason 包的工具名
+  - 防止未来类似问题（identity fallback 把不存在的工具名放入 ensure_installed）
+  - 当前过滤集：`nasmfmt`、`gasfmt`
+  - 这是 defense-in-depth：asm.lua 已移除 nasmfmt，但此过滤确保即使其他 lang 模块误声明非 mason 工具也不会崩溃
+
+### 根因分析
+
+```
+asm.lua: formatters = { asm = { { kind = "formatter", name = "nasmfmt" } } }
+  → canonicalize.lua: rules.resolve("nasmfmt") → identity fallback → { use_mason=true, pkg="nasmfmt" }
+    → mason.lua: sym.mason = "nasmfmt" → ensure_installed = { ..., "nasmfmt" }
+      → mason-tool-installer: registry.get_package("nasmfmt") → CRASH: "Cannot find package"
+```
+
+identity fallback 设计假设 `pkg = tool_name` 时该名称存在于 mason-registry。这对大多数工具成立（stylua、ruff、luacheck 等都是真实 mason 包），但 nasmfmt 不是。
+
+---
+
+## [2026-07-15] — 最终深度审查修复（P0+P1+P2 全闭环）
+
+### P0 修复（1 项）
+
+- **[P0-1]** 删除 3 个重复 DAP plugin 文件
+  - `plugins/lang/{go,python,lua}.lua` 与 `plugins/debug/dap-{go,python,lua}.lua` 字节级相同
+  - CHANGELOG 之前声称已移动但旧文件未删除——现已真正删除
+  - lang/ 现只保留 5 个非 DAP 语言增强文件（c_cpp/lisp/markup/rust/typescript）
+
+### P1 修复（6 项）
+
+- **[P1-1]** `runtime/adapters/mason.lua` 移除 `spec.config` 覆盖（与 conform 同类反模式）
+  - 删除整个 `config = function(_, opts)` 块（~27 行手动 mason.setup + VeryLazy 安装）
+  - 改用 `dependencies = { "WhoIsSethDaniel/mason-tool-installer.nvim" }` — LazyVim 配置该插件处理延迟安装
+  - 添加 `opts_extend = { "ensure_installed" }` 确保合并语义
+
+- **[P1-2]** `<leader>fg` keymap 冲突修复
+  - snacks.lua 中 `<leader>fg` → `<leader>fG`（Find git files）
+  - `<leader>fg` 现由 keymaps.lua 的 `runtime.api.live_grep()` 独占
+
+- **[P1-3]** `<C-t>` 终端方向冲突修复
+  - terminal.lua 中删除 `<C-t>` → ToggleTerm float 的 keymap
+  - `<C-t>` 现由 keymaps.lua 的 `runtime.api.terminal.horizontal()` 独占
+
+- **[P1-4]** `TodoTelescope` → `TodoQuickFix`
+  - todo-comments.lua 中两处 `<cmd>TodoTelescope<cr>` 改为 `<cmd>TodoQuickFix<cr>`
+  - telescope 未安装，TodoQuickFix 是 todo-comments.nvim 自带命令
+
+- **[P1-5]** nvim-cmp 死代码改为条件加载
+  - `completion/cmp.lua` 添加 `enabled = function() return vim.g.lazyvim_cmp == "nvim-cmp" end`
+  - cmp-emoji 依赖同样条件化——blink.cmp 激活时不安装
+
+- **[P1-6]** `ir.meta` nil-guard 统一
+  - `collect.lua:37`：`ir.meta.lang_modules` → `(ir.meta and ir.meta.lang_modules)`
+  - `collect_ext.lua:115`：`ir.meta.module_hashes` → `(ir.meta and ir.meta.module_hashes)`
+
+### P2 修复（7 项）
+
+- **[P2-1]** `ir.diff()` 添加环检测（visited set，移植自 `cache/policy.lua`）
+- **[P2-2]** `DEFAULT_BASE_TOOLS` 去重——从 `build_request.lua` 导出，mason.lua 引用
+- **[P2-3]** 删除 mason fallback 死代码（~55 行，添加 `_ltos_error` guard 替代）
+- **[P2-4]** AUDIT_CORRIGENDUM 不变量矩阵更新（INV-2/3/5/9 → ✅，15/15）
+- **[P2-5]** 4 个文档中 "7a-7e" → "7a-7c (7d/7e documented but unimplemented)"
+- **[P2-7]** DEPLOY.md 版本 v5.4.7 → v5.5.0
+- **[P2-8]** CONFIGURATION.md 添加 `vim.g.ltos_picker_backend` 文档
+
+---
+
+## [2026-07-15] — 最终审查修复 + 深度清理
+
+### 代码清理（4 项）
+
+- **[P1-4]** 删除死代码 `modules/capability/lifecycle.lua`（167 行）
+  - 定义了完整 CapabilityLifecycle SM，但无任何生产代码调用
+  - 同步删除 `spec/modules/capability_spec.lua` 中对应测试块
+- **[P1-5]** 删除死代码 `modules/capability/_schema.lua`（107 行）
+  - 仅被测试引用，生产 pipeline 使用 `core/domain/ext_schema.lua`
+  - 同步删除 `spec/toolchain/mappings_data_spec.lua` 中对应测试块
+- **[P3-2]** 删除 `providers/interface.lua:16` 死同义式 `(name == "lua") and "lua" or name` → `name`
+- **[P2-6]** `check_layer_boundaries.sh:156` 移除不存在的 `adapters/ai.lua` 引用
+
+### 路径注释修复（15 文件）
+
+修复所有移动/重命名文件的 stale 路径注释：
+
+- `plugins/debug/dap-{go,python,lua}.lua`：`plugins/lang/` → `plugins/debug/`
+- `plugins/toolchain/{format,lint}.lua`：`formatting.lua`/`linting.lua` → `format.lua`/`lint.lua`
+- `plugins/system/image.lua`：`img.lua` → `image.lua`
+- `plugins/theme/_transparency.lua`：`transparency.lua` → `_transparency.lua`
+- `modules/capability/_schema.lua`：`schema.lua` → `_schema.lua`（删除前修复）
+- `runtime/output_validate.lua`：`passes/_output_validate.lua` → `output_validate.lua`
+- `bootstrap.lua:27`：`plugins/ui/ui.lua` → `plugins/ui/snacks.lua`
+- `theme.lua:4`：`features/transparency.lua` → `plugins/theme/_transparency.lua`
+- `commands.lua:12`：`pipeline.PHASE_ORDER` → `phase_registry.list()`
+- `cap_types.lua:8`：移除对已删除 `_schema.lua` 的引用
+
+### 残留文件清理（2 项）
+
+- 删除 `lua/plugins/ui/ui.lua`（448 行 drawer 文件，所有 spec 已拆分到 `ui/{bufferline,lualine,noice,snacks,icons}.lua` + `system/persistence.lua`）
+- 删除 `lua/modules/lang/lua_lang.lua`（`lua.lua` 的重复）
+
+### 文档深度修复（README + docs/）
+
+**README.md（13 处修正）**：
+
+- 阶段数：5 → 8（6 主 + 2 辅）— 修正 4 处内部矛盾
+- 层数：6 → 7 — 修正标题 + ASCII 图 + 添加 L6 cap DSL
+- Strategy 接口：`transform` → 实际 `resolve` + 补 `name` 字段
+- 语言表：Assembly formatter `—` → `nasmfmt`；Lua linter `—` → `luacheck`；Nix formatter → `—`、linter → `statix`
+- 测试数：19 → 28
+- 移除不存在的 `nvim-tree/nvim-tree.lua` 行
+- 移除已注释的 `<leader>ai`/`<leader>aa` 死键映射
+- `<leader>fg`：`find git files` → `live grep`
+- `core/env.lua` → `core/kernel/env.lua`
+- `cache.lua` → `cache/` 目录（4 子文件）+ 补 `invariants.lua`/`types.lua`
+- `:LtosDebug` stage 列表补 `canonicalize`
+- Plugin Overview 补 `blink.cmp`
+
+**docs/（5 处修正）**：
+
+- `ARCHITECTURE.md:31` — strategy 列表改为实际注册的 3 个策略
+- `ARCHITECTURE.md:295` — 移除 `ai.lua` 引用
+- `CONTRIBUTING.md:3` — layer 赋值 `Layer 6 runtime` → `Layer 4 runtime, Layer 6 cap DSL`
+- `CONTRIBUTING.md` — 补充 7a-7c 实现 + 7d/7e 未实现说明
+- `CONFIGURATION.md:15` — `ltos_debug_ir` 改为"reserved, 未消费"
+- `ARCHITECTURE_UPDATE_2026-06-23.md:49` — `editor/editor.lua` → `ui/neo-tree-disable.lua`
+- `AUDIT_CORRIGENDUM §1.4:78` — `lifecycle.lua 待修复` → `✅ 已修复`
+
+### 新增回归测试（2 用例）
+
+`spec/runtime/infra_spec.lua` 新增：
+
+- `checker.enabled = false by default (FIX-AUTO-UPDATE)`
+- `checker.enabled = true when vim.g.ltos_auto_update = true`
+
+### 新增 LICENSE
+
+MIT License, copyright (c) 2026 kilig
+
+---
+
 ## [2026-07-15] — 审查报告修复第三轮 + 鲁棒性增强
 
 ### 代码修复（5 项）

@@ -12,11 +12,12 @@ everything else can be edited in `lua/config/globals.lua`.
 | `vim.g.ltos_profile` | `"full"` | globals.lua:32 (commented) | Profile selection: `full` / `minimal` / `nix`. Consumed by `runtime/init.lua`, passed into `BuildRequest.from_vim` (build_request.lua:40). |
 | `vim.g.ltos_debug` | `false` | globals.lua:33 (commented); also derived from `LTOS_DEBUG` at globals.lua:58 | Master debug switch. Read by build_request.lua:20 and ports_bootstrap.lua:31. |
 | `vim.g.ltos_debug_cache` | `nil` | globals.lua:59 (from `LTOS_DEBUG`) | Cache-layer debug logging. Read by build_request.lua:21 and ports_bootstrap.lua:31. |
-| `vim.g.ltos_debug_ir` | `nil` | globals.lua:60 (from `LTOS_DEBUG`) | IR dump logging. Read by build_request.lua via `read_debug_flags()`. |
+| `vim.g.ltos_debug_ir` | `nil` | globals.lua:60 (from `LTOS_DEBUG`) | Set by `LTOS_DEBUG=ir`; currently not consumed by BuildRequest (reserved for future IR-level debug logging). |
 | `vim.g.ltos_debug_perf` | `nil` | globals.lua:61 (from `LTOS_DEBUG`) | Performance profiling. Read by build_request.lua:22. |
 | `vim.g.ltos_debug_trace` | `nil` | globals.lua:62 (from `LTOS_DEBUG`) | Pipeline trace logging. Read by build_request.lua:23. |
 | `vim.g.ltos_tool_overrides` | `{}` | globals.lua:34 (commented) | Per-tool `{ use_mason, pkg }` overrides. Read by build_request.lua:41. |
 | `vim.g.ltos_terminal_backend` | `"toggleterm"` | globals.lua:35 (commented) | Terminal backend selection. |
+| `vim.g.ltos_picker_backend` | `nil` (auto) | `api.lua:92` | Picker backend: `"snacks"` / `"telescope"`. nil → auto-detect. |
 | `vim.g.ltos_base_mason_tools` | `{ "codespell" }` | globals.lua:36 (commented) | Base Mason tool list. Read by build_request.lua:46 (falls back to `DEFAULT_BASE_TOOLS`). |
 | `vim.g.ltos_base_parsers` | `nil` | globals.lua:37 (commented) | Base treesitter parsers. Read by build_request.lua:51 (nil → adapter uses `DEFAULT_BASE_PARSERS`). |
 | `vim.g.ltos_disabled_plugins` | `DEFAULT_DISABLED_PLUGINS` (gzip, matchit, matchparen, netrwPlugin, tarPlugin, tohtml, tutor, zipPlugin) | globals.lua:38 (commented) | lazy.nvim `performance.rtp.disabled_plugins`. Read by providers/config.lua:51. |
@@ -119,3 +120,4 @@ When `vim.g.ltos_auto_update = false` (default), update plugins manually:
 :Lazy check    " check for updates without applying
 :Lazy update   " apply all pending updates
 ```
+

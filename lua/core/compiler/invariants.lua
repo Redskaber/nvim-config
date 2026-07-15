@@ -40,4 +40,3 @@ function M.check_phase_output(ir_in, ir_out, phase_name)
 end
 
 return M
-

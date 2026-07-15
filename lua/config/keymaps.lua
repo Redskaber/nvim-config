@@ -124,4 +124,3 @@ map("v", "<A-k>", ":m '<-2<cr>gv=gv", { desc = "Move lines up" })
 
 -- ── Better paste ──────────────────────────────────────────────────────────
 map("x", "p", [["_dP]], { desc = "Paste without yanking" })
-
